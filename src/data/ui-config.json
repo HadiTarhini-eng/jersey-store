@@ -1,0 +1,139 @@
+{
+  "nav": {
+    "links": [
+      {
+        "label": "Shop",
+        "href": "/shop",
+        "children": [
+          { "label": "All Jerseys", "href": "/shop" },
+          { "label": "Football",   "href": "/shop?sport=football" },
+          { "label": "Basketball", "href": "/shop?sport=basketball" },
+          { "label": "Formula 1",  "href": "/shop?sport=formula1" },
+          { "label": "American Football", "href": "/shop?sport=american-football" }
+        ]
+      },
+      { "label": "New Arrivals", "href": "/shop?badge=New" },
+      { "label": "Sale",         "href": "/shop?badge=Sale" },
+      { "label": "Limited",      "href": "/shop?badge=Limited" }
+    ]
+  },
+
+  "hero": {
+    "slides": [
+      {
+        "id": "slide-1",
+        "headline": "Wear Your Passion",
+        "subheadline": "Official jerseys from the world's greatest clubs and teams. Premium quality, authentic design.",
+        "ctaLabel": "Shop Now",
+        "ctaHref": "/shop",
+        "image": "/assets/hero/hero-main.jpg",
+        "badge": "New Season"
+      },
+      {
+        "id": "slide-2",
+        "headline": "Formula 1 Collection",
+        "subheadline": "Official team wear from the pit lane to your wardrobe. Race-grade quality, everyday style.",
+        "ctaLabel": "Explore F1",
+        "ctaHref": "/shop?sport=formula1",
+        "image": "/assets/hero/hero-f1.jpg",
+        "badge": "Exclusive"
+      },
+      {
+        "id": "slide-3",
+        "headline": "Limited Editions",
+        "subheadline": "Rare collaborations and special releases. Own a piece of sporting history.",
+        "ctaLabel": "View Limited",
+        "ctaHref": "/shop?badge=Limited",
+        "image": "/assets/hero/hero-limited.jpg",
+        "badge": "Limited"
+      }
+    ]
+  },
+
+  "featuredSections": [
+    {
+      "id": "new-arrivals",
+      "title": "New Arrivals",
+      "subtitle": "Fresh drops from the world's top clubs",
+      "limit": 4
+    },
+    {
+      "id": "football-picks",
+      "title": "Football Essentials",
+      "subtitle": "The kits every football fan needs",
+      "sportFilter": "football",
+      "limit": 4
+    },
+    {
+      "id": "basketball-picks",
+      "title": "Courtside Style",
+      "subtitle": "NBA-grade jerseys for the real fans",
+      "sportFilter": "basketball",
+      "limit": 4
+    }
+  ],
+
+  "footer": {
+    "columns": [
+      {
+        "title": "Shop",
+        "links": [
+          { "label": "All Jerseys",       "href": "/shop" },
+          { "label": "Football",          "href": "/shop?sport=football" },
+          { "label": "Basketball",        "href": "/shop?sport=basketball" },
+          { "label": "Formula 1",         "href": "/shop?sport=formula1" },
+          { "label": "New Arrivals",      "href": "/shop?badge=New" },
+          { "label": "Sale",              "href": "/shop?badge=Sale" }
+        ]
+      },
+      {
+        "title": "Account",
+        "links": [
+          { "label": "Login",    "href": "/login" },
+          { "label": "Register", "href": "/register" },
+          { "label": "Orders",   "href": "/profile" },
+          { "label": "Profile",  "href": "/profile" }
+        ]
+      },
+      {
+        "title": "Support",
+        "links": [
+          { "label": "FAQ",             "href": "#" },
+          { "label": "Shipping Policy", "href": "#" },
+          { "label": "Returns",         "href": "#" },
+          { "label": "Size Guide",      "href": "#" },
+          { "label": "Contact Us",      "href": "#" }
+        ]
+      },
+      {
+        "title": "Company",
+        "links": [
+          { "label": "About Us",        "href": "#" },
+          { "label": "Careers",         "href": "#" },
+          { "label": "Press",           "href": "#" },
+          { "label": "Privacy Policy",  "href": "#" },
+          { "label": "Terms of Service","href": "#" }
+        ]
+      }
+    ]
+  },
+
+  "filters": {
+    "priceRange": { "min": 0, "max": 300 },
+    "sortOptions": [
+      { "value": "newest",    "label": "Newest" },
+      { "value": "popular",   "label": "Most Popular" },
+      { "value": "rating",    "label": "Top Rated" },
+      { "value": "price-asc", "label": "Price: Low to High" },
+      { "value": "price-desc","label": "Price: High to Low" }
+    ]
+  },
+
+  "cart": {
+    "drawerOnDesktop": true,
+    "fullPageOnMobile": true,
+    "emptyMessage": "Your cart is empty",
+    "emptyCtaLabel": "Start Shopping",
+    "emptyCtaHref": "/shop"
+  }
+}

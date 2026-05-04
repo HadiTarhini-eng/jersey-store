@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"C:\\\\Users\\\\HadiTarhini\\\\Desktop\\\\jersey-store\" ; $job = Start-Job { Set-Location \"C:\\\\Users\\\\HadiTarhini\\\\Desktop\\\\jersey-store\"; npx vite --port 5173 2>&1 }; Start-Sleep -Seconds 8; Receive-Job $job; Stop-Job $job; Remove-Job $job)"
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+[
+  { "id": "football",          "name": "Football",          "slug": "football",          "icon": "⚽" },
+  { "id": "basketball",        "name": "Basketball",        "slug": "basketball",        "icon": "🏀" },
+  { "id": "american-football", "name": "American Football", "slug": "american-football", "icon": "🏈" },
+  { "id": "baseball",          "name": "Baseball",          "slug": "baseball",          "icon": "⚾" },
+  { "id": "formula1",          "name": "Formula 1",         "slug": "formula1",          "icon": "🏎" }
+]
