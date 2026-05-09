@@ -1,0 +1,37 @@
+users (id, first_name, last_name, email, password_hash, phone, role, profile_image_id, is_active, created_at, updated_at)
+
+attachments (id, file_name, file_url, mime_type, file_size, uploaded_by, created_at)
+
+category_types (id, name, slug, description, created_at)
+
+categories (id, category_type_id, parent_id, name, slug, description, image_id, is_active, created_at)
+
+products (id, category_id, title, slug, short_description, full_description, tags_json, brand, base_price, status, featured, search_vector, created_by, created_at, updated_at)
+
+product_attributes (id, name, slug, type, is_variantable, created_at)
+
+product_assigned_attributes (id, product_id, attribute_id, is_required, is_filterable, sort_order)
+
+product_attribute_options (id, product_assigned_attribute_id, value, meta_data, sort_order)
+
+product_specifications (id, product_id, attribute_id, value)
+
+product_variants (id, product_id, sku, price_override, stock_quantity, image_id, created_at)
+
+variant_attribute_values (id, variant_id, attribute_id, attribute_option_id)
+
+product_attachments (id, product_id, attachment_id, is_primary, sort_order)
+
+carts (id, user_id, status, created_at, updated_at)
+
+cart_items (id, cart_id, product_variant_id, quantity, price_at_time, created_at)
+
+orders (id, user_id, order_number, status, payment_status, subtotal, discount_amount, shipping_amount, total_amount, shipping_address, billing_address, placed_at, created_at)
+
+order_items (id, order_id, product_variant_id, product_title_snapshot, variant_snapshot_json, quantity, unit_price, total_price)
+
+reviews (id, user_id, product_id, rating, title, comment, is_verified_purchase, created_at)
+
+special_offers (id, title, description, discount_type, discount_value, start_date, end_date, is_active, banner_attachment_id, created_at)
+
+offer_products (offer_id, product_id)
