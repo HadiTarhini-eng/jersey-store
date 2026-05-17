@@ -1,17 +1,24 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { Attachment } from '../../../core/entities/attachment.js'
 import type { IAttachmentService } from '../../../core/services/attachment.svc.js'
-import { assertOwner, sendCreated, sendDeleted, sendOk } from '../routes/route-utils.js'
-import type { AttachmentBodyType, RenameBodyType, ReplaceFileBodyType } from '../schemas/attachment.schemas.js'
+import { ValidationError } from '../../services/errors.js'
+import { jwtUser, assertOwner, sendCreated, sendDeleted, sendOk } from '../routes/route-utils.js'
+import type { RenameBodyType } from '../schemas/attachment.schemas.js'
 
 type IdParams = { id: string }
 type UserIdParams = { userId: string }
 
-export const createAttachment = (service: IAttachmentService) =>
+const readUploadedFile = async (request: FastifyRequest) => {
+  const file = await request.file()
+  if (!file) throw new ValidationError('No file uploaded (expected multipart field "file")')
+  const data = await file.toBuffer()
+  return { data, fileName: file.filename, mimeType: file.mimetype }
+}
+
+export const uploadAttachment = (service: IAttachmentService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const body = request.body as AttachmentBodyType
-    assertOwner(request, body.uploadedBy)
-    sendCreated(reply, await service.createAttachment(new Attachment(body)))
+    const { data, fileName, mimeType } = await readUploadedFile(request)
+    const { id: uploadedBy } = jwtUser(request)
+    sendCreated(reply, await service.uploadAttachment({ data, fileName, mimeType, uploadedBy }))
   }
 
 export const getAttachmentById = (service: IAttachmentService) =>
@@ -37,8 +44,8 @@ export const renameAttachment = (service: IAttachmentService) =>
 export const replaceAttachmentFile = (service: IAttachmentService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { id } = request.params as IdParams
-    const { fileUrl, mimeType, fileSize } = request.body as ReplaceFileBodyType
-    sendOk(reply, await service.replaceAttachmentFile(id, fileUrl, mimeType, fileSize))
+    const { data, fileName, mimeType } = await readUploadedFile(request)
+    sendOk(reply, await service.replaceAttachmentFile(id, { data, fileName, mimeType }))
   }
 
 export const deleteAttachment = (service: IAttachmentService) =>

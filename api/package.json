@@ -8,8 +8,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "nodemon dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "generate": "npx drizzle-kit generate --config=./src/infrastructure/database/drizzle.config.ts",
-    "migrate": "tsc src/infrastructure/database/migrate.ts"
+    "generate": "bun drizzle-kit generate --config=./src/infrastructure/database/drizzle.config.ts",
+    "migrate": "bun src/infrastructure/database/migrate.ts",
+    "seed": "bun src/seed-all.ts"
   },
   "author": "",
   "license": "ISC",
@@ -24,14 +25,16 @@
     "@fastify/swagger-ui": "^5.2.3",
     "@fastify/type-provider-typebox": "^6.0.0",
     "@sinclair/typebox": "^0.34.41",
+    "@supabase/supabase-js": "^2.105.4",
     "axios": "^1.7.7",
     "cssnano": "^7.1.1",
     "dotenv": "^16.4.5",
-    "drizzle-orm": "^0.33.0",
+    "drizzle-orm": "^0.45.2",
     "fastify": "^5.6.1",
     "html-minifier-terser": "^7.2.0",
     "mysql2": "^3.11.0",
     "pdf-lib": "^1.17.1",
+    "pg": "^8.20.0",
     "pino-pretty": "^11.0.0",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
@@ -40,14 +43,15 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/bun": "latest",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/module-alias": "^2.0.4",
     "@types/node": "^20.12.7",
+    "@types/pg": "^8.20.0",
     "@types/sharp": "^0.31.1",
-    "drizzle-kit": "^0.24.0",
+    "drizzle-kit": "^0.31.10",
     "nodemon": "^3.1.0",
-    "typescript": "^5.4.5",
-    "@types/bun": "latest"
+    "typescript": "^5.4.5"
   },
   "private": true
 }

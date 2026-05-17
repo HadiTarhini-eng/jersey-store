@@ -1,0 +1,1 @@
+ALTER TABLE "attachments" ADD COLUMN "compressed_file_url" varchar(2048);
