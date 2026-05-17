@@ -4,6 +4,7 @@ import fastify, {
 } from "fastify"
 import { type TypeBoxTypeProvider } from "@fastify/type-provider-typebox"
 import multipart from "../plugins/multipart.js"
+import storage from "../plugins/storage.js"
 import routes from "../routes/index.js"
 import { UserService } from "../../services/user.svc.js"
 import { AttachmentService } from "../../services/attachment.svc.js"
@@ -74,6 +75,7 @@ export const createServer = async (): Promise<FastifyInstance> => {
     await server.register(config)
     await server.register(jwt)
     await server.register(docs)
+    await server.register(storage)
 
     server.decorateRequest('serverInstance');
     server.addHook("preHandler", async (request, reply) => {
@@ -119,7 +121,7 @@ export const createServer = async (): Promise<FastifyInstance> => {
 
     const userService = new UserService(userRepository)
     const storeServices = {
-        attachmentService: new AttachmentService(attachmentRepository),
+        attachmentService: new AttachmentService(attachmentRepository, server.storage),
         categoryTypeService: new CategoryTypeService(categoryTypeRepository),
         categoryService: new CategoryService(categoryRepository),
         productService: new ProductService(productRepository),

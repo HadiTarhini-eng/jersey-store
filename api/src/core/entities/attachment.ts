@@ -3,6 +3,7 @@ import { BaseEntity, type BusinessEntity, type BusinessEntityPayload, type Guid 
 export interface AttachmentEntity extends BusinessEntity {
   fileName: string
   fileUrl: string
+  compressedFileUrl?: string | null
   mimeType: string
   fileSize: number
   uploadedBy: Guid
@@ -11,6 +12,7 @@ export interface AttachmentEntity extends BusinessEntity {
 export interface AttachmentPayload extends BusinessEntityPayload {
   fileName: string
   fileUrl: string
+  compressedFileUrl?: string | null
   mimeType: string
   fileSize: number
   uploadedBy: Guid
@@ -19,6 +21,7 @@ export interface AttachmentPayload extends BusinessEntityPayload {
 export class Attachment extends BaseEntity implements AttachmentEntity {
   fileName: string
   fileUrl: string
+  compressedFileUrl?: string | null
   mimeType: string
   fileSize: number
   uploadedBy: Guid
@@ -27,6 +30,7 @@ export class Attachment extends BaseEntity implements AttachmentEntity {
     super(payload)
     this.fileName = payload.fileName
     this.fileUrl = payload.fileUrl
+    this.compressedFileUrl = payload.compressedFileUrl ?? null
     this.mimeType = payload.mimeType
     this.fileSize = payload.fileSize
     this.uploadedBy = payload.uploadedBy
@@ -37,10 +41,11 @@ export class Attachment extends BaseEntity implements AttachmentEntity {
     this.touch()
   }
 
-  replaceFile(fileUrl: string, mimeType: string, fileSize: number): void {
+  replaceFile(fileUrl: string, mimeType: string, fileSize: number, compressedFileUrl?: string | null): void {
     this.fileUrl = fileUrl
     this.mimeType = mimeType
     this.fileSize = fileSize
+    if (compressedFileUrl !== undefined) this.compressedFileUrl = compressedFileUrl
     this.touch()
   }
 }

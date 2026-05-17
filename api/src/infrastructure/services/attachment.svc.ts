@@ -1,18 +1,55 @@
-import { type Attachment } from '../../core/entities/attachment.js'
+import crypto from 'crypto'
+import { Attachment } from '../../core/entities/attachment.js'
 import { type Guid } from '../../core/entities/base.js'
-import { type IAttachmentService } from '../../core/services/attachment.svc.js'
+import { type IAttachmentService, type UploadAttachmentInput } from '../../core/services/attachment.svc.js'
+import { type IStorageService } from '../../core/services/storage.svc.js'
+import { compressImage } from '../../utils/image-compress.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
-import { ConflictError } from './errors.js'
-import { assertGuid, assertNonNegativeNumber, assertRequiredString } from './validators.js'
+import { ValidationError } from './errors.js'
+import { assertGuid, assertRequiredString } from './validators.js'
+
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
+const MAX_BYTES = 2 * 1024 * 1024
+
+const extFromMime = (mimeType: string): string => {
+  const map: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+  }
+  return map[mimeType] ?? 'bin'
+}
+
+const originalPath = (id: Guid, mimeType: string) => `originals/${id}.${extFromMime(mimeType)}`
+const compressedPath = (id: Guid) => `compressed/${id}.webp`
 
 export class AttachmentService implements IAttachmentService {
   constructor(
     private readonly attachmentsRepository: EntityRepository<Attachment>,
+    private readonly storage: IStorageService,
   ) {}
 
-  async createAttachment(attachment: Attachment): Promise<Attachment> {
-    this.validateAttachment(attachment)
-    if (await this.attachmentsRepository.get(attachment.id)) throw new ConflictError('Attachment id already exists')
+  async uploadAttachment(input: UploadAttachmentInput): Promise<Attachment> {
+    this.validateUploadInput(input)
+
+    const id = crypto.randomUUID()
+    const original = await this.storage.upload(originalPath(id, input.mimeType), input.data, input.mimeType)
+
+    const compressed = await compressImage(input.data)
+    const compressedUpload = await this.storage.upload(compressedPath(id), compressed.data, compressed.mimeType)
+
+    const attachment = new Attachment({
+      id,
+      fileName: input.fileName,
+      fileUrl: original.url,
+      compressedFileUrl: compressedUpload.url,
+      mimeType: input.mimeType,
+      fileSize: input.data.length,
+      uploadedBy: input.uploadedBy,
+    })
+
     return this.attachmentsRepository.create(attachment)
   }
 
@@ -32,12 +69,28 @@ export class AttachmentService implements IAttachmentService {
     return this.attachmentsRepository.update(id, { fileName } as Partial<Attachment>)
   }
 
-  async replaceAttachmentFile(id: Guid, fileUrl: string, mimeType: string, fileSize: number): Promise<Attachment> {
+  async replaceAttachmentFile(id: Guid, input: Omit<UploadAttachmentInput, 'uploadedBy'>): Promise<Attachment> {
     assertGuid(id)
-    assertRequiredString(fileUrl, 'fileUrl', 2048)
-    assertRequiredString(mimeType, 'mimeType', 100)
-    assertNonNegativeNumber(fileSize, 'fileSize')
-    return this.attachmentsRepository.update(id, { fileUrl, mimeType, fileSize } as Partial<Attachment>)
+    const existing = await this.attachmentsRepository.require(id, 'Attachment')
+    this.validateFileInput(input)
+
+    await this.storage.delete([
+      originalPath(existing.id, existing.mimeType),
+      compressedPath(existing.id),
+    ])
+
+    const original = await this.storage.upload(originalPath(id, input.mimeType), input.data, input.mimeType)
+
+    const compressed = await compressImage(input.data)
+    const compressedUpload = await this.storage.upload(compressedPath(id), compressed.data, compressed.mimeType)
+
+    return this.attachmentsRepository.update(id, {
+      fileName: input.fileName,
+      fileUrl: original.url,
+      compressedFileUrl: compressedUpload.url,
+      mimeType: input.mimeType,
+      fileSize: input.data.length,
+    } as Partial<Attachment>)
   }
 
   async deactivateAttachment(id: Guid): Promise<Attachment> {
@@ -47,16 +100,30 @@ export class AttachmentService implements IAttachmentService {
 
   async deleteAttachment(id: Guid): Promise<void> {
     assertGuid(id)
-    await this.attachmentsRepository.require(id, 'Attachment')
+    const existing = await this.attachmentsRepository.require(id, 'Attachment')
+    await this.storage.delete([
+      originalPath(existing.id, existing.mimeType),
+      compressedPath(existing.id),
+    ])
     await this.attachmentsRepository.delete(id)
   }
 
-  private validateAttachment(attachment: Attachment): void {
-    assertGuid(attachment.id)
-    assertGuid(attachment.uploadedBy, 'uploadedBy')
-    assertRequiredString(attachment.fileName, 'fileName')
-    assertRequiredString(attachment.fileUrl, 'fileUrl', 2048)
-    assertRequiredString(attachment.mimeType, 'mimeType', 100)
-    assertNonNegativeNumber(attachment.fileSize, 'fileSize')
+  private validateUploadInput(input: UploadAttachmentInput): void {
+    assertGuid(input.uploadedBy, 'uploadedBy')
+    this.validateFileInput(input)
+  }
+
+  private validateFileInput(input: { fileName: string; mimeType: string; data: Buffer }): void {
+    assertRequiredString(input.fileName, 'fileName')
+    assertRequiredString(input.mimeType, 'mimeType', 100)
+    if (!ALLOWED_MIME_TYPES.has(input.mimeType)) {
+      throw new ValidationError(`Unsupported file type: ${input.mimeType}. Allowed: ${[...ALLOWED_MIME_TYPES].join(', ')}`)
+    }
+    if (!input.data || input.data.length === 0) {
+      throw new ValidationError('Uploaded file is empty')
+    }
+    if (input.data.length > MAX_BYTES) {
+      throw new ValidationError(`File too large: ${input.data.length} bytes. Max: ${MAX_BYTES} bytes (2 MB)`)
+    }
   }
 }
