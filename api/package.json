@@ -1,0 +1,53 @@
+{
+  "name": "fastify-mysql",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "nodemon dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate": "npx drizzle-kit generate --config=./src/infrastructure/database/drizzle.config.ts",
+    "migrate": "tsc src/infrastructure/database/migrate.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "_moduleAliases": {
+    "@core": "dist/core",
+    "@infrastructure": "dist/infrastructure"
+  },
+  "dependencies": {
+    "@fastify/jwt": "^10.0.0",
+    "@fastify/multipart": "^9.2.1",
+    "@fastify/swagger": "^9.5.2",
+    "@fastify/swagger-ui": "^5.2.3",
+    "@fastify/type-provider-typebox": "^6.0.0",
+    "@sinclair/typebox": "^0.34.41",
+    "axios": "^1.7.7",
+    "cssnano": "^7.1.1",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.33.0",
+    "fastify": "^5.6.1",
+    "html-minifier-terser": "^7.2.0",
+    "mysql2": "^3.11.0",
+    "pdf-lib": "^1.17.1",
+    "pino-pretty": "^11.0.0",
+    "postcss": "^8.5.6",
+    "prettier": "^3.6.2",
+    "sharp": "^0.34.4",
+    "terser": "^5.44.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/html-minifier-terser": "^7.0.2",
+    "@types/module-alias": "^2.0.4",
+    "@types/node": "^20.12.7",
+    "@types/sharp": "^0.31.1",
+    "drizzle-kit": "^0.24.0",
+    "nodemon": "^3.1.0",
+    "typescript": "^5.4.5",
+    "@types/bun": "latest"
+  },
+  "private": true
+}
