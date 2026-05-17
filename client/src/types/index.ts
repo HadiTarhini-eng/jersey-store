@@ -1,168 +1,466 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Global TypeScript definitions — single source of truth for all domain shapes.
+//
+// Entities mirror the backend Drizzle/TypeBox schemas under
+// api/src/core/entities and api/src/infrastructure/http/schemas.
+// `*Payload` types describe request bodies; bare entity types describe
+// response bodies. Some entities carry optional UI-enrichment fields
+// (e.g. Product.images / .variants / .rating) that the API service layer
+// populates by stitching multiple endpoints together — these are not
+// part of the raw backend response.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Product ──────────────────────────────────────────────────────────────────
+export type Guid = string;
+export type ISODate = string; // backend returns Dates as ISO strings over JSON
 
-export interface ProductVariant {
-  size: string;
-  stock: number;
+// ── Common base ──────────────────────────────────────────────────────────────
+
+export interface BusinessEntity {
+  id:        Guid;
+  isActive:  boolean;
+  createdAt: ISODate;
+  updatedAt: ISODate;
 }
 
-export interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  sport: string;       // references Sport.id
-  team: string;        // references Team.id
-  category: string;    // references Category.id
-  price: number;
-  originalPrice?: number;
-  currency: string;
-  images: string[];    // first image is the primary display image
-  description: string;
-  features: string[];
-  variants: ProductVariant[];
-  tags: string[];      // search keywords
-  badge?: string;      // "New" | "Sale" | "Limited" | etc.
-  inStock: boolean;
-  rating: number;
-  reviewCount: number;
-  createdAt: string;
+// ── Users / Auth ─────────────────────────────────────────────────────────────
+
+export type UserRole = 'Admin' | 'User';
+
+export interface User extends BusinessEntity {
+  firstName:       string;
+  lastName:        string;
+  email:           string;
+  phone?:          string | null;
+  role:            UserRole;
+  profileImageId?: Guid | null;
 }
 
-export interface ProductFilters {
-  sport?: string;
-  team?: string;
-  category?: string;
-  sizes?: string[];
-  minPrice?: number;
-  maxPrice?: number;
-  inStock?: boolean;
-  query?: string;
+export interface CreateUserPayload {
+  firstName:       string;
+  lastName:        string;
+  email:           string;
+  password:        string;
+  phone?:          string;
+  role:            UserRole;
+  profileImageId?: Guid;
 }
 
-export type SortOption = 'newest' | 'price-asc' | 'price-desc' | 'popular' | 'rating';
-
-// ── Auth ─────────────────────────────────────────────────────────────────────
-
-export interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  avatar?: string;
-  role: 'customer' | 'admin';
-  createdAt: string;
-}
-
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
+export interface UpdateUserPayload {
+  firstName?: string;
+  lastName?:  string;
+  email?:     string;
+  phone?:     string;
 }
 
 export interface LoginCredentials {
-  email: string;
+  email:    string;
   password: string;
 }
 
+/** UI-only — confirmPassword is checked client-side and stripped before sending. */
 export interface RegisterCredentials {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
+  firstName:       string;
+  lastName:        string;
+  email:           string;
+  password:        string;
   confirmPassword: string;
+}
+
+/** What POST /users/login returns. */
+export interface LoginResponse {
+  token: string;
+}
+
+// ── Catalog ──────────────────────────────────────────────────────────────────
+
+export interface CategoryType extends BusinessEntity {
+  name:         string;
+  slug:         string;
+  description?: string | null;
+}
+
+export interface Category extends BusinessEntity {
+  categoryTypeId: Guid;
+  parentId?:      Guid | null;
+  name:           string;
+  slug:           string;
+  description?:   string | null;
+  imageId?:       Guid | null;
+}
+
+export interface CreateCategoryTypePayload {
+  name: string; slug: string; description?: string;
+}
+export interface UpdateCategoryTypePayload {
+  name?: string; slug?: string; description?: string;
+}
+
+export interface CreateCategoryPayload {
+  categoryTypeId: Guid;
+  parentId?:      Guid;
+  name:           string;
+  slug:           string;
+  description?:   string;
+  imageId?:       Guid;
+}
+export interface UpdateCategoryPayload {
+  categoryTypeId?: Guid;
+  parentId?:       Guid;
+  name?:           string;
+  slug?:           string;
+  description?:    string;
+  imageId?:        Guid;
+}
+
+export interface ListCategoriesQuery {
+  categoryTypeId?: Guid;
+  parentId?:       Guid;
+  isActive?:       boolean;
+}
+
+// ── Products ─────────────────────────────────────────────────────────────────
+
+export type ProductStatus = 'draft' | 'active' | 'archived';
+export type ProductAttributeType =
+  | 'text' | 'number' | 'boolean' | 'select' | 'multiselect' | 'color' | 'date';
+
+export interface Product extends BusinessEntity {
+  categoryId:        Guid;
+  title:             string;
+  slug:              string;
+  shortDescription?: string | null;
+  fullDescription?:  string | null;
+  tags:              string[];
+  brand?:            string | null;
+  basePrice:         number;
+  status:            ProductStatus;
+  featured:          boolean;
+  searchVector?:     string | null;
+  createdBy:         Guid;
+
+  // ── Optional UI-only enrichments (populated by service layer or future endpoint) ──
+  images?:      string[];
+  variants?:    ProductVariant[];
+  rating?:      number;
+  reviewCount?: number;
+  inStock?:     boolean;
+}
+
+export interface CreateProductPayload {
+  categoryId:        Guid;
+  title:             string;
+  slug:              string;
+  shortDescription?: string;
+  fullDescription?:  string;
+  tags?:             string[];
+  brand?:            string;
+  basePrice:         number;
+  status:            ProductStatus;
+  featured?:         boolean;
+  createdBy:         Guid;
+  searchVector?:     string;
+}
+export type UpdateProductPayload = Partial<CreateProductPayload>;
+
+export interface ProductSearchQuery {
+  query?:      string;
+  categoryId?: Guid;
+  status?:     ProductStatus;
+  featured?:   boolean;
+  brand?:      string;
+  minPrice?:   number;
+  maxPrice?:   number;
+}
+
+export interface ProductAttribute extends BusinessEntity {
+  name:           string;
+  slug:           string;
+  type:           ProductAttributeType;
+  isVariantable:  boolean;
+}
+
+export interface ProductAssignedAttribute extends BusinessEntity {
+  productId:    Guid;
+  attributeId:  Guid;
+  isRequired:   boolean;
+  isFilterable: boolean;
+  sortOrder:    number;
+}
+
+export interface AssignAttributePayload {
+  attributeId:   Guid;
+  isRequired?:   boolean;
+  isFilterable?: boolean;
+  sortOrder?:    number;
+}
+
+export interface ProductAttributeOption extends BusinessEntity {
+  productAssignedAttributeId: Guid;
+  value:        string;
+  metaData?:    Record<string, unknown> | null;
+  sortOrder:    number;
+}
+
+export interface CreateAttributeOptionPayload {
+  value:     string;
+  label?:    string;
+  metaData?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
+export interface ProductSpecification extends BusinessEntity {
+  productId:   Guid;
+  attributeId: Guid;
+  value:       string;
+}
+
+export interface CreateSpecificationPayload {
+  attributeId: Guid;
+  value:       string;
+}
+
+export interface ProductVariant extends BusinessEntity {
+  productId:      Guid;
+  sku:            string;
+  priceOverride?: number | null;
+  stockQuantity:  number;
+  imageId?:       Guid | null;
+}
+
+export interface CreateVariantPayload {
+  sku:             string;
+  priceOverride?:  number | null;
+  stockQuantity?:  number;
+  imageId?:        Guid;
+}
+
+export interface VariantAttributeValue extends BusinessEntity {
+  variantId:         Guid;
+  attributeId:       Guid;
+  attributeOptionId: Guid;
 }
 
 // ── Cart ─────────────────────────────────────────────────────────────────────
 
-export interface CartItem {
-  productId: string;
-  name: string;
-  image: string;
-  price: number;
-  size: string;
-  quantity: number;
-  maxStock: number;
+export type CartStatus = 'active' | 'converted' | 'abandoned';
+
+export interface Cart extends BusinessEntity {
+  userId: Guid;
+  status: CartStatus;
 }
 
-// ── Order / Checkout ──────────────────────────────────────────────────────────
+export interface CartItem extends BusinessEntity {
+  cartId:           Guid;
+  productVariantId: Guid;
+  quantity:         number;
+  priceAtTime:      number;
 
-export interface ShippingAddress {
-  firstName: string;
-  lastName: string;
-  address: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-  phone: string;
+  // Optional UI enrichments populated by the service layer when listing items
+  productTitle?: string;
+  image?:        string;
+  variantLabel?: string; // e.g. "Size: L" — derived from VariantAttributeValue
+  maxStock?:     number;
 }
 
-export interface OrderItem {
-  productId: string;
-  name: string;
-  image: string;
-  price: number;
-  size: string;
-  quantity: number;
+export interface CreateCartPayload {
+  userId: Guid;
+  status?: CartStatus;
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export interface AddCartItemPayload {
+  productVariantId: Guid;
+  quantity:         number;
+  priceAtTime:      number;
+}
 
-export interface Order {
-  id: string;
-  userId: string;
-  items: OrderItem[];
-  shippingAddress: ShippingAddress;
-  subtotal: number;
-  shipping: number;
-  total: number;
-  status: OrderStatus;
-  createdAt: string;
+// ── Orders ───────────────────────────────────────────────────────────────────
+
+export type OrderStatus =
+  | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+
+export type PaymentStatus =
+  | 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded';
+
+export interface AddressSnapshot {
+  fullName:      string;
+  phone:         string;
+  addressLine1:  string;
+  addressLine2?: string | null;
+  city:          string;
+  state?:        string | null;
+  country:       string;
+  postalCode?:   string | null;
+}
+
+export interface Order extends BusinessEntity {
+  userId:          Guid;
+  orderNumber:     string;
+  status:          OrderStatus;
+  paymentStatus:   PaymentStatus;
+  subtotal:        number;
+  discountAmount:  number;
+  shippingAmount:  number;
+  totalAmount:     number;
+  shippingAddress: AddressSnapshot;
+  billingAddress:  AddressSnapshot;
+  placedAt?:       ISODate | null;
+}
+
+export interface OrderItem extends BusinessEntity {
+  orderId:              Guid;
+  productVariantId:     Guid;
+  productTitleSnapshot: string;
+  variantSnapshot:      Record<string, unknown>;
+  quantity:             number;
+  unitPrice:            number;
+  totalPrice:           number;
+}
+
+export interface CreateOrderItemPayload {
+  productVariantId:     Guid;
+  productTitleSnapshot: string;
+  variantSnapshot?:     Record<string, unknown>;
+  quantity:             number;
+  unitPrice:            number;
+}
+
+export interface CreateOrderBody {
+  userId:          Guid;
+  orderNumber:     string;
+  subtotal:        number;
+  discountAmount?: number;
+  shippingAmount?: number;
+  totalAmount?:    number;
+  shippingAddress: AddressSnapshot;
+  billingAddress:  AddressSnapshot;
+}
+
+/** Backend expects `{ order, items }`. */
+export interface CreateOrderPayload {
+  order: CreateOrderBody;
+  items: CreateOrderItemPayload[];
 }
 
 export type CheckoutStep = 'shipping' | 'review' | 'confirmation';
 
-// ── Reference Data ────────────────────────────────────────────────────────────
+// ── Reviews ──────────────────────────────────────────────────────────────────
+
+export interface Review extends BusinessEntity {
+  userId:             Guid;
+  productId:          Guid;
+  rating:             number;
+  title?:             string | null;
+  comment?:           string | null;
+  isVerifiedPurchase: boolean;
+}
+
+export interface CreateReviewPayload {
+  userId:     Guid;
+  productId:  Guid;
+  rating:     number;
+  title?:     string;
+  comment?:   string;
+}
+
+export interface UpdateReviewPayload {
+  rating?:  number;
+  title?:   string;
+  comment?: string;
+}
+
+// ── Special Offers ───────────────────────────────────────────────────────────
+
+export type DiscountType = 'percentage' | 'fixed_amount';
+
+export interface SpecialOffer extends BusinessEntity {
+  title:               string;
+  description?:        string | null;
+  discountType:        DiscountType;
+  discountValue:       number;
+  startDate:           ISODate;
+  endDate:             ISODate;
+  bannerAttachmentId?: Guid | null;
+}
+
+export interface CreateOfferPayload {
+  title:               string;
+  description?:        string;
+  discountType:        DiscountType;
+  discountValue:       number;
+  startDate:           ISODate;
+  endDate:             ISODate;
+  bannerAttachmentId?: Guid;
+}
+export type UpdateOfferPayload = Partial<CreateOfferPayload>;
+
+// ── Attachments ──────────────────────────────────────────────────────────────
+
+export interface Attachment extends BusinessEntity {
+  fileName:   string;
+  fileUrl:    string;
+  mimeType:   string;
+  fileSize:   number;
+  uploadedBy: Guid;
+}
+
+export interface CreateAttachmentPayload {
+  fileName:   string;
+  fileUrl:    string;
+  mimeType:   string;
+  fileSize:   number;
+  uploadedBy: Guid;
+}
+
+export interface ReplaceAttachmentPayload {
+  fileUrl:  string;
+  mimeType: string;
+  fileSize: number;
+}
+
+// ── Sort options (UI-only, applied client-side after listing) ────────────────
+
+export type SortOption = 'newest' | 'price-asc' | 'price-desc' | 'popular' | 'rating';
+
+// ── Reference data (frontend-only — sourced from JSON, no backend equivalent) ──
 
 export interface Sport {
-  id: string;
-  name: string;
-  slug: string;
-  icon: string;
-  image?: string;
-  color?: string;
+  id:        string;
+  name:      string;
+  slug:      string;
+  icon:      string;
+  image?:    string;
+  color?:    string;
   featured?: boolean;
 }
 
 export interface Team {
-  id: string;
-  name: string;
-  slug: string;
-  sport: string;
-  logo: string;
-  country: string;
-  color?: string;
+  id:              string;
+  name:            string;
+  slug:            string;
+  sport:           string;
+  logo:            string;
+  country:         string;
+  color?:          string;
   colorSecondary?: string;
-  abbreviation?: string;
+  abbreviation?:   string;
 }
 
-export interface Category {
-  id: string;
-  name: string;
-  slug: string;
+/** UI-only category descriptor used by KitCategories section (JSON-backed). */
+export interface UiCategory {
+  id:         string;
+  name:       string;
+  slug:       string;
   description?: string;
-  color?: string;
+  color?:     string;
   colorDark?: string;
-  image?: string;
+  image?:     string;
 }
 
-// ── UI / Config ───────────────────────────────────────────────────────────────
+// ── UI / Config ──────────────────────────────────────────────────────────────
 
 export interface NavLink {
-  label: string;
-  href: string;
+  label:    string;
+  href:     string;
   children?: NavLink[];
 }
 
@@ -172,103 +470,196 @@ export interface FooterColumn {
 }
 
 export interface HeroSlide {
-  id: string;
-  headline: string;
-  subheadline: string;
-  ctaLabel: string;
-  ctaHref: string;
-  image: string;
-  badge?: string;
+  id:           string;
+  headline:     string;
+  subheadline:  string;
+  ctaLabel:     string;
+  ctaHref:      string;
+  image:        string;
+  badge?:       string;
+  /** Hex color used for the badge background and small accent highlights. */
+  accent?:      string;
+  /** Horizontal alignment of the headline/content block. Defaults to "left". */
+  align?:       'left' | 'center' | 'right';
+  /** Where the dark gradient overlay anchors — controls which side is readable. */
+  overlay?:     'left' | 'right' | 'center' | 'bottom';
 }
 
 export interface FeaturedSection {
-  id: string;
-  title: string;
-  subtitle: string;
+  id:           string;
+  title:        string;
+  subtitle:     string;
   sportFilter?: string;
-  teamFilter?: string;
-  limit: number;
+  teamFilter?:  string;
+  limit:        number;
 }
 
 export interface OfferStripItem {
-  id: string;
+  id:   string;
   text: string;
 }
 
 export interface OfferBanner {
-  id: string;
-  label: string;
-  headline: string;
-  subheadline: string;
-  ctaLabel: string;
-  ctaHref: string;
-  color: string;
-  image: string;
+  id:           string;
+  label:        string;
+  headline:     string;
+  subheadline:  string;
+  ctaLabel:     string;
+  ctaHref:      string;
+  color:        string;
+  image:        string;
 }
 
 export interface SiteConfig {
-  name: string;
-  tagline: string;
-  description: string;
-  logo: string;
-  email: string;
-  phone: string;
-  currency: string;
+  name:                  string;
+  tagline:               string;
+  description:           string;
+  logo:                  string;
+  email:                 string;
+  phone:                 string;
+  currency:              string;
   freeShippingThreshold: number;
   socialLinks: {
     instagram?: string;
-    twitter?: string;
-    facebook?: string;
-    youtube?: string;
+    twitter?:   string;
+    facebook?:  string;
+    youtube?:   string;
   };
 }
 
-// ── API Contracts ─────────────────────────────────────────────────────────────
+// ── Filters (frontend ProductFilters → backend ProductSearchQuery) ───────────
 
-export interface ApiResponse<T> {
-  data: T;
-  message: string;
-  success: boolean;
+export interface ProductFilters {
+  query?:      string;
+  categoryId?: string;
+  brand?:      string;
+  minPrice?:   number;
+  maxPrice?:   number;
+  featured?:   boolean;
+  inStock?:    boolean; // applied client-side
+  // UI-only legacy reference helpers — used to drive the sports/teams JSON UI.
+  sport?:      string;
+  team?:       string;
 }
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+// ── Admin domain ─────────────────────────────────────────────────────────────
+
+export interface AdminOrder {
+  id:           string;
+  orderNumber:  string;
+  customer:     { id: string; name: string; email: string };
+  items:        { productId: string; name: string; size: string; quantity: number; price: number }[];
+  subtotal:     number;
+  shipping:     number;
+  total:        number;
+  status:       'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  paymentStatus:'pending' | 'paid' | 'refunded' | 'failed';
+  shippingAddress: {
+    fullName:     string;
+    phone:        string;
+    addressLine1: string;
+    addressLine2?: string;
+    city:         string;
+    state?:       string;
+    country:      string;
+    postalCode?:  string;
+  };
+  createdAt:    ISODate;
 }
 
-// ── Redux Slice State Shapes ───────────────────────────────────────────────────
-
-export interface ProductsState {
-  items: Product[];
-  selectedProduct: Product | null;
-  filters: ProductFilters;
-  sort: SortOption;
-  loading: boolean;
-  error: string | null;
+/** Legacy product shape stored in `src/data/products.json` — also the admin source of truth. */
+export interface AdminProduct {
+  id:             string;
+  name:           string;
+  slug:           string;
+  sport:          string;
+  team:           string;
+  category:       string;
+  price:          number;
+  originalPrice?: number;
+  currency:       string;
+  images:         string[];
+  description:    string;
+  features:       string[];
+  variants:       { size: string; stock: number }[];
+  tags:           string[];
+  badge?:         string;
+  inStock:        boolean;
+  rating:         number;
+  reviewCount:    number;
+  createdAt:      ISODate;
 }
+
+export interface AdminCustomer {
+  id:           string;
+  firstName:    string;
+  lastName:     string;
+  email:        string;
+  phone?:       string;
+  country?:     string;
+  ordersCount:  number;
+  totalSpent:   number;
+  joinedAt:     ISODate;
+  status:       'active' | 'inactive';
+}
+
+export interface DashboardKpi {
+  value:     number;
+  currency?: string;
+  unit?:     string;
+  deltaPct:  number;
+}
+
+export interface DashboardStats {
+  kpis: {
+    revenue:    DashboardKpi;
+    orders:     DashboardKpi;
+    customers:  DashboardKpi;
+    conversion: DashboardKpi;
+  };
+  salesByDay:    { day: string;   revenue: number; orders: number }[];
+  revenueByMonth:{ month: string; revenue: number }[];
+  topCategories: { name: string;  value: number }[];
+  topProducts:   { name: string;  units: number; revenue: number }[];
+  trafficSources:{ source: string; value: number }[];
+  recentActivity:{ id: string; type: 'order' | 'customer' | 'stock'; message: string; at: ISODate }[];
+}
+
+// ── Redux state shapes ───────────────────────────────────────────────────────
 
 export interface AuthState {
-  user: User | null;
-  tokens: AuthTokens | null;
-  loading: boolean;
-  error: string | null;
+  user:            User | null;
+  token:           string | null;
+  loading:         boolean;
+  error:           string | null;
   isAuthenticated: boolean;
 }
 
+export interface ProductsState {
+  items:           Product[];
+  selectedProduct: Product | null;
+  filters:         ProductFilters;
+  sort:            SortOption;
+  loading:         boolean;
+  error:           string | null;
+}
+
+/**
+ * Client cart is a local working copy synced from the server cart on login.
+ * `cartId` is the server-side Cart.id (null while guest / not yet created).
+ */
 export interface CartState {
-  items: CartItem[];
-  isOpen: boolean;
+  cartId:  Guid | null;
+  items:   CartItem[];
+  isOpen:  boolean;
   loading: boolean;
-  error: string | null;
+  error:   string | null;
 }
 
 export interface CheckoutState {
-  step: CheckoutStep;
-  shippingAddress: ShippingAddress | null;
-  loading: boolean;
-  error: string | null;
-  order: Order | null;
+  step:            CheckoutStep;
+  shippingAddress: AddressSnapshot | null;
+  loading:         boolean;
+  error:           string | null;
+  order:           Order | null;
 }

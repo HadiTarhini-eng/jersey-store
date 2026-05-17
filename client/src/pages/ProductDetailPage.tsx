@@ -67,7 +67,7 @@ export function ProductDetailPage() {
         <span>/</span>
         <Link to="/shop" className="hover:text-primary transition-colors">Shop</Link>
         <span>/</span>
-        <span className="text-secondary truncate max-w-[200px]">{product.name}</span>
+        <span className="text-secondary truncate max-w-[200px]">{product.title}</span>
       </nav>
 
       <ProductDetailView product={product} />

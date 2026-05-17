@@ -25,31 +25,64 @@
     },
     "slides": [
       {
-        "id": "slide-1",
-        "headline": "Gear Up.\nStand Out.",
-        "subheadline": "Official jerseys from the world's greatest clubs. Authentic, premium, and made for those who live the game.",
-        "ctaLabel": "Shop Now",
-        "ctaHref": "/shop",
-        "image": "https://loremflickr.com/1600/900/stadium,sport?lock=501",
-        "badge": "New Season"
+        "id": "wear-the-game",
+        "headline": "Wear\nThe Game.",
+        "subheadline": "Match-day kit, engineered to live every minute of the ninety.",
+        "ctaLabel": "Shop New Season",
+        "ctaHref": "/shop?badge=New",
+        "image": "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1600&q=80",
+        "badge": "Match Day",
+        "accent": "#007aff",
+        "align": "left",
+        "overlay": "left"
       },
       {
-        "id": "slide-2",
-        "headline": "Chase The\nChampionship.",
-        "subheadline": "Rare collaborations and special releases. Own a piece of sporting history before it's gone.",
-        "ctaLabel": "View Limited",
+        "id": "built-for-greatness",
+        "headline": "Built For\nGreatness.",
+        "subheadline": "Trophy-grade craftsmanship. Worn by champions, kept forever.",
+        "ctaLabel": "Shop Limited",
         "ctaHref": "/shop?badge=Limited",
-        "image": "https://loremflickr.com/1600/900/soccer,athlete?lock=502",
-        "badge": "Limited"
+        "image": "https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&w=1600&q=80",
+        "badge": "Heritage",
+        "accent": "#ffd700",
+        "align": "center",
+        "overlay": "bottom"
       },
       {
-        "id": "slide-3",
-        "headline": "Race-Grade.\nStreet-Ready.",
-        "subheadline": "Official Formula 1 team wear from the pit lane to your wardrobe. Speed meets style.",
-        "ctaLabel": "Explore F1",
-        "ctaHref": "/shop?sport=formula1",
-        "image": "https://loremflickr.com/1600/900/motorsport,racing?lock=503",
-        "badge": "Exclusive"
+        "id": "every-jersey-tells-a-story",
+        "headline": "Every Jersey\nTells A Story.",
+        "subheadline": "Behind every crest, a moment. Behind every number, a name.",
+        "ctaLabel": "Discover Classics",
+        "ctaHref": "/shop",
+        "image": "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1600&q=80",
+        "badge": "Iconic",
+        "accent": "#ff9f0a",
+        "align": "right",
+        "overlay": "right"
+      },
+      {
+        "id": "the-kit-doesnt-lie",
+        "headline": "The Kit\nDoesn't Lie.",
+        "subheadline": "Sweat. Grit. Glory. Pull on the real thing.",
+        "ctaLabel": "Shop Authentic",
+        "ctaHref": "/shop",
+        "image": "https://images.unsplash.com/photo-1556056504-5c7696c4c28d?auto=format&fit=crop&w=1600&q=80",
+        "badge": "Authentic",
+        "accent": "#ff4d00",
+        "align": "left",
+        "overlay": "left"
+      },
+      {
+        "id": "from-stadium-to-street",
+        "headline": "From Stadium\nTo Street.",
+        "subheadline": "Game-day icons that live just as loud off the pitch.",
+        "ctaLabel": "Shop Lifestyle",
+        "ctaHref": "/shop?categoryId=hoodies",
+        "image": "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80",
+        "badge": "Lifestyle",
+        "accent": "#af52de",
+        "align": "right",
+        "overlay": "right"
       }
     ]
   },

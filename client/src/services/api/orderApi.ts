@@ -1,0 +1,20 @@
+import { http } from './client';
+import { endpoints } from './endpoints';
+import type {
+  AddressSnapshot, CreateOrderPayload, Order, OrderItem, OrderStatus, PaymentStatus,
+} from '../../types';
+
+export const orderApi = {
+  create:        (body: CreateOrderPayload)        => http.post<Order>(endpoints.orders.create(), body),
+  byId:          (id: string)                      => http.get<Order>(endpoints.orders.byId(id)),
+  byNumber:      (orderNumber: string)             => http.get<Order>(endpoints.orders.byNumber(orderNumber)),
+  forUser:       (userId: string)                  => http.get<Order[]>(endpoints.orders.forUser(userId)),
+  items:         (id: string)                      => http.get<OrderItem[]>(endpoints.orders.items(id)),
+  place:         (id: string)                      => http.post<Order>(endpoints.orders.place(id)),
+  updateStatus:  (id: string, status: OrderStatus) => http.patch<Order>(endpoints.orders.status(id), { status }),
+  updatePayment: (id: string, paymentStatus: PaymentStatus) =>
+                   http.patch<Order>(endpoints.orders.payment(id), { paymentStatus }),
+  updateAddresses:(id: string, addresses: { shippingAddress: AddressSnapshot; billingAddress: AddressSnapshot }) =>
+                   http.patch<Order>(endpoints.orders.addresses(id), addresses),
+  cancel:        (id: string)                      => http.post<Order>(endpoints.orders.cancel(id)),
+};

@@ -6,7 +6,7 @@
     "description": "Authentic match & replica jerseys",
     "color": "#007aff",
     "colorDark": "#0055cc",
-    "image": "https://loremflickr.com/600/700/soccer?lock=301"
+    "image": "https://images.unsplash.com/photo-1602992708529-c9fdb12905c9?auto=format&fit=crop&w=800&q=80"
   },
   {
     "id": "shorts",
@@ -15,7 +15,7 @@
     "description": "Performance match shorts",
     "color": "#ff4d00",
     "colorDark": "#cc3d00",
-    "image": "https://loremflickr.com/600/700/football?lock=302"
+    "image": "https://images.unsplash.com/photo-1591195853828-11db59a44f6b?auto=format&fit=crop&w=800&q=80"
   },
   {
     "id": "tshirts",
@@ -24,7 +24,7 @@
     "description": "Casual & training tees",
     "color": "#34c759",
     "colorDark": "#28a046",
-    "image": "https://loremflickr.com/600/700/athlete?lock=303"
+    "image": "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=800&q=80"
   },
   {
     "id": "hoodies",
@@ -33,7 +33,7 @@
     "description": "Premium team hoodies & sweatshirts",
     "color": "#ff9f0a",
     "colorDark": "#cc7d00",
-    "image": "https://loremflickr.com/600/700/basketball?lock=304"
+    "image": "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=800&q=80"
   },
   {
     "id": "jackets",
@@ -42,7 +42,7 @@
     "description": "Training & team track jackets",
     "color": "#af52de",
     "colorDark": "#8a3fb2",
-    "image": "https://loremflickr.com/600/700/motorsport?lock=305"
+    "image": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=800&q=80"
   },
   {
     "id": "shoes",
@@ -51,6 +51,6 @@
     "description": "Official team footwear",
     "color": "#ff2d55",
     "colorDark": "#cc2244",
-    "image": "https://loremflickr.com/600/700/sneakers?lock=306"
+    "image": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80"
   }
 ]

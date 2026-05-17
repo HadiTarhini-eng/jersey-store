@@ -100,8 +100,8 @@ export function Footer({ siteConfig, columns }: FooterProps) {
                 {col.title}
               </h3>
               <ul className="space-y-2.5">
-                {col.links.map((link) => (
-                  <li key={link.href}>
+                {col.links.map((link, i) => (
+                  <li key={`${col.title}-${link.href}-${i}`}>
                     <Link
                       to={link.href}
                       className="text-sm text-secondary hover:text-primary transition-colors"

@@ -10,39 +10,42 @@ import type { AuthState, User } from '../../types';
 // ── Mock storage utils so tests don't touch localStorage ─────────────────────
 
 vi.mock('../../utils/storage', () => ({
-  getStoredTokens: () => null,
-  storeTokens: vi.fn(),
-  clearStoredTokens: vi.fn(),
-  getStoredCart: () => [],
+  getAccessToken:   () => null,
+  storeAccessToken: vi.fn(),
+  clearAccessToken: vi.fn(),
+  getStoredCart:    () => [],
 }));
 
 vi.mock('../../services/authService', () => ({
   authService: {
-    login: vi.fn(),
-    register: vi.fn(),
-    logout: vi.fn(),
-    getMe: vi.fn(),
+    login:        vi.fn(),
+    register:     vi.fn(),
+    logout:       vi.fn(),
+    getMe:        vi.fn(),
+    errorMessage: (_: unknown, fallback: string) => fallback,
   },
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const cleanInitialState: AuthState = {
-  user: null,
-  tokens: null,
-  loading: false,
-  error: null,
+  user:            null,
+  token:           null,
+  loading:         false,
+  error:           null,
   isAuthenticated: false,
 };
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
-    id: 'user-001',
-    email: 'test@example.com',
+    id:        'user-001',
+    email:     'test@example.com',
     firstName: 'John',
-    lastName: 'Doe',
-    role: 'customer',
+    lastName:  'Doe',
+    role:      'User',
+    isActive:  true,
     createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
     ...overrides,
   };
 }
@@ -50,7 +53,7 @@ function makeUser(overrides: Partial<User> = {}): User {
 // ── Initial state ─────────────────────────────────────────────────────────────
 
 describe('authSlice initial state', () => {
-  it('has user null and isAuthenticated false when no stored tokens', () => {
+  it('has user null and isAuthenticated false when no stored token', () => {
     const state = authReducer(cleanInitialState, { type: '@@INIT' });
     expect(state.user).toBeNull();
     expect(state.isAuthenticated).toBe(false);
@@ -63,8 +66,6 @@ describe('authSlice initial state', () => {
   });
 });
 
-// ── clearAuthError ─────────────────────────────────────────────────────────────
-
 describe('clearAuthError', () => {
   it('clears the error field', () => {
     const stateWithError: AuthState = { ...cleanInitialState, error: 'Login failed.' };
@@ -72,8 +73,6 @@ describe('clearAuthError', () => {
     expect(state.error).toBeNull();
   });
 });
-
-// ── setUser ───────────────────────────────────────────────────────────────────
 
 describe('setUser', () => {
   it('sets the user in state', () => {
@@ -90,8 +89,6 @@ describe('setUser', () => {
   });
 });
 
-// ── loginUser async thunk ─────────────────────────────────────────────────────
-
 describe('loginUser thunk', () => {
   it('sets loading true on pending', () => {
     const state = authReducer(cleanInitialState, loginUser.pending('', { email: '', password: '' }));
@@ -99,16 +96,16 @@ describe('loginUser thunk', () => {
     expect(state.error).toBeNull();
   });
 
-  it('sets user, tokens, and isAuthenticated on fulfilled', () => {
-    const user = makeUser();
-    const tokens = { accessToken: 'abc', refreshToken: 'xyz' };
+  it('sets user, token and isAuthenticated on fulfilled', () => {
+    const user  = makeUser();
+    const token = 'abc.def.ghi';
     const state = authReducer(
       cleanInitialState,
-      loginUser.fulfilled({ user, tokens }, '', { email: '', password: '' }),
+      loginUser.fulfilled({ user, token }, '', { email: '', password: '' }),
     );
     expect(state.loading).toBe(false);
     expect(state.user).toEqual(user);
-    expect(state.tokens).toEqual(tokens);
+    expect(state.token).toBe(token);
     expect(state.isAuthenticated).toBe(true);
   });
 
@@ -122,20 +119,18 @@ describe('loginUser thunk', () => {
   });
 });
 
-// ── logoutUser async thunk ────────────────────────────────────────────────────
-
 describe('logoutUser thunk', () => {
-  it('clears user, tokens, and sets isAuthenticated false on fulfilled', () => {
+  it('clears user, token, and sets isAuthenticated false on fulfilled', () => {
     const loggedInState: AuthState = {
-      user: makeUser(),
-      tokens: { accessToken: 'abc', refreshToken: 'xyz' },
-      loading: false,
-      error: null,
+      user:            makeUser(),
+      token:           'abc.def.ghi',
+      loading:         false,
+      error:           null,
       isAuthenticated: true,
     };
     const state = authReducer(loggedInState, logoutUser.fulfilled(undefined, ''));
     expect(state.user).toBeNull();
-    expect(state.tokens).toBeNull();
+    expect(state.token).toBeNull();
     expect(state.isAuthenticated).toBe(false);
   });
 });

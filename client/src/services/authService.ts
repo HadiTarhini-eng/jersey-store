@@ -1,34 +1,65 @@
-import api from './api';
-import type { ApiResponse, AuthTokens, LoginCredentials, RegisterCredentials, User } from '../types';
+/**
+ * Thin domain wrapper around the API hub for auth flows.
+ * Encapsulates the JWT decode + /users/me round-trip and registration
+ * → auto-login behavior the UI expects.
+ */
+import { userApi, extractErrorMessage } from './api';
+import type { CreateUserPayload, LoginCredentials, RegisterCredentials, User } from '../types';
+
+interface JwtPayload {
+  id:    string;
+  email: string;
+  role:  'Admin' | 'User';
+  iat?:  number;
+  exp?:  number;
+}
+
+/** Decode a JWT payload without verifying — only for reading id/email/role. */
+function decodeJwt(token: string): JwtPayload | null {
+  try {
+    const [, payload] = token.split('.');
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
 
 export const authService = {
-  login: async (credentials: LoginCredentials) => {
-    const { data } = await api.post<ApiResponse<{ user: User; tokens: AuthTokens }>>(
-      '/auth/login',
-      credentials,
-    );
-    return data.data;
+  /** Returns `{ token, user }`. The backend login only returns a token, so we hydrate the user from /users/:id. */
+  login: async (credentials: LoginCredentials): Promise<{ token: string; user: User }> => {
+    const { token } = await userApi.login(credentials);
+    const payload   = decodeJwt(token);
+    if (!payload) throw new Error('Invalid token returned by server.');
+    const user = await userApi.byId(payload.id);
+    return { token, user };
   },
 
-  register: async (credentials: RegisterCredentials) => {
-    const { data } = await api.post<ApiResponse<{ user: User; tokens: AuthTokens }>>(
-      '/auth/register',
-      credentials,
-    );
-    return data.data;
+  /**
+   * Registers a new account, then logs in to obtain a JWT.
+   * The backend `POST /users` is public but doesn't return a token.
+   */
+  register: async (credentials: RegisterCredentials): Promise<{ token: string; user: User }> => {
+    const payload: CreateUserPayload = {
+      firstName: credentials.firstName,
+      lastName:  credentials.lastName,
+      email:     credentials.email,
+      password:  credentials.password,
+      role:      'User',
+    };
+    await userApi.create(payload);
+    return authService.login({ email: credentials.email, password: credentials.password });
   },
 
-  logout: async () => {
-    await api.post('/auth/logout');
+  /** Backend has no /logout — auth is purely token-based. Local cleanup happens in the slice. */
+  logout: async (): Promise<void> => { /* noop */ },
+
+  /** /users/me returns the JWT claims; we hydrate the full User by id. */
+  getMe: async (): Promise<User> => {
+    const claims = await userApi.me();
+    return userApi.byId(claims.id);
   },
 
-  getMe: async () => {
-    const { data } = await api.get<ApiResponse<User>>('/auth/me');
-    return data.data;
-  },
-
-  refreshToken: async (refreshToken: string) => {
-    const { data } = await api.post<ApiResponse<AuthTokens>>('/auth/refresh', { refreshToken });
-    return data.data;
-  },
+  /** Bubble up backend message; falls back to a friendly default. */
+  errorMessage: extractErrorMessage,
 };
