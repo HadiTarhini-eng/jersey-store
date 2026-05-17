@@ -60,9 +60,14 @@ export function CheckoutPage() {
             <div className="bg-surface rounded-2xl border border-stroke p-5">
               <h2 className="font-semibold text-primary mb-4">Shipping to</h2>
               <div className="text-sm text-secondary space-y-0.5">
-                <p className="text-primary font-medium">{shippingAddress.firstName} {shippingAddress.lastName}</p>
-                <p>{shippingAddress.address}</p>
-                <p>{shippingAddress.city}, {shippingAddress.state} {shippingAddress.postalCode}</p>
+                <p className="text-primary font-medium">{shippingAddress.fullName}</p>
+                <p>{shippingAddress.addressLine1}</p>
+                {shippingAddress.addressLine2 && <p>{shippingAddress.addressLine2}</p>}
+                <p>
+                  {shippingAddress.city}
+                  {shippingAddress.state ? `, ${shippingAddress.state}` : ''}
+                  {shippingAddress.postalCode ? ` ${shippingAddress.postalCode}` : ''}
+                </p>
                 <p>{shippingAddress.country}</p>
                 <p className="mt-1">{shippingAddress.phone}</p>
               </div>

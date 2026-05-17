@@ -4,28 +4,33 @@ import { setShippingAddress } from '../checkoutSlice';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { validate, validators } from '../../../utils/validators';
-import type { ShippingAddress } from '../../../types';
+import type { AddressSnapshot } from '../../../types';
 
-type FormErrors = Partial<Record<keyof ShippingAddress, string>>;
+type FormErrors = Partial<Record<keyof AddressSnapshot, string>>;
 
-const emptyAddress: ShippingAddress = {
-  firstName: '', lastName: '', address: '',
-  city: '', state: '', postalCode: '', country: '', phone: '',
+const emptyAddress: AddressSnapshot = {
+  fullName:     '',
+  phone:        '',
+  addressLine1: '',
+  addressLine2: '',
+  city:         '',
+  state:        '',
+  country:      '',
+  postalCode:   '',
 };
 
 export function CheckoutForm() {
   const dispatch = useAppDispatch();
   const user     = useAppSelector((s) => s.auth.user);
 
-  const [form, setForm] = useState<ShippingAddress>({
+  const [form, setForm] = useState<AddressSnapshot>({
     ...emptyAddress,
-    firstName: user?.firstName ?? '',
-    lastName:  user?.lastName  ?? '',
+    fullName: user ? `${user.firstName} ${user.lastName}`.trim() : '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
 
   const change =
-    (field: keyof ShippingAddress) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    (field: keyof AddressSnapshot) => (e: React.ChangeEvent<HTMLInputElement>) => {
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
       if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
@@ -34,14 +39,12 @@ export function CheckoutForm() {
     e.preventDefault();
 
     const newErrors: FormErrors = {
-      firstName:  validate(form.firstName,  [validators.required, validators.minLength(2)]),
-      lastName:   validate(form.lastName,   [validators.required, validators.minLength(2)]),
-      address:    validate(form.address,    [validators.required]),
-      city:       validate(form.city,       [validators.required]),
-      state:      validate(form.state,      [validators.required]),
-      postalCode: validate(form.postalCode, [validators.required, validators.postalCode]),
-      country:    validate(form.country,    [validators.required]),
-      phone:      validate(form.phone,      [validators.required, validators.phone]),
+      fullName:     validate(form.fullName,     [validators.required, validators.minLength(2)]),
+      addressLine1: validate(form.addressLine1, [validators.required]),
+      city:         validate(form.city,         [validators.required]),
+      postalCode:   validate(form.postalCode ?? '', [validators.required, validators.postalCode]),
+      country:      validate(form.country,      [validators.required]),
+      phone:        validate(form.phone,        [validators.required, validators.phone]),
     };
 
     if (Object.values(newErrors).some(Boolean)) {
@@ -56,28 +59,39 @@ export function CheckoutForm() {
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
       <h2 className="text-xl font-semibold text-primary">Shipping Information</h2>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Input label="First name" value={form.firstName} onChange={change('firstName')} error={errors.firstName} autoComplete="given-name" />
-        <Input label="Last name"  value={form.lastName}  onChange={change('lastName')}  error={errors.lastName}  autoComplete="family-name" />
-      </div>
+      <Input
+        label="Full name"
+        value={form.fullName}
+        onChange={change('fullName')}
+        error={errors.fullName}
+        autoComplete="name"
+      />
 
       <Input
         label="Street address"
-        value={form.address}
-        onChange={change('address')}
-        error={errors.address}
-        placeholder="123 Main Street, Apt 4B"
-        autoComplete="street-address"
+        value={form.addressLine1}
+        onChange={change('addressLine1')}
+        error={errors.addressLine1}
+        placeholder="123 Main Street"
+        autoComplete="address-line1"
+      />
+
+      <Input
+        label="Apartment, suite, etc. (optional)"
+        value={form.addressLine2 ?? ''}
+        onChange={change('addressLine2')}
+        placeholder="Apt 4B"
+        autoComplete="address-line2"
       />
 
       <div className="grid grid-cols-2 gap-4">
-        <Input label="City"  value={form.city}  onChange={change('city')}  error={errors.city}  autoComplete="address-level2" />
-        <Input label="State" value={form.state} onChange={change('state')} error={errors.state} autoComplete="address-level1" />
+        <Input label="City"  value={form.city}        onChange={change('city')}  error={errors.city}  autoComplete="address-level2" />
+        <Input label="State / Region" value={form.state ?? ''} onChange={change('state')} autoComplete="address-level1" />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Postal code" value={form.postalCode} onChange={change('postalCode')} error={errors.postalCode} autoComplete="postal-code" />
-        <Input label="Country"     value={form.country}    onChange={change('country')}    error={errors.country}    autoComplete="country-name" />
+        <Input label="Postal code" value={form.postalCode ?? ''} onChange={change('postalCode')} error={errors.postalCode} autoComplete="postal-code" />
+        <Input label="Country"     value={form.country}          onChange={change('country')}    error={errors.country}    autoComplete="country-name" />
       </div>
 
       <Input

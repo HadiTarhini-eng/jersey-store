@@ -1,16 +1,21 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from '../../config/theme';
+import { useAdminCollection } from '../../admin/hooks/useAdminCollection';
 import type { OfferBanner } from '../../types';
 import uiConfig from '../../data/ui-config.json';
 
-const banners = uiConfig.offersBanners as OfferBanner[];
+const bannersSeed = uiConfig.offersBanners as OfferBanner[];
 
 export function OffersBanner() {
+  const { items: banners } = useAdminCollection<OfferBanner>('offer-banners', bannersSeed);
   const [current, setCurrent] = React.useState(0);
   const [animating, setAnimating] = React.useState(false);
 
-  // Auto-advance every 4s
+  // Clamp index so admin-side deletes don't blow up the carousel.
+  const safeIndex = banners.length === 0 ? 0 : current % banners.length;
+
+  // Auto-advance every 4s — re-arm when banner count changes.
   React.useEffect(() => {
     if (banners.length <= 1) return;
     const timer = setInterval(() => {
@@ -21,10 +26,10 @@ export function OffersBanner() {
       }, 300);
     }, 4000);
     return () => clearInterval(timer);
-  }, []);
+  }, [banners.length]);
 
   const goTo = (idx: number) => {
-    if (idx === current) return;
+    if (idx === safeIndex) return;
     setAnimating(true);
     setTimeout(() => {
       setCurrent(idx);
@@ -32,7 +37,8 @@ export function OffersBanner() {
     }, 300);
   };
 
-  const banner = banners[current];
+  const banner = banners[safeIndex];
+  if (!banner) return null;
 
   return (
     <div className="relative w-full rounded-2xl overflow-hidden" style={{ height: 'clamp(180px, 25vw, 220px)' }}>
@@ -96,7 +102,7 @@ export function OffersBanner() {
               aria-label={`Go to banner ${i + 1}`}
               className={[
                 'rounded-full transition-all duration-300',
-                i === current ? 'w-8 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/70',
+                i === safeIndex ? 'w-8 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/70',
               ].join(' ')}
             />
           ))}

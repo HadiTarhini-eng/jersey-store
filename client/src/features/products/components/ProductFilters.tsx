@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { useFilters } from '../hooks/useFilters';
-import type { Sport, Team, Category } from '../../../types';
+import type { Sport, Team, UiCategory } from '../../../types';
 import sportsData     from '../../../data/sports.json';
 import teamsData      from '../../../data/teams.json';
 import categoriesData from '../../../data/categories.json';
@@ -14,7 +14,7 @@ export function ProductFilters() {
 
   const sports     = sportsData     as Sport[];
   const teams      = teamsData      as Team[];
-  const categories = categoriesData as Category[];
+  const categories = categoriesData as UiCategory[];
 
   // Only show teams for the selected sport
   const visibleTeams = filters.sport
@@ -72,10 +72,10 @@ export function ProductFilters() {
           {categories.map((cat) => (
             <button
               key={cat.id}
-              onClick={() => setFilter('category', filters.category === cat.id ? undefined : cat.id)}
+              onClick={() => setFilter('categoryId', filters.categoryId === cat.id ? undefined : cat.id)}
               className={[
                 'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
-                filters.category === cat.id
+                filters.categoryId === cat.id
                   ? 'bg-accent/10 text-accent font-medium'
                   : 'text-secondary hover:text-primary hover:bg-surface-raised',
               ].join(' ')}

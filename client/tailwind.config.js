@@ -13,6 +13,21 @@ const withOpacity = (variable) => ({ opacityValue }) =>
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+
+  /**
+   * Order-status pills in AdminOrders.tsx pull their class strings from a
+   * map keyed by status name, so the JIT scanner can already see them in
+   * source. They're safelisted here too to guarantee they survive any
+   * future build-tool quirks.
+   */
+  safelist: [
+    'bg-power',     'border-power',     'shadow-power/30',
+    'bg-accent',    'border-accent',    'shadow-accent/30',
+    'bg-gray-500',  'border-gray-500',  'shadow-gray-500/30',
+    'bg-delivered', 'border-delivered', 'shadow-delivered/30',
+    'bg-danger',    'border-danger',    'shadow-danger/30',
+  ],
+
   theme: {
     extend: {
       colors: {
@@ -33,6 +48,7 @@ export default {
           light:   withOpacity('--power-light'),
           dark:    withOpacity('--power-dark'),
         },
+        delivered: withOpacity('--ok'),
         danger:  withOpacity('--danger'),
         ok:      withOpacity('--ok'),
         caution: withOpacity('--caution'),

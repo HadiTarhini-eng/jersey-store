@@ -1,57 +1,84 @@
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { formatPrice } from '../../../utils/formatters';
-import { theme } from '../../../config/theme';
 import siteConfig from '../../../data/site-config.json';
 import type { SiteConfig } from '../../../types';
 
 interface CartSummaryProps {
+  /** Fired after the user clicks Checkout — used by the drawer to close itself. */
   onCheckout?: () => void;
   /** Compact mode used inside the drawer — shows only totals, no breakdown */
   compact?: boolean;
 }
 
+const checkoutBtn = [
+  'w-full flex items-center justify-center gap-2',
+  'px-6 py-4 rounded-2xl',
+  'bg-white text-black font-black text-base tracking-widest uppercase',
+  'border-2 border-white',
+  'hover:bg-black hover:text-white',
+  'active:scale-[0.98] transition-colors duration-200',
+  'focus-accent',
+].join(' ');
+
+function CheckoutArrow() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.75}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+    </svg>
+  );
+}
+
 export function CartSummary({ onCheckout, compact = false }: CartSummaryProps) {
-  const { subtotal } = useCart();
+  const navigate = useNavigate();
+  const { subtotal, items } = useCart();
   const { freeShippingThreshold, currency } = siteConfig as SiteConfig;
 
-  const shipping          = subtotal >= freeShippingThreshold ? 0 : 9.99;
-  const total             = subtotal + shipping;
+  const shipping = subtotal >= freeShippingThreshold ? 0 : 9.99;
+  const total    = subtotal + shipping;
+  const disabled = items.length === 0;
+
+  const goToCheckout = () => {
+    onCheckout?.();        // close drawer if open
+    navigate('/checkout'); // then navigate
+  };
+
+  const checkoutButton = (
+    <button
+      type="button"
+      onClick={goToCheckout}
+      disabled={disabled}
+      className={`${checkoutBtn} disabled:opacity-40 disabled:cursor-not-allowed`}
+    >
+      Checkout <CheckoutArrow />
+    </button>
+  );
 
   return (
     <div className="space-y-4">
       {compact ? (
-        /* ── Compact mode: drawer footer — just total row + CTA ── */
         <>
           <div className="flex items-center justify-between">
-            <span className="text-base font-semibold text-primary">Total</span>
-            <span className="text-base font-bold text-primary">{formatPrice(total, currency)}</span>
+            <span className="text-base font-bold uppercase tracking-wider text-white/80">Total</span>
+            <span className="text-xl font-black text-white">{formatPrice(total, currency)}</span>
           </div>
 
-          {onCheckout ? (
-            <button className={`${theme.btnPrimary} w-full`} onClick={onCheckout}>
-              Checkout →
-            </button>
-          ) : (
-            <Link to="/checkout" className="block w-full">
-              <button className={`${theme.btnPrimary} w-full`}>
-                Checkout →
-              </button>
-            </Link>
-          )}
+          {checkoutButton}
 
           {onCheckout && (
-            <div className="text-center">
-              <button className={theme.btnGhost2} onClick={onCheckout}>
-                Continue Shopping
-              </button>
-            </div>
+            <button
+              type="button"
+              className="w-full text-xs uppercase tracking-widest text-white/60 hover:text-white py-1 transition-colors"
+              onClick={onCheckout}
+            >
+              Continue Shopping
+            </button>
           )}
         </>
       ) : (
-        /* ── Full mode: cart page — itemized breakdown ── */
-        <>
-          {/* Line items */}
+        <div className="bg-surface rounded-2xl border border-stroke p-5 space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted">Order Summary</h2>
+
           <div className="space-y-2.5">
             <div className="flex justify-between text-sm text-secondary">
               <span>Subtotal</span>
@@ -59,33 +86,22 @@ export function CartSummary({ onCheckout, compact = false }: CartSummaryProps) {
             </div>
             <div className="flex justify-between text-sm text-secondary">
               <span>Shipping</span>
-              <span className={shipping === 0 ? 'text-ok font-medium' : 'text-primary font-medium'}>
+              <span className={shipping === 0 ? 'text-ok font-bold uppercase tracking-wider text-xs' : 'text-primary font-medium'}>
                 {shipping === 0 ? 'Free' : formatPrice(shipping, currency)}
               </span>
             </div>
-            <div className="flex justify-between text-base font-semibold text-primary pt-2.5 border-t border-stroke">
+            <div className="flex justify-between text-base font-bold uppercase tracking-wider text-primary pt-3 border-t border-stroke">
               <span>Total</span>
-              <span>{formatPrice(total, currency)}</span>
+              <span className="text-xl font-black">{formatPrice(total, currency)}</span>
             </div>
           </div>
 
-          {/* CTA */}
-          {onCheckout ? (
-            <button className={`${theme.btnPrimary} w-full`} onClick={onCheckout}>
-              Checkout →
-            </button>
-          ) : (
-            <Link to="/checkout" className="block w-full">
-              <button className={`${theme.btnPrimary} w-full`}>
-                Checkout →
-              </button>
-            </Link>
-          )}
+          {checkoutButton}
 
-          <p className="text-xs text-muted text-center">
-            Secure checkout · Taxes calculated at checkout
+          <p className="text-[10px] uppercase tracking-widest text-muted text-center">
+            Secure checkout · Taxes calculated at next step
           </p>
-        </>
+        </div>
       )}
     </div>
   );

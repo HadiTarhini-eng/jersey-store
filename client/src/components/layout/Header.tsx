@@ -20,17 +20,14 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
   const { totalItems, open: openCart } = useCart();
   const { isAuthenticated, user, logout } = useAuth();
 
-  // Deepen glass effect on scroll
   useEffect(() => {
     const handler = () => setIsScrolled(window.scrollY > 10);
     window.addEventListener('scroll', handler, { passive: true });
     return () => window.removeEventListener('scroll', handler);
   }, []);
 
-  // Close dropdown on route change
   useEffect(() => { setOpenDropdown(null); }, [location]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -45,10 +42,8 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
     <>
       <header
         className={[
-          'sticky top-0 z-40 w-full transition-all duration-300',
-          isScrolled
-            ? 'bg-background/98 backdrop-blur-md border-b border-stroke shadow-card'
-            : 'bg-background/95 backdrop-blur-md border-b border-stroke',
+          'sticky top-0 z-40 w-full transition-all duration-300 bg-black text-white',
+          isScrolled ? 'border-b border-white/15 shadow-lg shadow-black/40' : 'border-b border-white/10',
         ].join(' ')}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -60,12 +55,12 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
               className="flex items-center gap-2 shrink-0"
               aria-label="Jerseys4Ever — Home"
             >
-              <span className="font-sport text-xl tracking-wide text-primary">
+              <span className="font-sport text-xl tracking-wide text-white">
                 JERSEYS<span className="text-accent">4</span>EVER
               </span>
             </Link>
 
-            {/* ── Desktop nav (center) ── */}
+            {/* ── Desktop nav (center) — bold uppercase ── */}
             <nav ref={dropdownRef} className="hidden lg:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
               {navLinks.map((link) => (
                 <div key={link.href} className="relative">
@@ -74,8 +69,10 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
                       <button
                         onClick={() => setOpenDropdown(openDropdown === link.href ? null : link.href)}
                         className={[
-                          'flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                          openDropdown === link.href ? 'text-accent' : 'text-secondary hover:text-primary',
+                          'flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors',
+                          openDropdown === link.href
+                            ? 'text-accent bg-white/5'
+                            : 'text-white hover:bg-white/10',
                         ].join(' ')}
                       >
                         {link.label}
@@ -88,17 +85,17 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
                       </button>
 
                       {openDropdown === link.href && (
-                        <div className="absolute top-full left-0 mt-1 w-52 bg-surface-raised border border-stroke rounded-xl shadow-card-hover animate-slide-up overflow-hidden">
+                        <div className="absolute top-full left-0 mt-1 w-52 bg-black border border-white/15 rounded-xl shadow-2xl shadow-black/60 animate-slide-up overflow-hidden">
                           {link.children.map((child) => (
                             <NavLink
                               key={child.href}
                               to={child.href}
                               className={({ isActive }) =>
                                 [
-                                  'block px-4 py-2.5 text-sm transition-colors',
+                                  'block px-4 py-2.5 text-sm font-semibold uppercase tracking-wider transition-colors',
                                   isActive
-                                    ? 'text-accent bg-accent/5'
-                                    : 'text-secondary hover:text-primary hover:bg-surface',
+                                    ? 'text-accent bg-white/5'
+                                    : 'text-white/80 hover:text-white hover:bg-white/10',
                                 ].join(' ')
                               }
                             >
@@ -113,8 +110,8 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
                       to={link.href}
                       className={({ isActive }) =>
                         [
-                          'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                          isActive ? 'text-accent' : 'text-secondary hover:text-primary',
+                          'px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors',
+                          isActive ? 'text-accent bg-white/5' : 'text-white hover:bg-white/10',
                         ].join(' ')
                       }
                     >
@@ -133,16 +130,16 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
                 <div className="hidden lg:flex items-center gap-2">
                   <Link
                     to="/profile"
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-secondary hover:text-primary hover:bg-surface transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white hover:bg-white/10 transition-colors"
                   >
-                    <div className="w-6 h-6 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold">
+                    <div className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center text-xs font-bold">
                       {user?.firstName?.[0]}
                     </div>
                     <span>{user?.firstName}</span>
                   </Link>
                   <button
                     onClick={logout}
-                    className="hidden xl:block px-3 py-2 rounded-lg text-sm text-muted hover:text-primary transition-colors"
+                    className="hidden xl:block px-3 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white/60 hover:text-white transition-colors"
                   >
                     Sign out
                   </button>
@@ -151,13 +148,13 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
                 <div className="hidden lg:flex items-center gap-2">
                   <Link
                     to="/login"
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-secondary hover:text-primary transition-colors"
+                    className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white hover:bg-white/10 transition-colors"
                   >
                     Sign in
                   </Link>
                   <Link
                     to="/register"
-                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent-light transition-colors"
+                    className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider bg-white text-black hover:bg-white/90 transition-colors"
                   >
                     Register
                   </Link>
@@ -168,16 +165,15 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
               <button
                 onClick={openCart}
                 aria-label={`Cart (${totalItems} items)`}
-                className="bg-surface rounded-xl px-3 py-2 flex items-center gap-2 hover:bg-surface-raised border border-stroke hover:border-accent/30 transition-all"
+                className="rounded-xl px-3 py-2 flex items-center gap-2 text-white border-2 border-white hover:bg-white hover:text-black transition-all"
               >
-                {/* Shopping bag SVG */}
-                <svg className="w-5 h-5 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
                   <line strokeLinecap="round" strokeLinejoin="round" x1="3" y1="6" x2="21" y2="6" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 10a4 4 0 01-8 0" />
                 </svg>
                 {totalItems > 0 && (
-                  <span className="bg-power text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none">
+                  <span className="bg-power text-white text-xs rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center font-bold leading-none">
                     {totalItems > 99 ? '99+' : totalItems}
                   </span>
                 )}
@@ -187,9 +183,9 @@ export function Header({ siteConfig, navLinks }: HeaderProps) {
               <button
                 onClick={() => setMobileMenuOpen(true)}
                 aria-label="Open menu"
-                className="lg:hidden p-2 rounded-lg text-secondary hover:text-primary hover:bg-surface transition-colors"
+                className="lg:hidden p-2 rounded-lg text-white hover:bg-white/10 transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>

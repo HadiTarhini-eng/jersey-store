@@ -1,13 +1,8 @@
 import { useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../app/hooks';
 import {
-  addToCart,
-  removeFromCart,
-  updateQuantity,
-  clearCart,
-  openCart,
-  closeCart,
-  toggleCart,
+  addToCart, removeFromCart, updateQuantity,
+  clearCart, openCart, closeCart, toggleCart,
 } from '../cartSlice';
 import type { CartItem } from '../../../types';
 
@@ -16,16 +11,16 @@ export function useCart() {
   const { items, isOpen } = useAppSelector((s) => s.cart);
 
   const totalItems = items.reduce((sum: number, i: CartItem) => sum + i.quantity, 0);
-  const subtotal   = items.reduce((sum: number, i: CartItem) => sum + i.price * i.quantity, 0);
+  const subtotal   = items.reduce((sum: number, i: CartItem) => sum + i.priceAtTime * i.quantity, 0);
 
   const add    = useCallback((item: CartItem) => dispatch(addToCart(item)), [dispatch]);
   const remove = useCallback(
-    (productId: string, size: string) => dispatch(removeFromCart({ productId, size })),
+    (productVariantId: string) => dispatch(removeFromCart({ productVariantId })),
     [dispatch],
   );
   const setQty = useCallback(
-    (productId: string, size: string, quantity: number) =>
-      dispatch(updateQuantity({ productId, size, quantity })),
+    (productVariantId: string, quantity: number) =>
+      dispatch(updateQuantity({ productVariantId, quantity })),
     [dispatch],
   );
   const clear  = useCallback(() => dispatch(clearCart()), [dispatch]);

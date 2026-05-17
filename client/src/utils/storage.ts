@@ -1,29 +1,28 @@
 /** localStorage helpers — all JSON serialization lives here. */
 
-import type { AuthTokens, CartItem } from '../types';
+import type { CartItem } from '../types';
 
 const KEYS = {
-  TOKENS: 'js_tokens',
-  CART:   'js_cart_',   // suffixed with userId or "guest"
+  TOKEN: 'js_token',
+  CART:  'js_cart_', // suffixed with userId or "guest"
 } as const;
 
-// ── Auth tokens ──────────────────────────────────────────────────────────────
+// ── Auth token (single JWT — backend has no refresh-token flow) ──────────────
 
-export function getStoredTokens(): AuthTokens | null {
+export function getAccessToken(): string | null {
   try {
-    const raw = localStorage.getItem(KEYS.TOKENS);
-    return raw ? (JSON.parse(raw) as AuthTokens) : null;
+    return localStorage.getItem(KEYS.TOKEN);
   } catch {
     return null;
   }
 }
 
-export function storeTokens(tokens: AuthTokens): void {
-  localStorage.setItem(KEYS.TOKENS, JSON.stringify(tokens));
+export function storeAccessToken(token: string): void {
+  localStorage.setItem(KEYS.TOKEN, token);
 }
 
-export function clearStoredTokens(): void {
-  localStorage.removeItem(KEYS.TOKENS);
+export function clearAccessToken(): void {
+  localStorage.removeItem(KEYS.TOKEN);
 }
 
 // ── Cart (per-user) ──────────────────────────────────────────────────────────

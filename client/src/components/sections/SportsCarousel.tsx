@@ -1,131 +1,64 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAdminCollection } from '../../admin/hooks/useAdminCollection';
 import type { Sport } from '../../types';
 import sportsData from '../../data/sports.json';
 
-const sports = sportsData as Sport[];
+const sportsSeed = sportsData as Sport[];
 
 export function SportsCarousel() {
-  const [currentIdx, setCurrentIdx] = React.useState(0);
-  const visibleCount = 4;
-  const maxIdx = Math.max(0, sports.length - visibleCount);
-
-  const prev = () => setCurrentIdx((i) => Math.max(0, i - 1));
-  const next = () => setCurrentIdx((i) => Math.min(maxIdx, i + 1));
+  const { items: sports } = useAdminCollection<Sport>('sports', sportsSeed);
 
   return (
     <div className="w-full">
-      {/* Desktop: carousel with arrows */}
-      <div className="hidden md:block relative">
-        {/* Prev button */}
-        {currentIdx > 0 && (
-          <button
-            onClick={prev}
-            aria-label="Previous sports"
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-10 h-10 rounded-full bg-surface-raised border border-stroke text-primary hover:border-accent hover:text-accent transition-all duration-200 flex items-center justify-center shadow-card-hover"
-          >
-            ‹
-          </button>
-        )}
-
-        {/* Cards viewport */}
-        <div className="overflow-hidden">
-          <div
-            className="flex gap-4 transition-transform duration-500 ease-out"
-            style={{ transform: `translateX(calc(-${currentIdx} * (25% + 4px)))` }}
-          >
-            {sports.map((sport) => (
-              <SportCard key={sport.id} sport={sport} />
-            ))}
-          </div>
-        </div>
-
-        {/* Next button */}
-        {currentIdx < maxIdx && (
-          <button
-            onClick={next}
-            aria-label="Next sports"
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-10 h-10 rounded-full bg-surface-raised border border-stroke text-primary hover:border-accent hover:text-accent transition-all duration-200 flex items-center justify-center shadow-card-hover"
-          >
-            ›
-          </button>
-        )}
-      </div>
-
-      {/* Mobile: horizontal scroll */}
-      <div className="flex md:hidden gap-4 overflow-x-auto hide-scrollbar pb-2">
+      <div className="flex gap-5 md:gap-8 overflow-x-auto hide-scrollbar pb-2 md:justify-center md:flex-wrap md:overflow-visible">
         {sports.map((sport) => (
-          <SportCard key={sport.id} sport={sport} mobile />
+          <SportCircle key={sport.id} sport={sport} />
         ))}
       </div>
     </div>
   );
 }
 
-interface SportCardProps {
-  sport: Sport;
-  mobile?: boolean;
-}
-
-function SportCard({ sport, mobile }: SportCardProps) {
-  const [hovered, setHovered] = React.useState(false);
+function SportCircle({ sport }: { sport: Sport }) {
+  const ring = sport.color ?? 'rgb(var(--accent))';
 
   return (
     <Link
       to={`/shop?sport=${sport.slug}`}
-      className={[
-        'relative flex-shrink-0 rounded-2xl overflow-hidden block group cursor-pointer',
-        mobile ? 'w-40' : 'w-1/4 min-w-0 flex-1',
-      ].join(' ')}
-      style={{ aspectRatio: '3/4' }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="group flex flex-col items-center gap-3 shrink-0 focus:outline-none"
     >
-      {/* Background image */}
-      {sport.image && (
-        <div
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-500"
-          style={{
-            backgroundImage: `url(${sport.image})`,
-            transform: hovered ? 'scale(1.08)' : 'scale(1)',
-          }}
-        />
-      )}
-
-      {/* Dark overlay */}
+      {/* Circle */}
       <div
-        className="absolute inset-0 transition-opacity duration-300"
-        style={{ backgroundColor: 'rgba(8,9,10,0.45)', opacity: hovered ? 0.35 : 0.55 }}
-      />
+        className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-2 transition-all duration-300 group-hover:scale-105"
+        style={{ borderColor: 'rgb(var(--stroke))' }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = ring; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgb(var(--stroke))'; }}
+      >
+        {sport.image ? (
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
+            style={{ backgroundImage: `url(${sport.image})` }}
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: sport.color ?? 'rgb(var(--surface-raised))' }}
+          />
+        )}
 
-      {/* Colored bottom border glow on hover */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-1 transition-opacity duration-300"
-        style={{ backgroundColor: sport.color ?? '#007aff', opacity: hovered ? 1 : 0 }}
-      />
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-background/40 group-hover:bg-background/20 transition-colors duration-300" />
 
-      {/* Sport icon — centered top area */}
-      <div className="absolute inset-0 flex flex-col items-center justify-between py-6 px-4">
-        <span
-          className="text-5xl transition-transform duration-300"
-          style={{ transform: hovered ? 'scale(1.15)' : 'scale(1)' }}
-        >
-          {sport.icon}
-        </span>
-
-        {/* Sport name — bottom */}
-        <div className="w-full">
-          <p className="font-sport text-xl md:text-2xl tracking-wide text-white uppercase text-center drop-shadow-lg">
-            {sport.name}
-          </p>
-          <p
-            className="text-center text-xs mt-1 font-medium transition-opacity duration-300"
-            style={{ color: sport.color ?? '#007aff', opacity: hovered ? 1 : 0 }}
-          >
-            Shop →
-          </p>
+        {/* Icon overlay */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-3xl md:text-4xl drop-shadow-lg">{sport.icon}</span>
         </div>
       </div>
+
+      {/* Label */}
+      <span className="text-xs md:text-sm font-semibold text-secondary group-hover:text-primary transition-colors uppercase tracking-wider text-center">
+        {sport.name}
+      </span>
     </Link>
   );
 }

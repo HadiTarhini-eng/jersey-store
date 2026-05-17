@@ -4,78 +4,73 @@ import { renderWithProviders } from '../../../test/test-utils';
 import { ProductCard } from './ProductCard';
 import type { Product } from '../../../types';
 
-// ── Mock product data ─────────────────────────────────────────────────────────
+const now = '2024-01-01T00:00:00Z';
 
 const mockProduct: Product = {
-  id: 'prod-001',
-  name: 'Real Madrid Jersey',
-  slug: 'real-madrid-home',
-  sport: 'football',
-  team: 'real-madrid',
-  category: 'jerseys',
-  price: 129.99,
-  originalPrice: 149.99,
-  currency: 'USD',
-  images: ['https://picsum.photos/seed/test/600/750'],
-  description: 'Test jersey',
-  features: ['Feature 1'],
+  id:               'prod-001',
+  categoryId:       'cat-jerseys',
+  title:            'Real Madrid Jersey',
+  slug:             'real-madrid-home',
+  shortDescription: 'Test jersey',
+  fullDescription:  'Test jersey',
+  tags:             ['football'],
+  brand:            'Adidas',
+  basePrice:        129.99,
+  status:           'active',
+  featured:         true,
+  createdBy:        'seed',
+  isActive:         true,
+  createdAt:        now,
+  updatedAt:        now,
+  images:           ['https://picsum.photos/seed/test/600/750'],
+  rating:           4.5,
+  reviewCount:      100,
+  inStock:          true,
   variants: [
-    { size: 'M', stock: 10 },
-    { size: 'L', stock: 5 },
+    {
+      id: 'v-m', productId: 'prod-001', sku: 'jersey-M',
+      priceOverride: null, stockQuantity: 10, imageId: null,
+      isActive: true, createdAt: now, updatedAt: now,
+    },
+    {
+      id: 'v-l', productId: 'prod-001', sku: 'jersey-L',
+      priceOverride: null, stockQuantity: 5, imageId: null,
+      isActive: true, createdAt: now, updatedAt: now,
+    },
   ],
-  tags: ['football'],
-  badge: 'Sale',
-  inStock: true,
-  rating: 4.5,
-  reviewCount: 100,
-  createdAt: '2024-01-01T00:00:00Z',
 };
 
 const outOfStockProduct: Product = {
   ...mockProduct,
-  id: 'prod-002',
-  slug: 'real-madrid-away',
-  inStock: false,
-  variants: [{ size: 'M', stock: 0 }],
+  id:       'prod-002',
+  slug:     'real-madrid-away',
+  inStock:  false,
+  variants: [{
+    id: 'v-m2', productId: 'prod-002', sku: 'jersey-M',
+    priceOverride: null, stockQuantity: 0, imageId: null,
+    isActive: false, createdAt: now, updatedAt: now,
+  }],
 };
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 describe('ProductCard', () => {
-  it('renders the product name', () => {
+  it('renders the product title', () => {
     renderWithProviders(<ProductCard product={mockProduct} />);
     expect(screen.getByText('Real Madrid Jersey')).toBeInTheDocument();
   });
 
-  it('renders the sale price', () => {
+  it('renders the base price', () => {
     renderWithProviders(<ProductCard product={mockProduct} />);
     expect(screen.getByText('$129.99')).toBeInTheDocument();
   });
 
-  it('renders the original (struck-through) price when originalPrice is provided', () => {
+  it('renders a Featured badge when product.featured is true', () => {
     renderWithProviders(<ProductCard product={mockProduct} />);
-    expect(screen.getByText('$149.99')).toBeInTheDocument();
+    expect(screen.getByText('Featured')).toBeInTheDocument();
   });
 
-  it('renders a discount label when originalPrice exists', () => {
+  it('renders the brand when available', () => {
     renderWithProviders(<ProductCard product={mockProduct} />);
-    // discountPercent(149.99, 129.99) = "-13%"
-    const discountElements = screen.getAllByText('-13%');
-    expect(discountElements.length).toBeGreaterThan(0);
-  });
-
-  it('renders the product badge', () => {
-    renderWithProviders(<ProductCard product={mockProduct} />);
-    expect(screen.getByText('Sale')).toBeInTheDocument();
-  });
-
-  it('renders size chips for available variants', () => {
-    renderWithProviders(<ProductCard product={mockProduct} />);
-    // Sizes appear in the info section (always visible) and in the hover overlay
-    const mChips = screen.getAllByText('M');
-    expect(mChips.length).toBeGreaterThan(0);
-    const lChips = screen.getAllByText('L');
-    expect(lChips.length).toBeGreaterThan(0);
+    expect(screen.getByText('Adidas')).toBeInTheDocument();
   });
 
   it('renders the Add to Cart button for an in-stock product', () => {
@@ -96,10 +91,5 @@ describe('ProductCard', () => {
   it('renders the star rating review count', () => {
     renderWithProviders(<ProductCard product={mockProduct} />);
     expect(screen.getByText('(100)')).toBeInTheDocument();
-  });
-
-  it('renders the sport and team line', () => {
-    renderWithProviders(<ProductCard product={mockProduct} />);
-    expect(screen.getByText(/football/i)).toBeInTheDocument();
   });
 });
