@@ -1,0 +1,47 @@
+[
+  {
+    "id": "football",
+    "name": "Football",
+    "slug": "football",
+    "icon": "⚽",
+    "image": "https://loremflickr.com/900/500/soccer?lock=401",
+    "color": "#007aff",
+    "featured": true
+  },
+  {
+    "id": "basketball",
+    "name": "Basketball",
+    "slug": "basketball",
+    "icon": "🏀",
+    "image": "https://loremflickr.com/900/500/basketball?lock=402",
+    "color": "#ff9f0a",
+    "featured": true
+  },
+  {
+    "id": "american-football",
+    "name": "American Football",
+    "slug": "american-football",
+    "icon": "🏈",
+    "image": "https://loremflickr.com/900/500/football?lock=403",
+    "color": "#34c759",
+    "featured": true
+  },
+  {
+    "id": "baseball",
+    "name": "Baseball",
+    "slug": "baseball",
+    "icon": "⚾",
+    "image": "https://loremflickr.com/900/500/baseball?lock=404",
+    "color": "#ff2d55",
+    "featured": false
+  },
+  {
+    "id": "formula1",
+    "name": "Formula 1",
+    "slug": "formula1",
+    "icon": "🏎",
+    "image": "https://loremflickr.com/900/500/motorsport?lock=405",
+    "color": "#af52de",
+    "featured": true
+  }
+]

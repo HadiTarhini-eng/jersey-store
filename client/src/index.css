@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Jerseys4Ever — Sport Theme.
+ * Single source of truth for all colors.
+ * Values are raw RGB channels so Tailwind can apply opacity modifiers
+ * via rgba(var(--token), opacityValue). To retheme: edit only this block.
+ */
+:root {
+  /* Backgrounds */
+  --background:     8 9 10;          /* #08090a — near-black pitch */
+  --surface:        17 18 20;        /* #111214 — cards, panels */
+  --surface-raised: 26 27 31;        /* #1a1b1f — dropdowns, tooltips */
+
+  /* Text */
+  --text-primary:   245 245 247;     /* #f5f5f7 — clean white */
+  --text-secondary: 152 152 157;     /* #98989d — muted gray */
+  --text-muted:     72 72 76;        /* #48484c — very muted */
+
+  /* Borders / Dividers */
+  --stroke:         44 44 46;        /* #2c2c2e */
+
+  /* Accent — Electric Blue (interactive, links, active states) */
+  --accent:         0 122 255;       /* #007aff */
+  --accent-light:   64 156 255;      /* #409cff — hover */
+  --accent-dark:    0 0 0;           /* foreground ON accent buttons */
+
+  /* Power — Fiery Orange (prominent CTAs, "Design Your Own") */
+  --power:          255 77 0;        /* #ff4d00 */
+  --power-light:    255 102 51;      /* #ff6633 — hover */
+  --power-dark:     0 0 0;           /* foreground ON power buttons */
+
+  /* Status */
+  --danger:         255 59 48;       /* #ff3b30 */
+  --ok:             52 199 89;       /* #34c759 */
+  --caution:        255 159 10;      /* #ff9f0a */
+
+  /* Typography */
+  --font-display: 'Bebas Neue', 'Inter', sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+}
+
+/* ─── Base resets ─────────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-primary;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+  }
+
+  #root {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar       { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--background)); }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--stroke)); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-muted)); }
+}
+
+/* ─── Reusable utility layers ─────────────────────────────────────────────── */
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+  /* Page background gradient overlay (hero) */
+  .gradient-to-bg {
+    background: linear-gradient(to bottom, transparent, rgb(var(--background)));
+  }
+
+  /* Text with accent blue gradient */
+  .text-gradient-accent {
+    background: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--accent-light)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Text with power orange gradient */
+  .text-gradient-power {
+    background: linear-gradient(135deg, rgb(var(--power)), rgb(var(--power-light)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glassmorphism surface */
+  .glass {
+    background: rgba(var(--surface), 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(var(--stroke), 0.5);
+  }
+
+  /* Focus ring */
+  .focus-accent {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-background;
+  }
+  .focus-power {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-power focus-visible:ring-offset-1 focus-visible:ring-offset-background;
+  }
+
+  /* Sport display font (Bebas Neue) */
+  .font-sport {
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+  }
+
+  /* Shimmer loading skeleton */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--surface)) 25%,
+      rgb(var(--surface-raised)) 50%,
+      rgb(var(--surface)) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+  }
+
+  /* Marquee ticker (offers strip) */
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 30s linear infinite;
+  }
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+}

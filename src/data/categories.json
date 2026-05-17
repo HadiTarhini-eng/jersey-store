@@ -1,7 +1,0 @@
-[
-  { "id": "home",             "name": "Home Kit",        "slug": "home" },
-  { "id": "away",             "name": "Away Kit",        "slug": "away" },
-  { "id": "third",            "name": "Third Kit",       "slug": "third" },
-  { "id": "training",         "name": "Training",        "slug": "training" },
-  { "id": "special-edition",  "name": "Special Edition", "slug": "special-edition" }
-]
