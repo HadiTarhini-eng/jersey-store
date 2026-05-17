@@ -4,11 +4,17 @@ import {
   type ProductAssignedAttribute,
   type ProductAttribute,
   type ProductAttributeOption,
+  type ProductImage,
+  type ProductPayload,
   type ProductSpecification,
   type ProductStatus,
   type ProductVariant,
+  type ProductVariantPayload,
   type VariantAttributeValue,
 } from '../entities/product.js'
+import { type ImageFile } from './storage.svc.js'
+
+export type ProductImageFile = ImageFile
 
 export interface ProductSearchFilters {
   categoryId?: Guid
@@ -21,8 +27,22 @@ export interface ProductSearchFilters {
   query?: string
 }
 
+export interface CreateProductInput {
+  data: Omit<ProductPayload, 'imageId' | 'createdBy'>
+  createdBy: Guid
+  primary?: ProductImageFile
+  gallery?: ProductImageFile[]
+}
+
+export interface CreateVariantInput {
+  productId: Guid
+  data: Omit<ProductVariantPayload, 'productId' | 'imageId'>
+  uploadedBy: Guid
+  image?: ImageFile
+}
+
 export interface IProductService {
-  createProduct: (product: Product) => Promise<Product>
+  createProduct: (input: CreateProductInput) => Promise<Product>
   updateProduct: (id: Guid, data: Partial<Product>) => Promise<Product>
   getProductById: (id: Guid) => Promise<Product | null>
   getProductBySlug: (slug: string) => Promise<Product | null>
@@ -32,6 +52,9 @@ export interface IProductService {
   setFeatured: (id: Guid, featured: boolean) => Promise<Product>
   updateBasePrice: (id: Guid, basePrice: number) => Promise<Product>
   deleteProduct: (id: Guid) => Promise<void>
+  addProductImage: (productId: Guid, file: ProductImageFile, sortOrder?: number) => Promise<ProductImage>
+  listProductImages: (productId: Guid) => Promise<ProductImage[]>
+  removeProductImage: (productImageId: Guid) => Promise<void>
 }
 
 export interface IProductAttributeService {
@@ -48,7 +71,7 @@ export interface IProductAttributeService {
 }
 
 export interface IProductVariantService {
-  createVariant: (variant: ProductVariant) => Promise<ProductVariant>
+  createVariant: (input: CreateVariantInput) => Promise<ProductVariant>
   updateVariant: (id: Guid, data: Partial<ProductVariant>) => Promise<ProductVariant>
   getVariantById: (id: Guid) => Promise<ProductVariant | null>
   getVariantBySku: (sku: string) => Promise<ProductVariant | null>
@@ -56,5 +79,7 @@ export interface IProductVariantService {
   setVariantAttributes: (variantId: Guid, values: VariantAttributeValue[]) => Promise<VariantAttributeValue[]>
   updateStock: (id: Guid, stockQuantity: number) => Promise<ProductVariant>
   reserveStock: (id: Guid, quantity: number) => Promise<ProductVariant>
+  setVariantImage: (id: Guid, file: ImageFile, uploadedBy: Guid) => Promise<ProductVariant>
+  removeVariantImage: (id: Guid) => Promise<ProductVariant>
   deactivateVariant: (id: Guid) => Promise<ProductVariant>
 }

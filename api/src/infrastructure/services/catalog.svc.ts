@@ -1,6 +1,8 @@
 import { type Guid } from '../../core/entities/base.js'
-import { type Category, type CategoryType } from '../../core/entities/catalog.js'
-import { type ICategoryService, type ICategoryTypeService } from '../../core/services/catalog.svc.js'
+import { Category, type CategoryType } from '../../core/entities/catalog.js'
+import { type IAttachmentService } from '../../core/services/attachment.svc.js'
+import { type CreateCategoryInput, type ICategoryService, type ICategoryTypeService } from '../../core/services/catalog.svc.js'
+import { type ImageFile } from '../../core/services/storage.svc.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
 import { ConflictError, ValidationError } from './errors.js'
 import { assertGuid, assertRequiredString, assertSlug } from './validators.js'
@@ -60,11 +62,29 @@ export class CategoryTypeService implements ICategoryTypeService {
 export class CategoryService implements ICategoryService {
   constructor(
     private readonly categoryRepository: EntityRepository<Category>,
+    private readonly attachmentService: IAttachmentService,
   ) {}
 
-  async createCategory(category: Category): Promise<Category> {
-    this.validateCategory(category)
-    await this.assertUniqueSlug(category.slug)
+  async createCategory(input: CreateCategoryInput): Promise<Category> {
+    assertGuid(input.uploadedBy, 'uploadedBy')
+    assertGuid(input.data.categoryTypeId, 'categoryTypeId')
+    if (input.data.parentId) assertGuid(input.data.parentId, 'parentId')
+    assertRequiredString(input.data.name, 'name')
+    assertSlug(input.data.slug)
+    await this.assertUniqueSlug(input.data.slug)
+
+    let imageId: Guid | null = null
+    if (input.image) {
+      const attachment = await this.attachmentService.uploadAttachment({
+        data: input.image.data,
+        fileName: input.image.fileName,
+        mimeType: input.image.mimeType,
+        uploadedBy: input.uploadedBy,
+      })
+      imageId = attachment.id
+    }
+
+    const category = new Category({ ...input.data, imageId })
     await this.assertValidParent(category)
     return this.categoryRepository.create(category)
   }
@@ -116,10 +136,29 @@ export class CategoryService implements ICategoryService {
     return this.categoryRepository.update(id, { parentId } as Partial<Category>)
   }
 
-  async setCategoryImage(id: Guid, imageId?: Guid | null): Promise<Category> {
+  async setCategoryImage(id: Guid, file: ImageFile, uploadedBy: Guid): Promise<Category> {
     assertGuid(id)
-    if (imageId) assertGuid(imageId, 'imageId')
-    return this.categoryRepository.update(id, { imageId } as Partial<Category>)
+    assertGuid(uploadedBy, 'uploadedBy')
+    const category = await this.categoryRepository.require(id, 'Category')
+    if (category.imageId) {
+      await this.attachmentService.deleteAttachment(category.imageId).catch(() => undefined)
+    }
+    const attachment = await this.attachmentService.uploadAttachment({
+      data: file.data,
+      fileName: file.fileName,
+      mimeType: file.mimeType,
+      uploadedBy,
+    })
+    return this.categoryRepository.update(id, { imageId: attachment.id } as Partial<Category>)
+  }
+
+  async removeCategoryImage(id: Guid): Promise<Category> {
+    assertGuid(id)
+    const category = await this.categoryRepository.require(id, 'Category')
+    if (category.imageId) {
+      await this.attachmentService.deleteAttachment(category.imageId).catch(() => undefined)
+    }
+    return this.categoryRepository.update(id, { imageId: null } as Partial<Category>)
   }
 
   async activateCategory(id: Guid): Promise<Category> {
@@ -130,15 +169,6 @@ export class CategoryService implements ICategoryService {
   async deactivateCategory(id: Guid): Promise<Category> {
     assertGuid(id)
     return this.categoryRepository.update(id, { isActive: false } as Partial<Category>)
-  }
-
-  private validateCategory(category: Category): void {
-    assertGuid(category.id)
-    assertGuid(category.categoryTypeId, 'categoryTypeId')
-    if (category.parentId) assertGuid(category.parentId, 'parentId')
-    if (category.imageId) assertGuid(category.imageId, 'imageId')
-    assertRequiredString(category.name, 'name')
-    assertSlug(category.slug)
   }
 
   private async assertUniqueSlug(slug: string, exceptId?: Guid): Promise<void> {

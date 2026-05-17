@@ -1,13 +1,20 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { User } from '../../../core/entities/user.js'
 import type { IUserService } from '../../../core/services/user.svc.js'
+import type { ImageFile } from '../../../core/services/storage.svc.js'
 import { VerifyPassword } from '../../../utils/hash.js'
-import { ServiceError } from '../../services/errors.js'
+import { ServiceError, ValidationError } from '../../services/errors.js'
 import { assertOwner, sendCreated, sendOk } from '../routes/route-utils.js'
 import type {
   ChangePasswordBodyType, ChangeRoleBodyType, CreateUserBodyType,
-  LoginBodyType, SetProfileImageBodyType, UpdateUserBodyType,
+  LoginBodyType, UpdateUserBodyType,
 } from '../schemas/user.schemas.js'
+
+const readSingleImageUpload = async (request: FastifyRequest): Promise<ImageFile> => {
+  const file = await request.file()
+  if (!file) throw new ValidationError('No file uploaded (expected multipart field "file")')
+  return { data: await file.toBuffer(), fileName: file.filename, mimeType: file.mimetype }
+}
 
 type IdParams = { id: string }
 
@@ -70,8 +77,15 @@ export const setProfileImage = (service: IUserService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { id } = request.params as IdParams
     assertOwner(request, id)
-    const { profileImageId } = request.body as SetProfileImageBodyType
-    sendOk(reply, await service.setProfileImage(id, profileImageId))
+    const file = await readSingleImageUpload(request)
+    sendOk(reply, await service.setProfileImage(id, file))
+  }
+
+export const removeProfileImage = (service: IUserService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const { id } = request.params as IdParams
+    assertOwner(request, id)
+    sendOk(reply, await service.removeProfileImage(id))
   }
 
 export const activateUser = (service: IUserService) =>

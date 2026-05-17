@@ -20,6 +20,11 @@ export const productRoutes = (
   { method: 'PATCH',  url: '/products/:id/price',                    roles: ['Admin'],  schema: s.updateBasePriceSchema,         handler: ctrl.updateBasePrice(productService) },
   { method: 'DELETE', url: '/products/:id',                          roles: ['Admin'],  schema: s.deleteProductSchema,           handler: ctrl.deleteProduct(productService) },
 
+  // Product Images
+  { method: 'POST',   url: '/products/:productId/images',            roles: ['Admin'],  schema: s.addProductImageSchema,         handler: ctrl.addProductImage(productService) },
+  { method: 'GET',    url: '/products/:productId/images',            protected: false,  schema: s.listProductImagesSchema,       handler: ctrl.listProductImages(productService) },
+  { method: 'DELETE', url: '/products/images/:id',                   roles: ['Admin'],  schema: s.removeProductImageSchema,      handler: ctrl.removeProductImage(productService) },
+
   // Product Attributes
   { method: 'POST',   url: '/product-attributes',                    roles: ['Admin'],  schema: s.createAttributeSchema,         handler: ctrl.createAttribute(productAttributeService) },
   { method: 'GET',    url: '/product-attributes',                    protected: false,  schema: s.listAttributesSchema,          handler: ctrl.listAttributes(productAttributeService) },
@@ -40,6 +45,8 @@ export const productRoutes = (
   { method: 'GET',    url: '/variants/:id',                          protected: false,  schema: s.getVariantSchema,              handler: ctrl.getVariantById(productVariantService) },
   { method: 'GET',    url: '/variants/sku/:sku',                     protected: false,  schema: s.getVariantBySkuSchema,         handler: ctrl.getVariantBySku(productVariantService) },
   { method: 'PATCH',  url: '/variants/:id',                          roles: ['Admin'],  schema: s.updateVariantSchema,           handler: ctrl.updateVariant(productVariantService) },
+  { method: 'POST',   url: '/variants/:id/image',                    roles: ['Admin'],  schema: s.setVariantImageSchema,         handler: ctrl.setVariantImage(productVariantService) },
+  { method: 'DELETE', url: '/variants/:id/image',                    roles: ['Admin'],  schema: s.removeVariantImageSchema,      handler: ctrl.removeVariantImage(productVariantService) },
   { method: 'PATCH',  url: '/variants/:id/stock',                    roles: ['Admin'],  schema: s.updateStockSchema,             handler: ctrl.updateStock(productVariantService) },
   { method: 'POST',   url: '/variants/:id/reserve',                  roles: ['Admin'],  schema: s.reserveStockSchema,            handler: ctrl.reserveStock(productVariantService) },
   { method: 'PUT',    url: '/variants/:id/attributes',               roles: ['Admin'],  schema: s.setVariantAttributesSchema,    handler: ctrl.setVariantAttributes(productVariantService) },

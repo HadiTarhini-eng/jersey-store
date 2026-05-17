@@ -9,7 +9,7 @@ const multipartPlugin: FastifyPluginAsync = async (server) => {
         fieldSize: 100,
         fields: 10,
         fileSize: 2 * 1024 * 1024,
-        files: 1,
+        files: 11,
         headerPairs: 2000,
         parts: 1000,
     }

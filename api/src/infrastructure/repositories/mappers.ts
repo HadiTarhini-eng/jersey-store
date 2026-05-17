@@ -7,6 +7,7 @@ import {
   ProductAssignedAttribute,
   ProductAttribute,
   ProductAttributeOption,
+  ProductImage,
   ProductSpecification,
   ProductVariant,
   VariantAttributeValue,
@@ -66,6 +67,10 @@ export const mappers = {
   productVariant: {
     toDomain: (data: any): ProductVariant => new ProductVariant({ ...data, priceOverride: numberOrNull(data.priceOverride) }),
     toRow: row<ProductVariant>,
+  },
+  productImage: {
+    toDomain: (data: any): ProductImage => new ProductImage(data),
+    toRow: row<ProductImage>,
   },
   variantAttributeValue: {
     toDomain: (data: any): VariantAttributeValue => new VariantAttributeValue(data),

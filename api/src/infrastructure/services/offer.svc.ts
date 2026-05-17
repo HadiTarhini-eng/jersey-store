@@ -1,6 +1,8 @@
 import { type Guid } from '../../core/entities/base.js'
-import { type OfferProduct, type SpecialOffer } from '../../core/entities/offer.js'
-import { type ISpecialOfferService } from '../../core/services/offer.svc.js'
+import { type OfferProduct, SpecialOffer } from '../../core/entities/offer.js'
+import { type IAttachmentService } from '../../core/services/attachment.svc.js'
+import { type CreateOfferInput, type ISpecialOfferService } from '../../core/services/offer.svc.js'
+import { type ImageFile } from '../../core/services/storage.svc.js'
 import {
   type EntityRepository,
   type OfferProductRepository,
@@ -14,11 +16,54 @@ export class SpecialOfferService implements ISpecialOfferService {
   constructor(
     private readonly offerRepository: EntityRepository<SpecialOffer>,
     private readonly offerProductRepository: OfferProductRepository,
+    private readonly attachmentService: IAttachmentService,
   ) {}
 
-  async createOffer(offer: SpecialOffer): Promise<SpecialOffer> {
-    this.validateOffer(offer)
+  async createOffer(input: CreateOfferInput): Promise<SpecialOffer> {
+    assertGuid(input.uploadedBy, 'uploadedBy')
+    assertRequiredString(input.data.title, 'title')
+    assertAllowed(input.data.discountType, discountTypes, 'discountType')
+    this.validateDiscountValue(input.data.discountType, input.data.discountValue)
+    assertDateRange(input.data.startDate, input.data.endDate)
+
+    let bannerAttachmentId: Guid | null = null
+    if (input.banner) {
+      const attachment = await this.attachmentService.uploadAttachment({
+        data: input.banner.data,
+        fileName: input.banner.fileName,
+        mimeType: input.banner.mimeType,
+        uploadedBy: input.uploadedBy,
+      })
+      bannerAttachmentId = attachment.id
+    }
+
+    const offer = new SpecialOffer({ ...input.data, bannerAttachmentId })
     return this.offerRepository.create(offer)
+  }
+
+  async setOfferBanner(id: Guid, file: ImageFile, uploadedBy: Guid): Promise<SpecialOffer> {
+    assertGuid(id)
+    assertGuid(uploadedBy, 'uploadedBy')
+    const offer = await this.offerRepository.require(id, 'Special offer')
+    if (offer.bannerAttachmentId) {
+      await this.attachmentService.deleteAttachment(offer.bannerAttachmentId).catch(() => undefined)
+    }
+    const attachment = await this.attachmentService.uploadAttachment({
+      data: file.data,
+      fileName: file.fileName,
+      mimeType: file.mimeType,
+      uploadedBy,
+    })
+    return this.offerRepository.update(id, { bannerAttachmentId: attachment.id } as Partial<SpecialOffer>)
+  }
+
+  async removeOfferBanner(id: Guid): Promise<SpecialOffer> {
+    assertGuid(id)
+    const offer = await this.offerRepository.require(id, 'Special offer')
+    if (offer.bannerAttachmentId) {
+      await this.attachmentService.deleteAttachment(offer.bannerAttachmentId).catch(() => undefined)
+    }
+    return this.offerRepository.update(id, { bannerAttachmentId: null } as Partial<SpecialOffer>)
   }
 
   async updateOffer(id: Guid, data: Partial<SpecialOffer>): Promise<SpecialOffer> {
@@ -84,15 +129,6 @@ export class SpecialOfferService implements ISpecialOfferService {
   async deactivateOffer(id: Guid): Promise<SpecialOffer> {
     assertGuid(id)
     return this.offerRepository.update(id, { isActive: false } as Partial<SpecialOffer>)
-  }
-
-  private validateOffer(offer: SpecialOffer): void {
-    assertGuid(offer.id)
-    assertRequiredString(offer.title, 'title')
-    assertAllowed(offer.discountType, discountTypes, 'discountType')
-    this.validateDiscountValue(offer.discountType, offer.discountValue)
-    assertDateRange(offer.startDate, offer.endDate)
-    if (offer.bannerAttachmentId) assertGuid(offer.bannerAttachmentId, 'bannerAttachmentId')
   }
 
   private validateDiscountValue(discountType: string, discountValue: number): void {

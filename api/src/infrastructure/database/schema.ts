@@ -80,7 +80,18 @@ export const products = pgTable('products', {
   status: varchar('status', { length: 50 }).notNull().default('draft'),
   featured: boolean('featured').notNull().default(false),
   searchVector: text('search_vector'),
+  imageId: ref('image_id'),
   createdBy: ref('created_by').notNull(),
+  isActive: active(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+})
+
+export const productImages = pgTable('product_images', {
+  id: id(),
+  productId: ref('product_id').notNull(),
+  attachmentId: ref('attachment_id').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

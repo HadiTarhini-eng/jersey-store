@@ -23,11 +23,32 @@ const ProductBody = Type.Object({
   createdBy: Type.String(),
   isActive: Type.Optional(Type.Boolean()),
   searchVector: Type.Optional(Type.String()),
+  imageId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 })
 export type ProductBodyType = Static<typeof ProductBody>
 
 const UpdateProductBody = Type.Partial(ProductBody)
 export type UpdateProductBodyType = Static<typeof UpdateProductBody>
+
+const ProductMultipartBody = Type.Object({
+  data: Type.Unsafe<unknown>({ type: 'string', description: 'JSON string of product fields (categoryId, title, slug, basePrice, status, ...)' }),
+  primary: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Hero image file. Max 2 MB. image/*.' })),
+  gallery: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Gallery image file(s). Repeat this field to upload multiple. Max 2 MB each.' })),
+})
+
+const ImageUploadBody = Type.Object({
+  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Gallery image file. Max 2 MB. image/*.' }),
+  sortOrder: Type.Optional(Type.Unsafe<unknown>({ type: 'string', description: 'Integer sort order (defaults to 0)' })),
+})
+
+const SingleImageUploadBody = Type.Object({
+  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Image file. Max 2 MB. image/*.' }),
+})
+
+const VariantMultipartBody = Type.Object({
+  data: Type.Unsafe<unknown>({ type: 'string', description: 'JSON string of variant fields (sku, priceOverride?, stockQuantity?)' }),
+  image: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Variant image file. Max 2 MB. image/*.' })),
+})
 
 const ProductSearchQuery = Type.Object({
   query: Type.Optional(Type.String()),
@@ -130,7 +151,7 @@ export type SetVariantAttributesBodyType = Static<typeof SetVariantAttributesBod
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
-export const createProductSchema: FastifySchema = { tags: ['Products'], body: ProductBody }
+export const createProductSchema: FastifySchema = { tags: ['Products'], consumes: ['multipart/form-data'], body: ProductMultipartBody }
 export const searchProductsSchema: FastifySchema = { tags: ['Products'], querystring: ProductSearchQuery }
 export const getProductSchema: FastifySchema = { tags: ['Products'], params: IdParams }
 export const getProductBySlugSchema: FastifySchema = { tags: ['Products'], params: SlugParams }
@@ -140,6 +161,10 @@ export const archiveProductSchema: FastifySchema = { tags: ['Products'], params:
 export const setFeaturedSchema: FastifySchema = { tags: ['Products'], params: IdParams, body: SetFeaturedBody }
 export const updateBasePriceSchema: FastifySchema = { tags: ['Products'], params: IdParams, body: SetPriceBody }
 export const deleteProductSchema: FastifySchema = { tags: ['Products'], params: IdParams }
+
+export const addProductImageSchema: FastifySchema = { tags: ['Products'], consumes: ['multipart/form-data'], params: ProductIdParams, body: ImageUploadBody }
+export const listProductImagesSchema: FastifySchema = { tags: ['Products'], params: ProductIdParams }
+export const removeProductImageSchema: FastifySchema = { tags: ['Products'], params: IdParams }
 
 export const createAttributeSchema: FastifySchema = { tags: ['ProductAttributes'], body: ProductAttributeBody }
 export const listAttributesSchema: FastifySchema = { tags: ['ProductAttributes'] }
@@ -153,7 +178,9 @@ export const listAttributeOptionsSchema: FastifySchema = { tags: ['ProductAttrib
 export const createSpecificationSchema: FastifySchema = { tags: ['ProductSpecifications'], params: ProductIdParams, body: CreateSpecificationBody }
 export const listSpecificationsSchema: FastifySchema = { tags: ['ProductSpecifications'], params: ProductIdParams }
 
-export const createVariantSchema: FastifySchema = { tags: ['ProductVariants'], params: ProductIdParams, body: CreateVariantBody }
+export const createVariantSchema: FastifySchema = { tags: ['ProductVariants'], consumes: ['multipart/form-data'], params: ProductIdParams, body: VariantMultipartBody }
+export const setVariantImageSchema: FastifySchema = { tags: ['ProductVariants'], consumes: ['multipart/form-data'], params: IdParams, body: SingleImageUploadBody }
+export const removeVariantImageSchema: FastifySchema = { tags: ['ProductVariants'], params: IdParams }
 export const listVariantsSchema: FastifySchema = { tags: ['ProductVariants'], params: ProductIdParams }
 export const getVariantSchema: FastifySchema = { tags: ['ProductVariants'], params: IdParams }
 export const getVariantBySkuSchema: FastifySchema = { tags: ['ProductVariants'], params: SkuParams }

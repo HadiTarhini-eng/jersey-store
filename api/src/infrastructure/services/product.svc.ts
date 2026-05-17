@@ -1,14 +1,25 @@
 import { type Guid } from '../../core/entities/base.js'
 import {
-  type Product,
+  Product,
+  ProductImage,
+  ProductVariant,
   type ProductAssignedAttribute,
   type ProductAttribute,
   type ProductAttributeOption,
   type ProductSpecification,
-  type ProductVariant,
   type VariantAttributeValue,
 } from '../../core/entities/product.js'
-import { type IProductAttributeService, type IProductService, type IProductVariantService, type ProductSearchFilters } from '../../core/services/product.svc.js'
+import { type IAttachmentService } from '../../core/services/attachment.svc.js'
+import {
+  type CreateProductInput,
+  type CreateVariantInput,
+  type IProductAttributeService,
+  type IProductService,
+  type IProductVariantService,
+  type ProductImageFile,
+  type ProductSearchFilters,
+} from '../../core/services/product.svc.js'
+import { type ImageFile } from '../../core/services/storage.svc.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
 import { ConflictError, ValidationError } from './errors.js'
 import { assertAllowed, assertGuid, assertInteger, assertNonNegativeNumber, assertRequiredString, assertSlug } from './validators.js'
@@ -19,12 +30,65 @@ const attributeTypes = ['text', 'number', 'boolean', 'select', 'multiselect', 'c
 export class ProductService implements IProductService {
   constructor(
     private readonly productRepository: EntityRepository<Product>,
+    private readonly productImageRepository: EntityRepository<ProductImage>,
+    private readonly attachmentService: IAttachmentService,
   ) {}
 
-  async createProduct(product: Product): Promise<Product> {
-    this.validateProduct(product)
-    await this.assertUniqueSlug(product.slug)
-    return this.productRepository.create(product)
+  async createProduct(input: CreateProductInput): Promise<Product> {
+    assertGuid(input.createdBy, 'createdBy')
+    assertGuid(input.data.categoryId, 'categoryId')
+    assertRequiredString(input.data.title, 'title')
+    assertSlug(input.data.slug)
+    assertNonNegativeNumber(input.data.basePrice, 'basePrice')
+    if (input.data.status !== undefined) assertAllowed(input.data.status, productStatuses, 'status')
+    await this.assertUniqueSlug(input.data.slug)
+
+    let imageId: Guid | null = null
+    if (input.primary) {
+      const attachment = await this.attachmentService.uploadAttachment({
+        data: input.primary.data,
+        fileName: input.primary.fileName,
+        mimeType: input.primary.mimeType,
+        uploadedBy: input.createdBy,
+      })
+      imageId = attachment.id
+    }
+
+    const product = new Product({ ...input.data, createdBy: input.createdBy, imageId })
+    await this.productRepository.create(product)
+
+    if (input.gallery && input.gallery.length > 0) {
+      for (let i = 0; i < input.gallery.length; i++) {
+        await this.addProductImage(product.id, input.gallery[i]!, i)
+      }
+    }
+
+    return product
+  }
+
+  async addProductImage(productId: Guid, file: ProductImageFile, sortOrder = 0): Promise<ProductImage> {
+    assertGuid(productId, 'productId')
+    const product = await this.productRepository.require(productId, 'Product')
+    const attachment = await this.attachmentService.uploadAttachment({
+      data: file.data,
+      fileName: file.fileName,
+      mimeType: file.mimeType,
+      uploadedBy: product.createdBy,
+    })
+    const image = new ProductImage({ productId, attachmentId: attachment.id, sortOrder })
+    return this.productImageRepository.create(image)
+  }
+
+  async listProductImages(productId: Guid): Promise<ProductImage[]> {
+    assertGuid(productId, 'productId')
+    return this.productImageRepository.listBy('productId', productId)
+  }
+
+  async removeProductImage(productImageId: Guid): Promise<void> {
+    assertGuid(productImageId, 'productImageId')
+    const image = await this.productImageRepository.require(productImageId, 'Product image')
+    await this.productImageRepository.delete(productImageId)
+    await this.attachmentService.deleteAttachment(image.attachmentId)
   }
 
   async updateProduct(id: Guid, data: Partial<Product>): Promise<Product> {
@@ -104,16 +168,6 @@ export class ProductService implements IProductService {
     assertGuid(id)
     await this.productRepository.require(id, 'Product')
     await this.productRepository.delete(id)
-  }
-
-  private validateProduct(product: Product): void {
-    assertGuid(product.id)
-    assertGuid(product.categoryId, 'categoryId')
-    assertGuid(product.createdBy, 'createdBy')
-    assertRequiredString(product.title, 'title')
-    assertSlug(product.slug)
-    assertNonNegativeNumber(product.basePrice, 'basePrice')
-    assertAllowed(product.status, productStatuses, 'status')
   }
 
   private async assertUniqueSlug(slug: string, exceptId?: Guid): Promise<void> {
@@ -229,12 +283,63 @@ export class ProductVariantService implements IProductVariantService {
   constructor(
     private readonly variantRepository: EntityRepository<ProductVariant>,
     private readonly valueRepository: EntityRepository<VariantAttributeValue>,
+    private readonly attachmentService: IAttachmentService,
   ) {}
 
-  async createVariant(variant: ProductVariant): Promise<ProductVariant> {
-    this.validateVariant(variant)
-    await this.assertUniqueSku(variant.sku)
+  async createVariant(input: CreateVariantInput): Promise<ProductVariant> {
+    assertGuid(input.productId, 'productId')
+    assertGuid(input.uploadedBy, 'uploadedBy')
+    assertRequiredString(input.data.sku, 'sku', 100)
+    if (input.data.priceOverride !== undefined && input.data.priceOverride !== null) assertNonNegativeNumber(input.data.priceOverride, 'priceOverride')
+    if (input.data.stockQuantity !== undefined) {
+      assertInteger(input.data.stockQuantity, 'stockQuantity')
+      assertNonNegativeNumber(input.data.stockQuantity, 'stockQuantity')
+    }
+    await this.assertUniqueSku(input.data.sku)
+
+    let imageId: Guid | null = null
+    if (input.image) {
+      const attachment = await this.attachmentService.uploadAttachment({
+        data: input.image.data,
+        fileName: input.image.fileName,
+        mimeType: input.image.mimeType,
+        uploadedBy: input.uploadedBy,
+      })
+      imageId = attachment.id
+    }
+
+    const variant = new ProductVariant({
+      ...input.data,
+      productId: input.productId,
+      imageId,
+      stockQuantity: input.data.stockQuantity ?? 0,
+    })
     return this.variantRepository.create(variant)
+  }
+
+  async setVariantImage(id: Guid, file: ImageFile, uploadedBy: Guid): Promise<ProductVariant> {
+    assertGuid(id)
+    assertGuid(uploadedBy, 'uploadedBy')
+    const variant = await this.variantRepository.require(id, 'Product variant')
+    if (variant.imageId) {
+      await this.attachmentService.deleteAttachment(variant.imageId).catch(() => undefined)
+    }
+    const attachment = await this.attachmentService.uploadAttachment({
+      data: file.data,
+      fileName: file.fileName,
+      mimeType: file.mimeType,
+      uploadedBy,
+    })
+    return this.variantRepository.update(id, { imageId: attachment.id } as Partial<ProductVariant>)
+  }
+
+  async removeVariantImage(id: Guid): Promise<ProductVariant> {
+    assertGuid(id)
+    const variant = await this.variantRepository.require(id, 'Product variant')
+    if (variant.imageId) {
+      await this.attachmentService.deleteAttachment(variant.imageId).catch(() => undefined)
+    }
+    return this.variantRepository.update(id, { imageId: null } as Partial<ProductVariant>)
   }
 
   async updateVariant(id: Guid, data: Partial<ProductVariant>): Promise<ProductVariant> {
@@ -292,16 +397,6 @@ export class ProductVariantService implements IProductVariantService {
   async deactivateVariant(id: Guid): Promise<ProductVariant> {
     assertGuid(id)
     return this.variantRepository.update(id, { isActive: false } as Partial<ProductVariant>)
-  }
-
-  private validateVariant(variant: ProductVariant): void {
-    assertGuid(variant.id)
-    assertGuid(variant.productId, 'productId')
-    assertRequiredString(variant.sku, 'sku', 100)
-    if (variant.priceOverride !== undefined && variant.priceOverride !== null) assertNonNegativeNumber(variant.priceOverride, 'priceOverride')
-    assertInteger(variant.stockQuantity, 'stockQuantity')
-    assertNonNegativeNumber(variant.stockQuantity, 'stockQuantity')
-    if (variant.imageId) assertGuid(variant.imageId, 'imageId')
   }
 
   private validateVariantAttributeValue(value: VariantAttributeValue, variantId: Guid): void {

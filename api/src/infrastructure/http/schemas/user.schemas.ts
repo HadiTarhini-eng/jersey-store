@@ -38,8 +38,9 @@ export type ChangePasswordBodyType = Static<typeof ChangePasswordBody>
 const ChangeRoleBody = Type.Object({ role: RoleEnum })
 export type ChangeRoleBodyType = Static<typeof ChangeRoleBody>
 
-const SetProfileImageBody = Type.Object({ profileImageId: Type.Optional(Type.String()) })
-export type SetProfileImageBodyType = Static<typeof SetProfileImageBody>
+const AvatarUploadBody = Type.Object({
+  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Avatar image. Max 2 MB. image/*.' }),
+})
 
 export const createUserSchema: FastifySchema = { tags: ['Users'], body: CreateUserBody }
 export const loginSchema: FastifySchema = { tags: ['Users'], body: LoginBody }
@@ -49,6 +50,7 @@ export const getUserSchema: FastifySchema = { tags: ['Users'], params: IdParams 
 export const updateUserSchema: FastifySchema = { tags: ['Users'], params: IdParams, body: UpdateUserBody }
 export const changePasswordSchema: FastifySchema = { tags: ['Users'], params: IdParams, body: ChangePasswordBody }
 export const changeRoleSchema: FastifySchema = { tags: ['Users'], params: IdParams, body: ChangeRoleBody }
-export const setProfileImageSchema: FastifySchema = { tags: ['Users'], params: IdParams, body: SetProfileImageBody }
+export const setProfileImageSchema: FastifySchema = { tags: ['Users'], consumes: ['multipart/form-data'], params: IdParams, body: AvatarUploadBody }
+export const removeProfileImageSchema: FastifySchema = { tags: ['Users'], params: IdParams }
 export const activateUserSchema: FastifySchema = { tags: ['Users'], params: IdParams }
 export const deactivateUserSchema: FastifySchema = { tags: ['Users'], params: IdParams }

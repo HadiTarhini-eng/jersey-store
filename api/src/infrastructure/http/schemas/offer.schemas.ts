@@ -27,7 +27,18 @@ export type ActiveOffersQueryType = Static<typeof ActiveOffersQuery>
 const RescheduleBody = Type.Object({ startDate: Type.String(), endDate: Type.String() })
 export type RescheduleBodyType = Static<typeof RescheduleBody>
 
-export const createOfferSchema: FastifySchema = { tags: ['Offers'], body: OfferBody }
+const OfferMultipartBody = Type.Object({
+  data: Type.Unsafe<unknown>({ type: 'string', description: 'JSON string of offer fields (title, discountType, discountValue, startDate, endDate, description?)' }),
+  banner: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Banner image. Max 2 MB. image/*.' })),
+})
+
+const BannerUploadBody = Type.Object({
+  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Banner image. Max 2 MB. image/*.' }),
+})
+
+export const createOfferSchema: FastifySchema = { tags: ['Offers'], consumes: ['multipart/form-data'], body: OfferMultipartBody }
+export const setOfferBannerSchema: FastifySchema = { tags: ['Offers'], consumes: ['multipart/form-data'], params: IdParams, body: BannerUploadBody }
+export const removeOfferBannerSchema: FastifySchema = { tags: ['Offers'], params: IdParams }
 export const listActiveOffersSchema: FastifySchema = { tags: ['Offers'], querystring: ActiveOffersQuery }
 export const getOfferSchema: FastifySchema = { tags: ['Offers'], params: IdParams }
 export const listOffersForProductSchema: FastifySchema = { tags: ['Offers'], params: ProductIdParams }

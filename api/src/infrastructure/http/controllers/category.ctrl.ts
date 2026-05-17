@@ -1,10 +1,12 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { Category, CategoryType } from '../../../core/entities/catalog.js'
-import type { ICategoryService, ICategoryTypeService } from '../../../core/services/catalog.svc.js'
-import { sendCreated, sendOk } from '../routes/route-utils.js'
+import { CategoryType } from '../../../core/entities/catalog.js'
+import type { CreateCategoryInput, ICategoryService, ICategoryTypeService } from '../../../core/services/catalog.svc.js'
+import type { ImageFile } from '../../../core/services/storage.svc.js'
+import { ValidationError } from '../../services/errors.js'
+import { jwtUser, sendCreated, sendOk } from '../routes/route-utils.js'
 import type {
-  CategoryBodyType, CategoryQueryType, CategoryTypeBodyType,
-  MoveBodyType, SetImageBodyType, UpdateCategoryBodyType, UpdateCategoryTypeBodyType,
+  CategoryQueryType, CategoryTypeBodyType,
+  MoveBodyType, UpdateCategoryBodyType, UpdateCategoryTypeBodyType,
 } from '../schemas/category.schemas.js'
 
 type IdParams = { id: string }
@@ -38,9 +40,40 @@ export const deactivateCategoryType = (service: ICategoryTypeService) =>
 
 // ── Category ─────────────────────────────────────────────────────────────────
 
+const parseCategoryMultipart = async (request: FastifyRequest): Promise<{
+  data: CreateCategoryInput['data']
+  image?: ImageFile
+}> => {
+  let dataJson: string | undefined
+  let image: ImageFile | undefined
+
+  for await (const part of request.parts()) {
+    if (part.type === 'file' && part.fieldname === 'image') {
+      image = { data: await part.toBuffer(), fileName: part.filename, mimeType: part.mimetype }
+    } else if (part.type === 'field' && part.fieldname === 'data') {
+      dataJson = String(part.value)
+    }
+  }
+
+  if (!dataJson) throw new ValidationError('Missing "data" field with category JSON payload')
+  try {
+    return { data: JSON.parse(dataJson) as CreateCategoryInput['data'], image }
+  } catch {
+    throw new ValidationError('"data" field is not valid JSON')
+  }
+}
+
+const readSingleImageUpload = async (request: FastifyRequest): Promise<ImageFile> => {
+  const file = await request.file()
+  if (!file) throw new ValidationError('No file uploaded (expected multipart field "file")')
+  return { data: await file.toBuffer(), fileName: file.filename, mimeType: file.mimetype }
+}
+
 export const createCategory = (service: ICategoryService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    sendCreated(reply, await service.createCategory(new Category(request.body as CategoryBodyType)))
+    const { data, image } = await parseCategoryMultipart(request)
+    const { id: uploadedBy } = jwtUser(request)
+    sendCreated(reply, await service.createCategory({ data, image, uploadedBy }))
   }
 
 export const listCategories = (service: ICategoryService) =>
@@ -70,7 +103,15 @@ export const moveCategory = (service: ICategoryService) =>
 
 export const setCategoryImage = (service: ICategoryService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    sendOk(reply, await service.setCategoryImage((request.params as IdParams).id, (request.body as SetImageBodyType).imageId))
+    const { id } = request.params as IdParams
+    const { id: uploadedBy } = jwtUser(request)
+    const file = await readSingleImageUpload(request)
+    sendOk(reply, await service.setCategoryImage(id, file, uploadedBy))
+  }
+
+export const removeCategoryImage = (service: ICategoryService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    sendOk(reply, await service.removeCategoryImage((request.params as IdParams).id))
   }
 
 export const activateCategory = (service: ICategoryService) =>

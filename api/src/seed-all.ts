@@ -219,6 +219,7 @@ try {
         status: 'published',
         featured: true,
         searchVector: 'home jersey 2026 football official',
+        imageId: attachProductId,
         createdBy: adminId,
       },
       {

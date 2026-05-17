@@ -40,8 +40,14 @@ export type CategoryQueryType = Static<typeof CategoryQuery>
 const MoveBody = Type.Object({ parentId: Type.Optional(Type.String()) })
 export type MoveBodyType = Static<typeof MoveBody>
 
-const SetImageBody = Type.Object({ imageId: Type.Optional(Type.String()) })
-export type SetImageBodyType = Static<typeof SetImageBody>
+const CategoryMultipartBody = Type.Object({
+  data: Type.Unsafe<unknown>({ type: 'string', description: 'JSON string of category fields (categoryTypeId, name, slug, parentId?, description?)' }),
+  image: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Category image. Max 2 MB. image/*.' })),
+})
+
+const CategoryImageUploadBody = Type.Object({
+  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Category image. Max 2 MB. image/*.' }),
+})
 
 export const createCategoryTypeSchema: FastifySchema = { tags: ['CategoryTypes'], body: CategoryTypeBody }
 export const listCategoryTypesSchema: FastifySchema = { tags: ['CategoryTypes'] }
@@ -49,12 +55,13 @@ export const getCategoryTypeSchema: FastifySchema = { tags: ['CategoryTypes'], p
 export const updateCategoryTypeSchema: FastifySchema = { tags: ['CategoryTypes'], params: IdParams, body: UpdateCategoryTypeBody }
 export const deleteCategoryTypeSchema: FastifySchema = { tags: ['CategoryTypes'], params: IdParams }
 
-export const createCategorySchema: FastifySchema = { tags: ['Categories'], body: CategoryBody }
+export const createCategorySchema: FastifySchema = { tags: ['Categories'], consumes: ['multipart/form-data'], body: CategoryMultipartBody }
 export const listCategoriesSchema: FastifySchema = { tags: ['Categories'], querystring: CategoryQuery }
 export const getCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams }
 export const getCategoryChildrenSchema: FastifySchema = { tags: ['Categories'], params: IdParams }
 export const updateCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams, body: UpdateCategoryBody }
 export const moveCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams, body: MoveBody }
-export const setCategoryImageSchema: FastifySchema = { tags: ['Categories'], params: IdParams, body: SetImageBody }
+export const setCategoryImageSchema: FastifySchema = { tags: ['Categories'], consumes: ['multipart/form-data'], params: IdParams, body: CategoryImageUploadBody }
+export const removeCategoryImageSchema: FastifySchema = { tags: ['Categories'], params: IdParams }
 export const activateCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams }
 export const deleteCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams }

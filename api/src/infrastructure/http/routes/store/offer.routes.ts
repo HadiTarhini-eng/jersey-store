@@ -12,6 +12,8 @@ export const offerRoutes = (service: ISpecialOfferService): RouteOptions[] => [
   { method: 'POST',   url: '/offers/:offerId/products/:productId', roles: ['Admin'],  schema: s.attachProductSchema,        handler: ctrl.attachProduct(service) },
   { method: 'DELETE', url: '/offers/:offerId/products/:productId', roles: ['Admin'],  schema: s.detachProductSchema,        handler: ctrl.detachProduct(service) },
   { method: 'PATCH',  url: '/offers/:id/schedule',                 roles: ['Admin'],  schema: s.rescheduleOfferSchema,      handler: ctrl.rescheduleOffer(service) },
+  { method: 'POST',   url: '/offers/:id/banner',                   roles: ['Admin'],  schema: s.setOfferBannerSchema,       handler: ctrl.setOfferBanner(service) },
+  { method: 'DELETE', url: '/offers/:id/banner',                   roles: ['Admin'],  schema: s.removeOfferBannerSchema,    handler: ctrl.removeOfferBanner(service) },
   { method: 'POST',   url: '/offers/:id/activate',                 roles: ['Admin'],  schema: s.activateOfferSchema,        handler: ctrl.activateOffer(service) },
   { method: 'DELETE', url: '/offers/:id',                          roles: ['Admin'],  schema: s.deactivateOfferSchema,      handler: ctrl.deactivateOffer(service) },
 ]

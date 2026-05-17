@@ -5,6 +5,7 @@ import fastify, {
 import { type TypeBoxTypeProvider } from "@fastify/type-provider-typebox"
 import multipart from "../plugins/multipart.js"
 import storage from "../plugins/storage.js"
+import { registerAttachmentResolution } from "../hooks/resolveAttachments.js"
 import routes from "../routes/index.js"
 import { UserService } from "../../services/user.svc.js"
 import { AttachmentService } from "../../services/attachment.svc.js"
@@ -25,6 +26,7 @@ import {
     productAssignedAttributes,
     productAttributeOptions,
     productAttributes,
+    productImages,
     productSpecifications,
     products,
     productVariants,
@@ -110,6 +112,7 @@ export const createServer = async (): Promise<FastifyInstance> => {
     const productAttributeOptionRepository = new DrizzleEntityRepository(productAttributeOptions, 'Product attribute option', mappers.productAttributeOption)
     const productSpecificationRepository = new DrizzleEntityRepository(productSpecifications, 'Product specification', mappers.productSpecification)
     const productVariantRepository = new DrizzleEntityRepository(productVariants, 'Product variant', mappers.productVariant)
+    const productImageRepository = new DrizzleEntityRepository(productImages, 'Product image', mappers.productImage)
     const variantAttributeValueRepository = new DrizzleEntityRepository(variantAttributeValues, 'Variant attribute value', mappers.variantAttributeValue)
     const cartRepository = new DrizzleEntityRepository(carts, 'Cart', mappers.cart)
     const cartItemRepository = new DrizzleEntityRepository(cartItems, 'Cart item', mappers.cartItem)
@@ -119,23 +122,25 @@ export const createServer = async (): Promise<FastifyInstance> => {
     const specialOfferRepository = new DrizzleEntityRepository(specialOffers, 'Special offer', mappers.specialOffer)
     const offerProductRepository = new DrizzleOfferProductRepository(offerProducts)
 
-    const userService = new UserService(userRepository)
+    const attachmentService = new AttachmentService(attachmentRepository, server.storage)
+    registerAttachmentResolution(server, attachmentService)
+    const userService = new UserService(userRepository, attachmentService)
     const storeServices = {
-        attachmentService: new AttachmentService(attachmentRepository, server.storage),
+        attachmentService,
         categoryTypeService: new CategoryTypeService(categoryTypeRepository),
-        categoryService: new CategoryService(categoryRepository),
-        productService: new ProductService(productRepository),
+        categoryService: new CategoryService(categoryRepository, attachmentService),
+        productService: new ProductService(productRepository, productImageRepository, attachmentService),
         productAttributeService: new ProductAttributeService(
             productAttributeRepository,
             productAssignedAttributeRepository,
             productAttributeOptionRepository,
             productSpecificationRepository,
         ),
-        productVariantService: new ProductVariantService(productVariantRepository, variantAttributeValueRepository),
+        productVariantService: new ProductVariantService(productVariantRepository, variantAttributeValueRepository, attachmentService),
         cartService: new CartService(cartRepository, cartItemRepository),
         orderService: new OrderService(orderRepository, orderItemRepository),
         reviewService: new ReviewService(reviewRepository),
-        specialOfferService: new SpecialOfferService(specialOfferRepository, offerProductRepository),
+        specialOfferService: new SpecialOfferService(specialOfferRepository, offerProductRepository, attachmentService),
     }
 
     const applicationRoutes = routes(userService, storeServices)

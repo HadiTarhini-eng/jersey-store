@@ -12,7 +12,8 @@ export const userRoutes = (service: IUserService): RouteOptions[] => [
   { method: 'PATCH',  url: '/users/:id',               roles: ['Admin', 'User'], schema: s.updateUserSchema,      handler: ctrl.updateUser(service) },
   { method: 'PATCH',  url: '/users/:id/password',      roles: ['Admin', 'User'], schema: s.changePasswordSchema,  handler: ctrl.changePassword(service) },
   { method: 'PATCH',  url: '/users/:id/role',          roles: ['Admin'],         schema: s.changeRoleSchema,      handler: ctrl.changeRole(service) },
-  { method: 'PATCH',  url: '/users/:id/profile-image', roles: ['Admin', 'User'], schema: s.setProfileImageSchema, handler: ctrl.setProfileImage(service) },
+  { method: 'POST',   url: '/users/:id/profile-image', roles: ['Admin', 'User'], schema: s.setProfileImageSchema, handler: ctrl.setProfileImage(service) },
+  { method: 'DELETE', url: '/users/:id/profile-image', roles: ['Admin', 'User'], schema: s.removeProfileImageSchema, handler: ctrl.removeProfileImage(service) },
   { method: 'POST',   url: '/users/:id/activate',      roles: ['Admin'],         schema: s.activateUserSchema,    handler: ctrl.activateUser(service) },
   { method: 'DELETE', url: '/users/:id',               roles: ['Admin'],         schema: s.deactivateUserSchema,  handler: ctrl.deactivateUser(service) },
 ]

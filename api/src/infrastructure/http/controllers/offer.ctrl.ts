@@ -1,8 +1,9 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { SpecialOffer } from '../../../core/entities/offer.js'
-import type { ISpecialOfferService } from '../../../core/services/offer.svc.js'
-import { sendCreated, sendDeleted, sendOk } from '../routes/route-utils.js'
-import type { ActiveOffersQueryType, OfferBodyType, RescheduleBodyType, UpdateOfferBodyType } from '../schemas/offer.schemas.js'
+import type { CreateOfferInput, ISpecialOfferService } from '../../../core/services/offer.svc.js'
+import type { ImageFile } from '../../../core/services/storage.svc.js'
+import { ValidationError } from '../../services/errors.js'
+import { jwtUser, sendCreated, sendDeleted, sendOk } from '../routes/route-utils.js'
+import type { ActiveOffersQueryType, RescheduleBodyType, UpdateOfferBodyType } from '../schemas/offer.schemas.js'
 
 type IdParams = { id: string }
 type ProductIdParams = { productId: string }
@@ -14,10 +15,54 @@ const coerceDates = (data: Record<string, any>): Record<string, any> => ({
   ...(data.endDate ? { endDate: new Date(data.endDate) } : {}),
 })
 
+const parseOfferMultipart = async (request: FastifyRequest): Promise<{
+  data: CreateOfferInput['data']
+  banner?: ImageFile
+}> => {
+  let dataJson: string | undefined
+  let banner: ImageFile | undefined
+
+  for await (const part of request.parts()) {
+    if (part.type === 'file' && part.fieldname === 'banner') {
+      banner = { data: await part.toBuffer(), fileName: part.filename, mimeType: part.mimetype }
+    } else if (part.type === 'field' && part.fieldname === 'data') {
+      dataJson = String(part.value)
+    }
+  }
+
+  if (!dataJson) throw new ValidationError('Missing "data" field with offer JSON payload')
+  try {
+    const parsed = JSON.parse(dataJson) as Record<string, unknown>
+    return { data: coerceDates(parsed) as CreateOfferInput['data'], banner }
+  } catch {
+    throw new ValidationError('"data" field is not valid JSON')
+  }
+}
+
+const readSingleImageUpload = async (request: FastifyRequest): Promise<ImageFile> => {
+  const file = await request.file()
+  if (!file) throw new ValidationError('No file uploaded (expected multipart field "file")')
+  return { data: await file.toBuffer(), fileName: file.filename, mimeType: file.mimetype }
+}
+
 export const createOffer = (service: ISpecialOfferService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const body = request.body as OfferBodyType
-    sendCreated(reply, await service.createOffer(new SpecialOffer(coerceDates(body) as any)))
+    const { data, banner } = await parseOfferMultipart(request)
+    const { id: uploadedBy } = jwtUser(request)
+    sendCreated(reply, await service.createOffer({ data, banner, uploadedBy }))
+  }
+
+export const setOfferBanner = (service: ISpecialOfferService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const { id } = request.params as IdParams
+    const { id: uploadedBy } = jwtUser(request)
+    const file = await readSingleImageUpload(request)
+    sendOk(reply, await service.setOfferBanner(id, file, uploadedBy))
+  }
+
+export const removeOfferBanner = (service: ISpecialOfferService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    sendOk(reply, await service.removeOfferBanner((request.params as IdParams).id))
   }
 
 export const listActiveOffers = (service: ISpecialOfferService) =>

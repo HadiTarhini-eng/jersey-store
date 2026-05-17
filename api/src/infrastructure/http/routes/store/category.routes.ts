@@ -21,7 +21,8 @@ export const categoryRoutes = (
   { method: 'GET',    url: '/categories/:id/children',  protected: false,         schema: s.getCategoryChildrenSchema, handler: ctrl.listCategoryChildren(categoryService) },
   { method: 'PATCH',  url: '/categories/:id',           roles: ['Admin'],         schema: s.updateCategorySchema,      handler: ctrl.updateCategory(categoryService) },
   { method: 'PATCH',  url: '/categories/:id/move',      roles: ['Admin'],         schema: s.moveCategorySchema,        handler: ctrl.moveCategory(categoryService) },
-  { method: 'PATCH',  url: '/categories/:id/image',     roles: ['Admin'],         schema: s.setCategoryImageSchema,    handler: ctrl.setCategoryImage(categoryService) },
+  { method: 'POST',   url: '/categories/:id/image',     roles: ['Admin'],         schema: s.setCategoryImageSchema,    handler: ctrl.setCategoryImage(categoryService) },
+  { method: 'DELETE', url: '/categories/:id/image',     roles: ['Admin'],         schema: s.removeCategoryImageSchema, handler: ctrl.removeCategoryImage(categoryService) },
   { method: 'POST',   url: '/categories/:id/activate',  roles: ['Admin'],         schema: s.activateCategorySchema,    handler: ctrl.activateCategory(categoryService) },
   { method: 'DELETE', url: '/categories/:id',           roles: ['Admin'],         schema: s.deleteCategorySchema,      handler: ctrl.deactivateCategory(categoryService) },
 ]
