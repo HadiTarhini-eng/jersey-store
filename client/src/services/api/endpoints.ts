@@ -32,6 +32,8 @@ export const endpoints = {
     featured:  (id: string)        => `/products/${id}/featured`,
     price:     (id: string)        => `/products/${id}/price`,
     delete:    (id: string)        => `/products/${id}`,
+    images:    (productId: string) => `/products/${productId}/images`,
+    imageById: (id: string)        => `/products/images/${id}`,
   },
 
   // ── Product Attributes ──────────────────────────────────────────────────────
@@ -59,6 +61,7 @@ export const endpoints = {
     byId:          (id: string)        => `/variants/${id}`,
     bySku:         (sku: string)       => `/variants/sku/${sku}`,
     update:        (id: string)        => `/variants/${id}`,
+    image:         (id: string)        => `/variants/${id}/image`,
     stock:         (id: string)        => `/variants/${id}/stock`,
     reserve:       (id: string)        => `/variants/${id}/reserve`,
     setAttributes: (id: string)        => `/variants/${id}/attributes`,
@@ -133,6 +136,7 @@ export const endpoints = {
     attach:      (offerId: string, productId: string) => `/offers/${offerId}/products/${productId}`,
     detach:      (offerId: string, productId: string) => `/offers/${offerId}/products/${productId}`,
     schedule:    (id: string)        => `/offers/${id}/schedule`,
+    banner:      (id: string)        => `/offers/${id}/banner`,
     activate:    (id: string)        => `/offers/${id}/activate`,
     deactivate:  (id: string)        => `/offers/${id}`,
   },

@@ -9,7 +9,7 @@ export function RegisterForm() {
   const { register, loading, error, clearError } = useAuth();
 
   const [form, setForm] = useState({
-    firstName: '', lastName: '', email: '', password: '', confirmPassword: '',
+    firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '',
   });
   const [errors, setErrors] = useState<Partial<typeof form>>({});
   const [showPass, setShowPass] = useState(false);
@@ -27,6 +27,7 @@ export function RegisterForm() {
       firstName:       validate(form.firstName,       [validators.required, validators.minLength(2)]),
       lastName:        validate(form.lastName,        [validators.required, validators.minLength(2)]),
       email:           validate(form.email,           [validators.required, validators.email]),
+      phone:           validate(form.phone,           [validators.required, validators.minLength(7)]),
       password:        validate(form.password,        [validators.required, validators.password]),
       confirmPassword: validate(form.confirmPassword, [validators.required, validators.matchPassword(form.password)]),
     };
@@ -74,6 +75,15 @@ export function RegisterForm() {
         error={errors.email}
         placeholder="you@example.com"
         autoComplete="email"
+      />
+
+      <Input
+        label="Phone number"
+        value={form.phone}
+        onChange={change('phone')}
+        error={errors.phone}
+        placeholder="+1 555 123 4567"
+        autoComplete="tel"
       />
 
       <Input

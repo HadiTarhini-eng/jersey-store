@@ -47,3 +47,9 @@ export function storeCart(userId: string | null, items: CartItem[]): void {
 export function clearStoredCart(userId: string | null): void {
   localStorage.removeItem(cartKey(userId));
 }
+
+export function moveStoredCart(fromUserId: string | null, toUserId: string | null): void {
+  const items = getStoredCart(fromUserId);
+  if (items.length > 0) storeCart(toUserId, items);
+  clearStoredCart(fromUserId);
+}

@@ -1,30 +1,45 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DataGrid, type DataGridColumn } from '../components/DataGrid';
 import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { useAdminCollection } from '../hooks/useAdminCollection';
-import customersSeed from '../../data/admin/customers.json';
+import { adminApi } from '../services/adminApi';
+import { userApi } from '../../services/api';
 import type { AdminCustomer } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
-const customersSeedTyped = customersSeed as AdminCustomer[];
-
 export function AdminCustomers() {
-  const { items: customers, remove } = useAdminCollection<AdminCustomer>('customers', customersSeedTyped);
+  const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [pendingDelete, setPendingDelete] = useState<AdminCustomer | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const next = await adminApi.listCustomers();
+        if (!cancelled) setCustomers(next);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void load();
+    return () => { cancelled = true; };
+  }, []);
 
   const columns: DataGridColumn<AdminCustomer>[] = [
     {
       key: 'name',
       label: 'Customer',
-      render: (c) => (
+      render: (customer) => (
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold shrink-0">
-            {c.firstName[0]}{c.lastName[0]}
+            {customer.firstName[0]}{customer.lastName[0]}
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-primary truncate">{c.firstName} {c.lastName}</p>
-            <p className="text-xs text-muted truncate">{c.email}</p>
+            <p className="font-medium text-primary truncate">{customer.firstName} {customer.lastName}</p>
+            <p className="text-xs text-muted truncate">{customer.email}</p>
           </div>
         </div>
       ),
@@ -32,42 +47,42 @@ export function AdminCustomers() {
     {
       key: 'country',
       label: 'Country',
-      render: (c) => <span className="text-secondary text-sm">{c.country ?? '—'}</span>,
+      render: (customer) => <span className="text-secondary text-sm">{customer.country ?? '-'}</span>,
     },
     {
       key: 'orders',
       label: 'Orders',
       align: 'center',
-      render: (c) => <span className="text-primary font-bold tabular-nums">{c.ordersCount}</span>,
+      render: (customer) => <span className="text-primary font-bold tabular-nums">{customer.ordersCount}</span>,
     },
     {
       key: 'spent',
       label: 'Lifetime Value',
       align: 'right',
-      render: (c) => <span className="text-primary font-bold tabular-nums">{formatPrice(c.totalSpent)}</span>,
+      render: (customer) => <span className="text-primary font-bold tabular-nums">{formatPrice(customer.totalSpent)}</span>,
     },
     {
       key: 'joined',
       label: 'Joined',
-      render: (c) => (
+      render: (customer) => (
         <span className="text-xs text-muted">
-          {new Date(c.joinedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+          {new Date(customer.joinedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
         </span>
       ),
     },
     {
       key: 'status',
       label: 'Status',
-      render: (c) => <StatusBadge status={c.status} />,
+      render: (customer) => <StatusBadge status={customer.status} />,
     },
     {
       key: 'actions',
       label: '',
       align: 'right',
-      render: (c) => (
+      render: (customer) => (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); setPendingDelete(c); }}
+          onClick={(event) => { event.stopPropagation(); setPendingDelete(customer); }}
           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-danger hover:bg-danger/10 transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -81,28 +96,41 @@ export function AdminCustomers() {
 
   return (
     <>
+      {loading ? (
+        <div className="bg-surface border border-stroke rounded-2xl px-4 py-10 text-center text-muted text-sm">
+          Loading customers...
+        </div>
+      ) : (
       <DataGrid<AdminCustomer>
         rows={customers}
         columns={columns}
-        rowKey={(c) => c.id}
-        searchableText={(c) => `${c.firstName} ${c.lastName} ${c.email} ${c.country ?? ''}`}
-        searchPlaceholder="Search by name, email, or country…"
+        rowKey={(customer) => customer.id}
+        searchableText={(customer) => `${customer.firstName} ${customer.lastName} ${customer.email} ${customer.country ?? ''}`}
+        searchPlaceholder="Search by name, email, or country..."
         emptyMessage="No customers yet."
       />
+      )}
 
       <ConfirmModal
         isOpen={!!pendingDelete}
         title="Delete customer"
         message={
           pendingDelete
-            ? `Permanently delete ${pendingDelete.firstName} ${pendingDelete.lastName}? Their ${pendingDelete.ordersCount} order${pendingDelete.ordersCount !== 1 ? 's' : ''} will remain in the orders log but the customer record will be gone.`
+            ? `Deactivate ${pendingDelete.firstName} ${pendingDelete.lastName}? Their ${pendingDelete.ordersCount} order${pendingDelete.ordersCount !== 1 ? 's' : ''} will remain in the orders log.`
             : ''
         }
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
         destructive
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) remove(pendingDelete.id);
+        onConfirm={async () => {
+          if (pendingDelete) {
+            await userApi.deactivate(pendingDelete.id);
+            setCustomers((current) => current.map((customer) => (
+              customer.id === pendingDelete.id
+                ? { ...customer, status: 'inactive' }
+                : customer
+            )));
+          }
           setPendingDelete(null);
         }}
       />

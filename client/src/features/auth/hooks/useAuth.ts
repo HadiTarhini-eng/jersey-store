@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../../app/hooks';
 import { loginUser, registerUser, logoutUser, clearAuthError } from '../authSlice';
-import { rehydrateCart } from '../../cart/cartSlice';
+import { hydrateAuthenticatedCart, rehydrateCart } from '../../cart/cartSlice';
 import { getStoredCart } from '../../../utils/storage';
 import { ROUTES } from '../../../config/routes';
 import type { LoginCredentials, RegisterCredentials } from '../../../types';
@@ -18,9 +18,8 @@ export function useAuth() {
     async (credentials: LoginCredentials) => {
       const result = await dispatch(loginUser(credentials));
       if (loginUser.fulfilled.match(result)) {
-        // Reload the per-user cart after login
         const userId = result.payload.user.id;
-        dispatch(rehydrateCart(getStoredCart(userId)));
+        await dispatch(hydrateAuthenticatedCart(userId));
         navigate(ROUTES.HOME);
       }
     },
@@ -31,6 +30,7 @@ export function useAuth() {
     async (credentials: RegisterCredentials) => {
       const result = await dispatch(registerUser(credentials));
       if (registerUser.fulfilled.match(result)) {
+        await dispatch(hydrateAuthenticatedCart(result.payload.user.id));
         navigate(ROUTES.HOME);
       }
     },

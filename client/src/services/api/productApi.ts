@@ -20,6 +20,12 @@ export const productApi = {
   setFeatured:(id: string, featured: boolean)              => http.patch<Product>(endpoints.products.featured(id), { featured }),
   setPrice:  (id: string, basePrice: number)               => http.patch<Product>(endpoints.products.price(id), { basePrice }),
   delete:    (id: string)                                  => http.delete<void>(endpoints.products.delete(id)),
+  images: {
+    create: (productId: string, imageId: string, sortOrder?: number) =>
+      http.post(endpoints.products.images(productId), { imageId, sortOrder }),
+    list:   (productId: string) => http.get(endpoints.products.images(productId)),
+    remove: (id: string)        => http.delete<void>(endpoints.products.imageById(id)),
+  },
 
   // ── Attributes ──────────────────────────────────────────────────────────────
   attributes: {
@@ -56,6 +62,9 @@ export const productApi = {
     bySku:         (sku: string)       => http.get<ProductVariant>(endpoints.variants.bySku(sku)),
     update:        (id: string, body: Partial<CreateVariantPayload>) =>
                      http.patch<ProductVariant>(endpoints.variants.update(id), body),
+    setImage:      (id: string, imageId: string) =>
+                     http.post<ProductVariant>(endpoints.variants.image(id), { imageId }),
+    removeImage:   (id: string) => http.delete<ProductVariant>(endpoints.variants.image(id)),
     setStock:      (id: string, stockQuantity: number) =>
                      http.patch<ProductVariant>(endpoints.variants.stock(id), { stockQuantity }),
     reserve:       (id: string, quantity: number) =>

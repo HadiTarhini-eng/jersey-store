@@ -7,7 +7,7 @@ import { PageSpinner } from './components/ui/Spinner';
 import { ROUTES } from './config/routes';
 import { useAppDispatch, useAppSelector } from './app/hooks';
 import { fetchCurrentUser } from './features/auth/authSlice';
-import { rehydrateCart } from './features/cart/cartSlice';
+import { hydrateAuthenticatedCart, rehydrateCart } from './features/cart/cartSlice';
 import { getStoredCart } from './utils/storage';
 
 // Code-split every page — only the current route is loaded
@@ -40,11 +40,16 @@ function AppRoutes() {
 
   useEffect(() => {
     if (token && !user) dispatch(fetchCurrentUser());
-  }, []);
+  }, [dispatch, token, user]);
 
   useEffect(() => {
-    dispatch(rehydrateCart(getStoredCart(user?.id ?? null)));
-  }, [user?.id]);
+    if (user?.id) {
+      void dispatch(hydrateAuthenticatedCart(user.id));
+      return;
+    }
+
+    if (!token) dispatch(rehydrateCart(getStoredCart(null)));
+  }, [dispatch, token, user?.id]);
 
   return (
     <>

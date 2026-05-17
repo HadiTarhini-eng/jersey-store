@@ -44,6 +44,7 @@ export const authService = {
       firstName: credentials.firstName,
       lastName:  credentials.lastName,
       email:     credentials.email,
+      phone:     credentials.phone,
       password:  credentials.password,
       role:      'User',
     };

@@ -1,4 +1,4 @@
-import { http } from './client';
+import { http, toFormData } from './client';
 import { endpoints } from './endpoints';
 import type {
   Category, CategoryType, CreateCategoryPayload, CreateCategoryTypePayload,
@@ -17,7 +17,19 @@ export const categoryApi = {
   },
 
   // ── Categories ──────────────────────────────────────────────────────────────
-  create:    (body: CreateCategoryPayload) => http.post<Category>(endpoints.categories.create(), body),
+  create:    (body: CreateCategoryPayload, image?: File | Blob, imageName = 'category-image') =>
+               http.post<Category>(
+                 endpoints.categories.create(),
+                 toFormData({
+                   data: JSON.stringify(body),
+                   image: image
+                     ? image instanceof File
+                       ? image
+                       : new File([image], imageName)
+                     : undefined,
+                 }),
+                 { headers: { 'Content-Type': 'multipart/form-data' } },
+               ),
   list:      (query: ListCategoriesQuery = {}) =>
                http.get<Category[]>(endpoints.categories.list(), { params: query }),
   byId:      (id: string)                  => http.get<Category>(endpoints.categories.byId(id)),
@@ -26,8 +38,15 @@ export const categoryApi = {
                http.patch<Category>(endpoints.categories.update(id), body),
   move:      (id: string, parentId?: string) =>
                http.patch<Category>(endpoints.categories.move(id), { parentId }),
-  setImage:  (id: string, imageId?: string) =>
-               http.patch<Category>(endpoints.categories.image(id), { imageId }),
+  setImage:  (id: string, image: File | Blob, imageName = 'category-image') =>
+               http.post<Category>(
+                 endpoints.categories.image(id),
+                 toFormData({
+                   file: image instanceof File ? image : new File([image], imageName),
+                 }),
+                 { headers: { 'Content-Type': 'multipart/form-data' } },
+               ),
+  removeImage:(id: string)                  => http.delete<Category>(endpoints.categories.image(id)),
   activate:  (id: string)                  => http.post<Category>(endpoints.categories.activate(id)),
   delete:    (id: string)                  => http.delete<void>(endpoints.categories.delete(id)),
 };

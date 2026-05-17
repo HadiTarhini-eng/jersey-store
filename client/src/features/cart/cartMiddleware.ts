@@ -23,7 +23,8 @@ export const cartLocalStorageMiddleware: Middleware<object, any> =
       const state  = api.getState();
       const userId: string | null = state?.auth?.user?.id ?? null;
       const items  = state?.cart?.items ?? [];
-      storeCart(userId, items);
+      if (userId) return result;
+      storeCart(null, items);
     }
 
     return result;

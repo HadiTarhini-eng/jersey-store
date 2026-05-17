@@ -1,4 +1,4 @@
-import { http } from './client';
+import { http, toFormData } from './client';
 import { endpoints } from './endpoints';
 import type {
   CreateUserPayload, LoginCredentials, LoginResponse, UpdateUserPayload, User, UserRole,
@@ -19,8 +19,15 @@ export const userApi = {
   update:        (id: string, body: UpdateUserPayload) => http.patch<User>(endpoints.users.update(id), body),
   changePassword:(id: string, password: string)  => http.patch<User>(endpoints.users.changePassword(id), { password }),
   changeRole:    (id: string, role: UserRole)    => http.patch<User>(endpoints.users.changeRole(id), { role }),
-  setProfileImage:(id: string, profileImageId?: string) =>
-    http.patch<User>(endpoints.users.profileImage(id), { profileImageId }),
+  setProfileImage:(id: string, file: File | Blob, fileName = 'profile-image') =>
+    http.post<User>(
+      endpoints.users.profileImage(id),
+      toFormData({
+        file: file instanceof File ? file : new File([file], fileName),
+      }),
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    ),
+  removeProfileImage:(id: string)                     => http.delete<User>(endpoints.users.profileImage(id)),
   activate:      (id: string)                    => http.post<User>(endpoints.users.activate(id)),
   deactivate:    (id: string)                    => http.delete<User>(endpoints.users.deactivate(id)),
 };

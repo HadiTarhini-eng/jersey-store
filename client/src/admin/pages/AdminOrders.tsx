@@ -1,39 +1,65 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link, Navigate } from 'react-router-dom';
 import { DataGrid, type DataGridColumn } from '../components/DataGrid';
 import { StatusBadge } from '../components/StatusBadge';
-import { useAdminCollection } from '../hooks/useAdminCollection';
-import ordersSeed from '../../data/admin/orders.json';
+import { adminApi } from '../services/adminApi';
+import { orderApi } from '../../services/api';
 import type { AdminOrder } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
-const ordersSeedTyped = ordersSeed as AdminOrder[];
-
 const statusFilters = ['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
 type StatusFilter = typeof statusFilters[number];
+const orderStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Orders list
-// ─────────────────────────────────────────────────────────────────────────────
+const statusSelectedClass: Record<typeof orderStatuses[number], string> = {
+  pending: 'bg-black text-white border-power shadow-lg shadow-power/30',
+  processing: 'bg-black text-white border-accent shadow-lg shadow-accent/30',
+  shipped: 'bg-black text-white border-gray-500 shadow-lg shadow-gray-500/30',
+  delivered: 'bg-black text-white border-delivered shadow-lg shadow-delivered/30',
+  cancelled: 'bg-black text-white border-danger shadow-lg shadow-danger/30',
+};
+
+function useAdminOrdersData() {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const next = await adminApi.listOrders();
+        if (!cancelled) setOrders(next);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { orders, setOrders, loading };
+}
 
 export function AdminOrders() {
   const navigate = useNavigate();
-  const { items: orders } = useAdminCollection<AdminOrder>('orders', ordersSeedTyped);
+  const { orders, loading } = useAdminOrdersData();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const visible = statusFilter === 'all'
     ? orders
-    : orders.filter((o) => o.status === statusFilter);
+    : orders.filter((order) => order.status === statusFilter);
 
   const columns: DataGridColumn<AdminOrder>[] = [
     {
       key: 'order',
       label: 'Order',
-      render: (o) => (
+      render: (order) => (
         <div>
-          <p className="font-bold text-primary tabular-nums">{o.orderNumber}</p>
+          <p className="font-bold text-primary tabular-nums">{order.orderNumber}</p>
           <p className="text-[10px] uppercase tracking-widest text-muted mt-0.5">
-            {new Date(o.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+            {new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
       ),
@@ -41,10 +67,10 @@ export function AdminOrders() {
     {
       key: 'customer',
       label: 'Customer',
-      render: (o) => (
+      render: (order) => (
         <div className="min-w-0">
-          <p className="text-primary truncate">{o.customer.name}</p>
-          <p className="text-xs text-muted truncate">{o.customer.email}</p>
+          <p className="text-primary truncate">{order.customer.name}</p>
+          <p className="text-xs text-muted truncate">{order.customer.email}</p>
         </div>
       ),
     },
@@ -52,37 +78,36 @@ export function AdminOrders() {
       key: 'items',
       label: 'Items',
       align: 'center',
-      render: (o) => <span className="text-secondary tabular-nums">{o.items.reduce((s, i) => s + i.quantity, 0)}</span>,
+      render: (order) => <span className="text-secondary tabular-nums">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span>,
     },
     {
       key: 'total',
       label: 'Total',
       align: 'right',
-      render: (o) => <span className="font-bold text-primary tabular-nums">{formatPrice(o.total)}</span>,
+      render: (order) => <span className="font-bold text-primary tabular-nums">{formatPrice(order.total)}</span>,
     },
     {
       key: 'payment',
       label: 'Payment',
-      render: (o) => <StatusBadge status={o.paymentStatus} />,
+      render: (order) => <StatusBadge status={order.paymentStatus} />,
     },
     {
       key: 'status',
       label: 'Status',
-      render: (o) => <StatusBadge status={o.status} />,
+      render: (order) => <StatusBadge status={order.status} />,
     },
   ];
 
   return (
     <div className="space-y-5">
-      {/* Status filter chips */}
       <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-1 px-1">
-        {statusFilters.map((s) => {
-          const count = s === 'all' ? orders.length : orders.filter((o) => o.status === s).length;
-          const active = statusFilter === s;
+        {statusFilters.map((status) => {
+          const count = status === 'all' ? orders.length : orders.filter((order) => order.status === status).length;
+          const active = statusFilter === status;
           return (
             <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
+              key={status}
+              onClick={() => setStatusFilter(status)}
               className={[
                 'shrink-0 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border-2 text-xs font-bold uppercase tracking-wider transition-colors',
                 active
@@ -90,53 +115,48 @@ export function AdminOrders() {
                   : 'border-stroke text-secondary hover:text-primary hover:border-white/50',
               ].join(' ')}
             >
-              {s}
+              {status}
               <span className={`tabular-nums ${active ? 'text-black/60' : 'text-muted'}`}>{count}</span>
             </button>
           );
         })}
       </div>
 
-      <DataGrid<AdminOrder>
-        rows={visible}
-        columns={columns}
-        rowKey={(o) => o.id}
-        onRowClick={(o) => navigate(`/admin/orders/${o.id}`)}
-        searchableText={(o) => `${o.orderNumber} ${o.customer.name} ${o.customer.email}`}
-        searchPlaceholder="Search by order #, name, or email…"
-        emptyMessage="No orders match this filter."
-      />
+      {loading ? (
+        <div className="bg-surface border border-stroke rounded-2xl px-4 py-10 text-center text-muted text-sm">
+          Loading orders...
+        </div>
+      ) : (
+        <DataGrid<AdminOrder>
+          rows={visible}
+          columns={columns}
+          rowKey={(order) => order.id}
+          onRowClick={(order) => navigate(`/admin/orders/${order.id}`)}
+          searchableText={(order) => `${order.orderNumber} ${order.customer.name} ${order.customer.email}`}
+          searchPlaceholder="Search by order #, name, or email..."
+          emptyMessage="No orders match this filter."
+        />
+      )}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Order detail
-// ─────────────────────────────────────────────────────────────────────────────
-
-const orderStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
-
-/** Per-status colour when the button is the active status. */
-const statusSelectedClass: Record<typeof orderStatuses[number], string> = {
-  pending:    'bg-black   text-white border-power   shadow-lg shadow-power/30',
-  processing: 'bg-black  text-white border-accent  shadow-lg shadow-accent/30',
-  shipped:    'bg-black text-white border-gray-500 shadow-lg shadow-gray-500/30',
-  delivered:  'bg-black text-white border-delivered shadow-lg shadow-delivered/30',
-  cancelled:  'bg-black  text-white border-danger  shadow-lg shadow-danger/30',
-};
-
 export function AdminOrderDetail() {
   const { id } = useParams<{ id: string }>();
-  const { items: orders, update } = useAdminCollection<AdminOrder>('orders', ordersSeedTyped);
-  const order = orders.find((o) => o.id === id);
+  const { orders, setOrders, loading } = useAdminOrdersData();
 
-  if (!order) return <Navigate to="/admin/orders" replace />;
+  const order = useMemo(
+    () => orders.find((entry) => entry.id === id),
+    [id, orders],
+  );
 
-  const itemsCount = order.items.reduce((s, i) => s + i.quantity, 0);
+  if (!loading && !order) return <Navigate to="/admin/orders" replace />;
+  if (!order) return null;
+
+  const itemsCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <div className="space-y-5">
-      {/* ── Back + header ─────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div className="space-y-1">
           <Link to="/admin/orders" className="inline-flex items-center text-xs font-bold uppercase tracking-widest text-muted hover:text-primary transition-colors">
@@ -154,19 +174,18 @@ export function AdminOrderDetail() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* ── Items + addresses ───────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-5">
           <section className="bg-surface border border-stroke rounded-2xl">
             <h3 className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted border-b border-stroke">Line items</h3>
             <div className="divide-y divide-stroke">
-              {order.items.map((it, i) => (
-                <div key={`${it.productId}-${i}`} className="flex items-center justify-between px-5 py-4">
+              {order.items.map((item, index) => (
+                <div key={`${item.productId}-${index}`} className="flex items-center justify-between px-5 py-4">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-primary truncate">{it.name}</p>
-                    <p className="text-xs text-muted mt-0.5">Size {it.size} · Qty {it.quantity}</p>
+                    <p className="text-sm font-medium text-primary truncate">{item.name}</p>
+                    <p className="text-xs text-muted mt-0.5">Size {item.size} · Qty {item.quantity}</p>
                   </div>
                   <span className="text-sm font-bold text-primary tabular-nums shrink-0 ml-3">
-                    {formatPrice(it.price * it.quantity)}
+                    {formatPrice(item.price * item.quantity)}
                   </span>
                 </div>
               ))}
@@ -205,7 +224,6 @@ export function AdminOrderDetail() {
           </section>
         </div>
 
-        {/* ── Sidebar ─────────────────────────────────────────────────────── */}
         <div className="space-y-5">
           <section className="bg-surface border border-stroke rounded-2xl p-5">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">Customer</h3>
@@ -222,18 +240,23 @@ export function AdminOrderDetail() {
           <section className="bg-surface border border-stroke rounded-2xl p-5 space-y-3">
             <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted">Update status</h3>
             <div className="grid grid-cols-2 gap-2">
-              {orderStatuses.map((s) => (
+              {orderStatuses.map((status) => (
                 <button
-                  key={s}
-                  onClick={() => update(order.id, { status: s })}
+                  key={status}
+                  onClick={async () => {
+                    await orderApi.updateStatus(order.id, status);
+                    setOrders((current) => current.map((entry) => (
+                      entry.id === order.id ? { ...entry, status } : entry
+                    )));
+                  }}
                   className={[
                     'px-3 py-2 rounded-lg border-2 text-xs font-bold uppercase tracking-wider transition-colors',
-                    order.status === s
-                      ? statusSelectedClass[s]
+                    order.status === status
+                      ? statusSelectedClass[status]
                       : 'border-stroke text-secondary hover:text-primary hover:border-white/50',
                   ].join(' ')}
                 >
-                  {s}
+                  {status}
                 </button>
               ))}
             </div>

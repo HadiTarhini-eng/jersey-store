@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import { orderService } from '../../services/orderService';
-import { clearCart } from '../cart/cartSlice';
+import { clearCart, convertServerCart } from '../cart/cartSlice';
 import type { AddressSnapshot, CheckoutState, CheckoutStep } from '../../types';
 import type { RootState } from '../../app/store';
 
@@ -20,6 +20,9 @@ export const submitOrder = createAsyncThunk(
         shippingAddress,
       });
       await orderService.placeOrder(order.id);
+      if (state.cart.cartId) {
+        await dispatch(convertServerCart(state.cart.cartId));
+      }
       dispatch(clearCart());
       return order;
     } catch (err) {

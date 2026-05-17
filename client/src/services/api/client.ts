@@ -59,4 +59,14 @@ export const http = {
   delete: <T>(url: string, config?: AxiosRequestConfig)             => api.delete<T>(url, config).then((r) => r.data),
 };
 
+export function toFormData(fields: Record<string, string | Blob | File | undefined | null>) {
+  const formData = new FormData();
+
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) formData.append(key, value);
+  });
+
+  return formData;
+}
+
 export default api;
