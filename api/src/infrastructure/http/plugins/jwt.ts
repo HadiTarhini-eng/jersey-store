@@ -31,11 +31,13 @@ declare module "fastify" {
 }
 
 const jwtPlugin: FastifyPluginAsync = async (server) => {
-    const config = {
-        secret: "m8dk2ocmso1lcuwl15fysi39q0nwk12h8dq920wda0",
-    }
-    
-    server.register(jwt, config)
+    const secret = process.env.JWT_SECRET
+    if (!secret) throw new Error("JWT_SECRET env var is required")
+
+    server.register(jwt, {
+        secret,
+        sign: { expiresIn: process.env.JWT_EXPIRES_IN ?? "7d" },
+    })
     server.decorate(
         "authenticate",
         async (request: FastifyRequest, reply: FastifyReply) => {

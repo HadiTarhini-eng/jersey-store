@@ -1,17 +1,18 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import { authService } from '../../services/authService';
-import { storeAccessToken, clearAccessToken, getAccessToken } from '../../utils/storage';
+import { clearAccessToken, getAccessToken } from '../../utils/storage';
 import type { AuthState, LoginCredentials, RegisterCredentials, User } from '../../types';
 
 // ── Thunks ───────────────────────────────────────────────────────────────────
+// Token persistence happens inside authService.login (so the axios interceptor
+// can attach it for the post-login /users/:id hydration call). The slice only
+// mirrors the result into Redux state.
 
 export const loginUser = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials, { rejectWithValue }) => {
     try {
-      const result = await authService.login(credentials);
-      storeAccessToken(result.token);
-      return result;
+      return await authService.login(credentials);
     } catch (err) {
       return rejectWithValue(authService.errorMessage(err, 'Login failed.'));
     }
@@ -22,9 +23,7 @@ export const registerUser = createAsyncThunk(
   'auth/register',
   async (credentials: RegisterCredentials, { rejectWithValue }) => {
     try {
-      const result = await authService.register(credentials);
-      storeAccessToken(result.token);
-      return result;
+      return await authService.register(credentials);
     } catch (err) {
       return rejectWithValue(authService.errorMessage(err, 'Registration failed.'));
     }

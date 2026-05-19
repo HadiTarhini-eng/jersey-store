@@ -1,5 +1,7 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import { orderService } from '../../services/orderService';
+import { productApi } from '../../services/api';
+import { extractErrorMessage } from '../../services/api/client';
 import { clearCart, convertServerCart } from '../cart/cartSlice';
 import type { AddressSnapshot, CheckoutState, CheckoutStep } from '../../types';
 import type { RootState } from '../../app/store';
@@ -13,6 +15,17 @@ export const submitOrder = createAsyncThunk(
       const state  = getState() as RootState;
       const userId = state.auth.user?.id;
       if (!userId) throw new Error('You must be signed in to place an order.');
+
+      // Reserve stock for each line item before creating the order. If any
+      // variant is short on stock the backend returns 409/400 — surface that
+      // message instead of pushing an order through with missing inventory.
+      for (const item of state.cart.items) {
+        try {
+          await productApi.variants.reserve(item.productVariantId, item.quantity);
+        } catch (err) {
+          throw new Error(extractErrorMessage(err, `Not enough stock for ${item.productTitle ?? 'one of your items'}.`));
+        }
+      }
 
       const order = await orderService.createOrder({
         userId,

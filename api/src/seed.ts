@@ -31,7 +31,7 @@ try {
             email: admin.email,
             passwordHash: admin.passwordHash,
             role: admin.role,
-            profileImageId: admin.profileImageId,
+            profileImageUrl: admin.profileImageUrl,
             isActive: admin.isActive,
             createdAt: admin.createdAt,
             updatedAt: admin.updatedAt,

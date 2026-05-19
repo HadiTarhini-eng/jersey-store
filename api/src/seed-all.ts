@@ -17,7 +17,10 @@ import {
   productVariants,
   products,
   reviews,
+  shippingMethods,
+  siteConfig,
   specialOffers,
+  uiContent,
   users,
   variantAttributeValues,
 } from './infrastructure/database/schema.js'
@@ -34,9 +37,7 @@ const adminId = id()
 const userAId = id()
 const userBId = id()
 
-const attachAvatarId = id()
 const attachProductId = id()
-const attachBannerId = id()
 
 const catTypeApparelId = id()
 const catTypeAccessoriesId = id()
@@ -115,39 +116,9 @@ try {
     ])
     .onConflictDoNothing({ target: users.email })
 
-  console.log('Seeding attachments...')
-  await db
-    .insert(attachments)
-    .values([
-      {
-        id: attachAvatarId,
-        fileName: 'admin-avatar.png',
-        fileUrl: 'https://cdn.example.com/avatars/admin.png',
-        compressedFileUrl: 'https://cdn.example.com/avatars/admin.webp',
-        mimeType: 'image/png',
-        fileSize: 24_512,
-        uploadedBy: adminId,
-      },
-      {
-        id: attachProductId,
-        fileName: 'home-jersey.jpg',
-        fileUrl: 'https://cdn.example.com/products/home-jersey.jpg',
-        compressedFileUrl: 'https://cdn.example.com/products/home-jersey.webp',
-        mimeType: 'image/jpeg',
-        fileSize: 184_320,
-        uploadedBy: adminId,
-      },
-      {
-        id: attachBannerId,
-        fileName: 'summer-sale-banner.jpg',
-        fileUrl: 'https://cdn.example.com/banners/summer-sale.jpg',
-        compressedFileUrl: 'https://cdn.example.com/banners/summer-sale.webp',
-        mimeType: 'image/jpeg',
-        fileSize: 312_544,
-        uploadedBy: adminId,
-      },
-    ])
-    .onConflictDoNothing()
+  // Product gallery attachments are seeded AFTER products below (FK depends on
+  // product id existing). Inline images (avatars, banners, etc.) are now plain
+  // URL columns and stored on the entity row directly.
 
   console.log('Seeding category types...')
   await db
@@ -179,7 +150,7 @@ try {
         name: 'Jerseys',
         slug: 'jerseys',
         description: 'Team jerseys for all clubs',
-        imageId: null,
+        imageUrl: null,
       },
       {
         id: catShortsId,
@@ -188,7 +159,7 @@ try {
         name: 'Shorts',
         slug: 'shorts',
         description: 'Matching shorts',
-        imageId: null,
+        imageUrl: null,
       },
       {
         id: catScarvesId,
@@ -197,7 +168,7 @@ try {
         name: 'Scarves',
         slug: 'scarves',
         description: 'Team scarves',
-        imageId: null,
+        imageUrl: null,
       },
     ])
     .onConflictDoNothing({ target: categories.slug })
@@ -216,10 +187,9 @@ try {
         tagsJson: ['football', 'home', '2026', 'official'],
         brand: 'JerseyCo',
         basePrice: '79.99',
-        status: 'published',
+        status: 'active',
         featured: true,
         searchVector: 'home jersey 2026 football official',
-        imageId: attachProductId,
         createdBy: adminId,
       },
       {
@@ -232,7 +202,7 @@ try {
         tagsJson: ['football', 'away', '2026'],
         brand: 'JerseyCo',
         basePrice: '74.99',
-        status: 'published',
+        status: 'active',
         featured: false,
         searchVector: 'away jersey 2026 football',
         createdBy: adminId,
@@ -247,7 +217,7 @@ try {
         tagsJson: ['scarf', 'accessory'],
         brand: 'JerseyCo',
         basePrice: '19.99',
-        status: 'published',
+        status: 'active',
         featured: false,
         searchVector: 'scarf supporter',
         createdBy: adminId,
@@ -402,7 +372,7 @@ try {
         sku: 'HJ-2026-RED-M',
         priceOverride: null,
         stockQuantity: 25,
-        imageId: attachProductId,
+        imageUrl: 'https://cdn.example.com/products/home-jersey.webp',
       },
       {
         id: variantHomeBlueLId,
@@ -410,7 +380,7 @@ try {
         sku: 'HJ-2026-BLUE-L',
         priceOverride: '84.99',
         stockQuantity: 10,
-        imageId: null,
+        imageUrl: null,
       },
       {
         id: variantAwayMId,
@@ -418,7 +388,7 @@ try {
         sku: 'AJ-2026-M',
         priceOverride: null,
         stockQuantity: 30,
-        imageId: null,
+        imageUrl: null,
       },
       {
         id: variantScarfId,
@@ -426,7 +396,7 @@ try {
         sku: 'SC-CLASSIC',
         priceOverride: null,
         stockQuantity: 100,
-        imageId: null,
+        imageUrl: null,
       },
     ])
     .onConflictDoNothing({ target: productVariants.sku })
@@ -597,7 +567,7 @@ try {
         discountValue: '20.00',
         startDate: day(-1),
         endDate: day(14),
-        bannerAttachmentId: attachBannerId,
+        bannerUrl: 'https://cdn.example.com/banners/summer-sale.webp',
       },
     ])
     .onConflictDoNothing()
@@ -608,6 +578,117 @@ try {
     .values([
       { offerId: offerSummerId, productId: productHomeJerseyId },
       { offerId: offerSummerId, productId: productAwayJerseyId },
+    ])
+    .onConflictDoNothing()
+
+  console.log('Seeding site config...')
+  await db
+    .insert(siteConfig)
+    .values([
+      {
+        slug: 'default',
+        name: 'Jerseys4Ever',
+        tagline: 'Wear What You Live',
+        description: 'Premium authentic jerseys and sportswear from the world\'s greatest clubs and teams.',
+        email: 'support@jerseys4ever.com',
+        phone: '+1 (800) 555-0199',
+        currency: 'USD',
+        freeShippingThreshold: '100',
+        socialLinks: {
+          instagram: 'https://instagram.com/jerseys4ever',
+          twitter: 'https://twitter.com/jerseys4ever',
+          facebook: 'https://facebook.com/jerseys4ever',
+          youtube: 'https://youtube.com/jerseys4ever',
+        },
+      },
+    ])
+    .onConflictDoNothing({ target: siteConfig.slug })
+
+  console.log('Seeding shipping methods...')
+  await db
+    .insert(shippingMethods)
+    .values([
+      { name: 'Standard',  description: '4-7 business days', baseRate: '5.00',  freeShippingThreshold: '100', estimatedDaysMin: 4, estimatedDaysMax: 7, sortOrder: 0 },
+      { name: 'Express',   description: '2-3 business days', baseRate: '15.00', freeShippingThreshold: null,  estimatedDaysMin: 2, estimatedDaysMax: 3, sortOrder: 1 },
+      { name: 'Overnight', description: 'Next business day', baseRate: '30.00', freeShippingThreshold: null,  estimatedDaysMin: 1, estimatedDaysMax: 1, sortOrder: 2 },
+    ])
+    .onConflictDoNothing()
+
+  console.log('Seeding ui-content: sports...')
+  await db
+    .insert(uiContent)
+    .values([
+      { slot: 'sport', sortOrder: 0, payload: { name: 'Football',          slug: 'football',          icon: '⚽', color: '#007aff', featured: true } },
+      { slot: 'sport', sortOrder: 1, payload: { name: 'Basketball',        slug: 'basketball',        icon: '🏀', color: '#ff9f0a', featured: true } },
+      { slot: 'sport', sortOrder: 2, payload: { name: 'American Football', slug: 'american-football', icon: '🏈', color: '#34c759', featured: true } },
+      { slot: 'sport', sortOrder: 3, payload: { name: 'Baseball',          slug: 'baseball',          icon: '⚾', color: '#ff2d55', featured: false } },
+      { slot: 'sport', sortOrder: 4, payload: { name: 'Formula 1',         slug: 'formula1',          icon: '🏎', color: '#af52de', featured: true } },
+    ])
+    .onConflictDoNothing()
+
+  console.log('Seeding ui-content: teams...')
+  await db
+    .insert(uiContent)
+    .values([
+      { slot: 'team', sortOrder: 0, payload: { name: 'Real Madrid',         slug: 'real-madrid',       sport: 'football',          country: 'Spain',   color: '#ffffff', colorSecondary: '#ffd700', abbreviation: 'RMA' } },
+      { slot: 'team', sortOrder: 1, payload: { name: 'FC Barcelona',        slug: 'fc-barcelona',      sport: 'football',          country: 'Spain',   color: '#a50044', colorSecondary: '#004d98', abbreviation: 'FCB' } },
+      { slot: 'team', sortOrder: 2, payload: { name: 'Manchester City',     slug: 'manchester-city',   sport: 'football',          country: 'England', color: '#6cabdd', colorSecondary: '#1c2c5b', abbreviation: 'MCI' } },
+      { slot: 'team', sortOrder: 3, payload: { name: 'Manchester United',   slug: 'manchester-united', sport: 'football',          country: 'England', color: '#da020e', colorSecondary: '#fbe122', abbreviation: 'MUN' } },
+      { slot: 'team', sortOrder: 4, payload: { name: 'Paris Saint-Germain', slug: 'psg',               sport: 'football',          country: 'France',  color: '#004170', colorSecondary: '#da291c', abbreviation: 'PSG' } },
+      { slot: 'team', sortOrder: 5, payload: { name: 'LA Lakers',           slug: 'la-lakers',         sport: 'basketball',        country: 'USA',     color: '#552583', colorSecondary: '#fdb927', abbreviation: 'LAL' } },
+      { slot: 'team', sortOrder: 6, payload: { name: 'Chicago Bulls',       slug: 'chicago-bulls',     sport: 'basketball',        country: 'USA',     color: '#ce1141', colorSecondary: '#000000', abbreviation: 'CHI' } },
+      { slot: 'team', sortOrder: 7, payload: { name: 'New England Patriots',slug: 'patriots',          sport: 'american-football', country: 'USA',     color: '#002244', colorSecondary: '#c60c30', abbreviation: 'NE'  } },
+      { slot: 'team', sortOrder: 8, payload: { name: 'Scuderia Ferrari',    slug: 'ferrari',           sport: 'formula1',          country: 'Italy',   color: '#dc0000', colorSecondary: '#fff200', abbreviation: 'SF'  } },
+    ])
+    .onConflictDoNothing()
+
+  console.log('Seeding ui-content: kit-categories...')
+  await db
+    .insert(uiContent)
+    .values([
+      { slot: 'kit-category', sortOrder: 0, payload: { name: 'Jerseys',  slug: 'jerseys',  description: 'Authentic match & replica jerseys', color: '#007aff', colorDark: '#0055cc' } },
+      { slot: 'kit-category', sortOrder: 1, payload: { name: 'Shorts',   slug: 'shorts',   description: 'Performance match shorts',          color: '#ff4d00', colorDark: '#cc3d00' } },
+      { slot: 'kit-category', sortOrder: 2, payload: { name: 'T-Shirts', slug: 'tshirts',  description: 'Casual & training tees',             color: '#34c759', colorDark: '#28a046' } },
+      { slot: 'kit-category', sortOrder: 3, payload: { name: 'Hoodies',  slug: 'hoodies',  description: 'Premium team hoodies & sweatshirts', color: '#ff9f0a', colorDark: '#cc7d00' } },
+      { slot: 'kit-category', sortOrder: 4, payload: { name: 'Jackets',  slug: 'jackets',  description: 'Training & team track jackets',      color: '#af52de', colorDark: '#8a3fb2' } },
+      { slot: 'kit-category', sortOrder: 5, payload: { name: 'Shoes',    slug: 'shoes',    description: 'Official team footwear',             color: '#ff2d55', colorDark: '#cc2244' } },
+    ])
+    .onConflictDoNothing()
+
+  console.log('Seeding ui-content: hero slides...')
+  await db
+    .insert(uiContent)
+    .values([
+      { slot: 'hero-slide', sortOrder: 0, payload: { headline: 'Wear\nThe Game.',           subheadline: 'Match-day kit, engineered to live every minute of the ninety.', ctaLabel: 'Shop New Season', ctaHref: '/shop?badge=New',     badge: 'Match Day', accent: '#007aff', align: 'left',   overlay: 'left',   image: 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1600&q=80' } },
+      { slot: 'hero-slide', sortOrder: 1, payload: { headline: 'Built For\nGreatness.',     subheadline: 'Trophy-grade craftsmanship. Worn by champions, kept forever.',    ctaLabel: 'Shop Limited',    ctaHref: '/shop?badge=Limited', badge: 'Heritage',  accent: '#ffd700', align: 'center', overlay: 'bottom', image: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&w=1600&q=80' } },
+      { slot: 'hero-slide', sortOrder: 2, payload: { headline: 'Every Jersey\nTells A Story.', subheadline: 'Behind every crest, a moment. Behind every number, a name.', ctaLabel: 'Discover Classics', ctaHref: '/shop',             badge: 'Iconic',    accent: '#ff9f0a', align: 'right',  overlay: 'right',  image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1600&q=80' } },
+    ])
+    .onConflictDoNothing()
+
+  console.log('Seeding ui-content: offer banners...')
+  await db
+    .insert(uiContent)
+    .values([
+      { slot: 'offer-banner', sortOrder: 0, payload: { label: 'Summer Sale',     headline: 'Up To 40% Off',         subheadline: 'On selected football & basketball jerseys', ctaLabel: 'Shop Sale',    ctaHref: '/shop?badge=Sale',    color: '#ff4d00', image: 'https://loremflickr.com/1200/400/soccer?lock=601' } },
+      { slot: 'offer-banner', sortOrder: 1, payload: { label: 'New Arrivals',    headline: '2024/25 Season Kits',   subheadline: 'Fresh from the training ground to your wardrobe', ctaLabel: 'Explore New', ctaHref: '/shop?badge=New',    color: '#007aff', image: 'https://loremflickr.com/1200/400/basketball?lock=602' } },
+      { slot: 'offer-banner', sortOrder: 2, payload: { label: 'Limited Edition', headline: 'PSG × Jordan Collab',   subheadline: 'Collector\'s piece — only a few left',         ctaLabel: 'Get Yours',   ctaHref: '/shop?badge=Limited',color: '#af52de', image: 'https://loremflickr.com/1200/400/sport?lock=603' } },
+    ])
+    .onConflictDoNothing()
+
+  console.log('Seeding product gallery attachments...')
+  await db
+    .insert(attachments)
+    .values([
+      {
+        id: attachProductId,
+        productId: productHomeJerseyId,
+        fileName: 'home-jersey.jpg',
+        fileUrl: 'https://cdn.example.com/products/home-jersey.jpg',
+        compressedFileUrl: 'https://cdn.example.com/products/home-jersey.webp',
+        mimeType: 'image/jpeg',
+        fileSize: 184_320,
+        sortOrder: 0,
+      },
     ])
     .onConflictDoNothing()
 

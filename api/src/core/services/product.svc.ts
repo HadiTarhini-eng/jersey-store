@@ -1,10 +1,10 @@
+import { type Attachment } from '../entities/attachment.js'
 import { type Guid } from '../entities/base.js'
 import {
   type Product,
   type ProductAssignedAttribute,
   type ProductAttribute,
   type ProductAttributeOption,
-  type ProductImage,
   type ProductPayload,
   type ProductSpecification,
   type ProductStatus,
@@ -28,15 +28,19 @@ export interface ProductSearchFilters {
 }
 
 export interface CreateProductInput {
-  data: Omit<ProductPayload, 'imageId' | 'createdBy'>
+  data: Omit<ProductPayload, 'createdBy'>
   createdBy: Guid
-  primary?: ProductImageFile
+  /**
+   * Gallery files. The first file (index 0) becomes the primary/cover image
+   * (sortOrder = 0). All gallery uploads happen inside one request; on any
+   * failure the partial uploads are cleaned up.
+   */
   gallery?: ProductImageFile[]
 }
 
 export interface CreateVariantInput {
   productId: Guid
-  data: Omit<ProductVariantPayload, 'productId' | 'imageId'>
+  data: Omit<ProductVariantPayload, 'productId' | 'imageUrl'>
   uploadedBy: Guid
   image?: ImageFile
 }
@@ -52,9 +56,10 @@ export interface IProductService {
   setFeatured: (id: Guid, featured: boolean) => Promise<Product>
   updateBasePrice: (id: Guid, basePrice: number) => Promise<Product>
   deleteProduct: (id: Guid) => Promise<void>
-  addProductImage: (productId: Guid, file: ProductImageFile, sortOrder?: number) => Promise<ProductImage>
-  listProductImages: (productId: Guid) => Promise<ProductImage[]>
-  removeProductImage: (productImageId: Guid) => Promise<void>
+  addProductImage: (productId: Guid, file: ProductImageFile, sortOrder?: number) => Promise<Attachment>
+  listProductImages: (productId: Guid) => Promise<Attachment[]>
+  removeProductImage: (attachmentId: Guid) => Promise<void>
+  reorderProductImage: (attachmentId: Guid, sortOrder: number) => Promise<Attachment>
 }
 
 export interface IProductAttributeService {

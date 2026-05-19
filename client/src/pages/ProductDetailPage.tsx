@@ -1,6 +1,7 @@
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { useProduct } from '../features/products/hooks/useProducts';
 import { ProductDetailView } from '../features/products/components/ProductDetailView';
+import { ReviewsSection } from '../features/reviews/ReviewsSection';
 import { ROUTES } from '../config/routes';
 import { theme } from '../config/theme';
 
@@ -71,6 +72,8 @@ export function ProductDetailPage() {
       </nav>
 
       <ProductDetailView product={product} />
+
+      <ReviewsSection productId={product.id} />
     </div>
   );
 }

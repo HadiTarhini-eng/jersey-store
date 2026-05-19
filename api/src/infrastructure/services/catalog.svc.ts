@@ -1,10 +1,10 @@
 import { type Guid } from '../../core/entities/base.js'
 import { Category, type CategoryType } from '../../core/entities/catalog.js'
-import { type IAttachmentService } from '../../core/services/attachment.svc.js'
 import { type CreateCategoryInput, type ICategoryService, type ICategoryTypeService } from '../../core/services/catalog.svc.js'
-import { type ImageFile } from '../../core/services/storage.svc.js'
+import { type ImageFile, type IStorageService } from '../../core/services/storage.svc.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
 import { ConflictError, ValidationError } from './errors.js'
+import { deleteInlineImage, uploadInlineImage } from './image.svc.js'
 import { assertGuid, assertRequiredString, assertSlug } from './validators.js'
 
 export class CategoryTypeService implements ICategoryTypeService {
@@ -62,7 +62,7 @@ export class CategoryTypeService implements ICategoryTypeService {
 export class CategoryService implements ICategoryService {
   constructor(
     private readonly categoryRepository: EntityRepository<Category>,
-    private readonly attachmentService: IAttachmentService,
+    private readonly storage: IStorageService,
   ) {}
 
   async createCategory(input: CreateCategoryInput): Promise<Category> {
@@ -73,18 +73,13 @@ export class CategoryService implements ICategoryService {
     assertSlug(input.data.slug)
     await this.assertUniqueSlug(input.data.slug)
 
-    let imageId: Guid | null = null
+    let imageUrl: string | null = null
     if (input.image) {
-      const attachment = await this.attachmentService.uploadAttachment({
-        data: input.image.data,
-        fileName: input.image.fileName,
-        mimeType: input.image.mimeType,
-        uploadedBy: input.uploadedBy,
-      })
-      imageId = attachment.id
+      const uploaded = await uploadInlineImage(this.storage, input.image)
+      imageUrl = uploaded.url
     }
 
-    const category = new Category({ ...input.data, imageId })
+    const category = new Category({ ...input.data, imageUrl })
     await this.assertValidParent(category)
     return this.categoryRepository.create(category)
   }
@@ -98,7 +93,6 @@ export class CategoryService implements ICategoryService {
     if (data.name !== undefined) assertRequiredString(data.name, 'name')
     if (data.categoryTypeId !== undefined) assertGuid(data.categoryTypeId, 'categoryTypeId')
     if (data.parentId !== undefined) await this.assertNoCycle(id, data.parentId)
-    if (data.imageId) assertGuid(data.imageId, 'imageId')
     return this.categoryRepository.update(id, data)
   }
 
@@ -140,25 +134,16 @@ export class CategoryService implements ICategoryService {
     assertGuid(id)
     assertGuid(uploadedBy, 'uploadedBy')
     const category = await this.categoryRepository.require(id, 'Category')
-    if (category.imageId) {
-      await this.attachmentService.deleteAttachment(category.imageId).catch(() => undefined)
-    }
-    const attachment = await this.attachmentService.uploadAttachment({
-      data: file.data,
-      fileName: file.fileName,
-      mimeType: file.mimeType,
-      uploadedBy,
-    })
-    return this.categoryRepository.update(id, { imageId: attachment.id } as Partial<Category>)
+    await deleteInlineImage(this.storage, category.imageUrl)
+    const uploaded = await uploadInlineImage(this.storage, file)
+    return this.categoryRepository.update(id, { imageUrl: uploaded.url } as Partial<Category>)
   }
 
   async removeCategoryImage(id: Guid): Promise<Category> {
     assertGuid(id)
     const category = await this.categoryRepository.require(id, 'Category')
-    if (category.imageId) {
-      await this.attachmentService.deleteAttachment(category.imageId).catch(() => undefined)
-    }
-    return this.categoryRepository.update(id, { imageId: null } as Partial<Category>)
+    await deleteInlineImage(this.storage, category.imageUrl)
+    return this.categoryRepository.update(id, { imageUrl: null } as Partial<Category>)
   }
 
   async activateCategory(id: Guid): Promise<Category> {

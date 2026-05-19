@@ -1,4 +1,4 @@
-import { http, toFormData } from './client';
+import { http, toFormData, UPLOAD_CONFIG } from './client';
 import { endpoints } from './endpoints';
 import type {
   CreateUserPayload, LoginCredentials, LoginResponse, UpdateUserPayload, User, UserRole,
@@ -25,7 +25,7 @@ export const userApi = {
       toFormData({
         file: file instanceof File ? file : new File([file], fileName),
       }),
-      { headers: { 'Content-Type': 'multipart/form-data' } },
+      UPLOAD_CONFIG,
     ),
   removeProfileImage:(id: string)                     => http.delete<User>(endpoints.users.profileImage(id)),
   activate:      (id: string)                    => http.post<User>(endpoints.users.activate(id)),

@@ -69,4 +69,14 @@ export function toFormData(fields: Record<string, string | Blob | File | undefin
   return formData;
 }
 
+/**
+ * Axios config preset for multipart uploads. Uses a 60 s timeout instead of the
+ * 15 s default because product photography on slow connections genuinely needs
+ * the extra headroom. Pair with `toFormData(...)` for the body.
+ */
+export const UPLOAD_CONFIG = {
+  headers: { 'Content-Type': 'multipart/form-data' },
+  timeout: 60_000,
+} as const;
+
 export default api;

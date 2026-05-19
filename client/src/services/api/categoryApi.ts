@@ -1,4 +1,4 @@
-import { http, toFormData } from './client';
+import { http, toFormData, UPLOAD_CONFIG } from './client';
 import { endpoints } from './endpoints';
 import type {
   Category, CategoryType, CreateCategoryPayload, CreateCategoryTypePayload,
@@ -28,7 +28,7 @@ export const categoryApi = {
                        : new File([image], imageName)
                      : undefined,
                  }),
-                 { headers: { 'Content-Type': 'multipart/form-data' } },
+                 UPLOAD_CONFIG,
                ),
   list:      (query: ListCategoriesQuery = {}) =>
                http.get<Category[]>(endpoints.categories.list(), { params: query }),
@@ -44,7 +44,7 @@ export const categoryApi = {
                  toFormData({
                    file: image instanceof File ? image : new File([image], imageName),
                  }),
-                 { headers: { 'Content-Type': 'multipart/form-data' } },
+                 UPLOAD_CONFIG,
                ),
   removeImage:(id: string)                  => http.delete<Category>(endpoints.categories.image(id)),
   activate:  (id: string)                  => http.post<Category>(endpoints.categories.activate(id)),

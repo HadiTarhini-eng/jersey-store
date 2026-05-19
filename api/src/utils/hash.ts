@@ -1,13 +1,16 @@
 import crypto from "crypto"
 import "dotenv/config"
 
-export function HashPassword(password: string) {
-    const salt = process.env.HASH_SALT as string
-    const hash = crypto
-        .pbkdf2Sync(password, salt, 1000, 64, "sha512")
-        .toString("hex")
+function getSalt(): string {
+    const salt = process.env.HASH_SALT
+    if (!salt) throw new Error("HASH_SALT env var is required for password hashing")
+    return salt
+}
 
-    return hash
+export function HashPassword(password: string) {
+    return crypto
+        .pbkdf2Sync(password, getSalt(), 1000, 64, "sha512")
+        .toString("hex")
 }
 
 export function VerifyPassword({
@@ -17,10 +20,12 @@ export function VerifyPassword({
     password: string
     hash: string
 }) {
-    const salt = process.env.HASH_SALT as string
     const newHash = crypto
-        .pbkdf2Sync(password, salt, 1000, 64, "sha512")
+        .pbkdf2Sync(password, getSalt(), 1000, 64, "sha512")
         .toString("hex")
 
-    return newHash == hash
+    // Constant-time comparison to avoid timing leaks.
+    const a = Buffer.from(newHash, "hex")
+    const b = Buffer.from(hash, "hex")
+    return a.length === b.length && crypto.timingSafeEqual(a, b)
 }

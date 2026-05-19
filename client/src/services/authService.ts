@@ -4,6 +4,7 @@
  * → auto-login behavior the UI expects.
  */
 import { userApi, extractErrorMessage } from './api';
+import { clearAccessToken, storeAccessToken } from '../utils/storage';
 import type { CreateUserPayload, LoginCredentials, RegisterCredentials, User } from '../types';
 
 interface JwtPayload {
@@ -26,13 +27,26 @@ function decodeJwt(token: string): JwtPayload | null {
 }
 
 export const authService = {
-  /** Returns `{ token, user }`. The backend login only returns a token, so we hydrate the user from /users/:id. */
+  /**
+   * Returns `{ token, user }`. The backend login only returns a token, so we
+   * hydrate the user from /users/:id — which requires the token to already be
+   * in localStorage so the axios interceptor can attach it. Store FIRST, then
+   * fetch; on hydration failure roll the token back so we don't leave a
+   * half-authenticated client behind.
+   */
   login: async (credentials: LoginCredentials): Promise<{ token: string; user: User }> => {
     const { token } = await userApi.login(credentials);
     const payload   = decodeJwt(token);
     if (!payload) throw new Error('Invalid token returned by server.');
-    const user = await userApi.byId(payload.id);
-    return { token, user };
+    storeAccessToken(token);
+    try {
+      const user = await userApi.byId(payload.id);
+      return { token, user };
+    } catch (err) {
+      // Roll back the stored token so the next attempt starts clean.
+      clearAccessToken();
+      throw err;
+    }
   },
 
   /**

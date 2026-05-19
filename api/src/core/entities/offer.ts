@@ -9,7 +9,7 @@ export interface SpecialOfferEntity extends BusinessEntity {
   discountValue: number
   startDate: Date
   endDate: Date
-  bannerAttachmentId?: Guid | null
+  bannerUrl?: string | null
 }
 
 export interface OfferProduct {
@@ -26,7 +26,7 @@ export class SpecialOffer extends BaseEntity implements SpecialOfferEntity {
   discountValue: number
   startDate: Date
   endDate: Date
-  bannerAttachmentId?: Guid | null
+  bannerUrl?: string | null
 
   constructor(payload: SpecialOfferPayload) {
     super(payload)
@@ -36,7 +36,7 @@ export class SpecialOffer extends BaseEntity implements SpecialOfferEntity {
     this.discountValue = payload.discountValue
     this.startDate = payload.startDate
     this.endDate = payload.endDate
-    this.bannerAttachmentId = payload.bannerAttachmentId
+    this.bannerUrl = payload.bannerUrl ?? null
   }
 
   isCurrentlyActive(date = new Date()): boolean {

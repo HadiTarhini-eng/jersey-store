@@ -12,7 +12,7 @@ export interface CategoryEntity extends BusinessEntity {
   name: string
   slug: string
   description?: string | null
-  imageId?: Guid | null
+  imageUrl?: string | null
 }
 
 export interface CategoryTypePayload extends BusinessEntityPayload {
@@ -27,7 +27,7 @@ export interface CategoryPayload extends BusinessEntityPayload {
   name: string
   slug: string
   description?: string | null
-  imageId?: Guid | null
+  imageUrl?: string | null
 }
 
 export class CategoryType extends BaseEntity implements CategoryTypeEntity {
@@ -56,7 +56,7 @@ export class Category extends BaseEntity implements CategoryEntity {
   name: string
   slug: string
   description?: string | null
-  imageId?: Guid | null
+  imageUrl?: string | null
 
   constructor(payload: CategoryPayload) {
     super(payload)
@@ -65,7 +65,7 @@ export class Category extends BaseEntity implements CategoryEntity {
     this.name = payload.name
     this.slug = payload.slug
     this.description = payload.description
-    this.imageId = payload.imageId
+    this.imageUrl = payload.imageUrl ?? null
   }
 
   updateDetails(name: string, slug: string, description?: string | null): void {
@@ -80,8 +80,8 @@ export class Category extends BaseEntity implements CategoryEntity {
     this.touch()
   }
 
-  setImage(imageId?: Guid | null): void {
-    this.imageId = imageId
+  setImage(imageUrl?: string | null): void {
+    this.imageUrl = imageUrl ?? null
     this.touch()
   }
 }

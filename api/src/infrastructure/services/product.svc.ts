@@ -1,7 +1,7 @@
+import { type Attachment } from '../../core/entities/attachment.js'
 import { type Guid } from '../../core/entities/base.js'
 import {
   Product,
-  ProductImage,
   ProductVariant,
   type ProductAssignedAttribute,
   type ProductAttribute,
@@ -19,9 +19,10 @@ import {
   type ProductImageFile,
   type ProductSearchFilters,
 } from '../../core/services/product.svc.js'
-import { type ImageFile } from '../../core/services/storage.svc.js'
+import { type ImageFile, type IStorageService } from '../../core/services/storage.svc.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
 import { ConflictError, ValidationError } from './errors.js'
+import { deleteInlineImage, uploadInlineImage } from './image.svc.js'
 import { assertAllowed, assertGuid, assertInteger, assertNonNegativeNumber, assertRequiredString, assertSlug } from './validators.js'
 
 const productStatuses = ['draft', 'active', 'archived'] as const
@@ -30,7 +31,6 @@ const attributeTypes = ['text', 'number', 'boolean', 'select', 'multiselect', 'c
 export class ProductService implements IProductService {
   constructor(
     private readonly productRepository: EntityRepository<Product>,
-    private readonly productImageRepository: EntityRepository<ProductImage>,
     private readonly attachmentService: IAttachmentService,
   ) {}
 
@@ -43,52 +43,55 @@ export class ProductService implements IProductService {
     if (input.data.status !== undefined) assertAllowed(input.data.status, productStatuses, 'status')
     await this.assertUniqueSlug(input.data.slug)
 
-    let imageId: Guid | null = null
-    if (input.primary) {
-      const attachment = await this.attachmentService.uploadAttachment({
-        data: input.primary.data,
-        fileName: input.primary.fileName,
-        mimeType: input.primary.mimeType,
-        uploadedBy: input.createdBy,
-      })
-      imageId = attachment.id
-    }
-
-    const product = new Product({ ...input.data, createdBy: input.createdBy, imageId })
+    const product = new Product({ ...input.data, createdBy: input.createdBy })
     await this.productRepository.create(product)
 
-    if (input.gallery && input.gallery.length > 0) {
-      for (let i = 0; i < input.gallery.length; i++) {
-        await this.addProductImage(product.id, input.gallery[i]!, i)
+    // Best-effort cleanup: if any gallery upload fails, delete the product +
+    // any attachments already created so the next retry starts clean. Gallery
+    // ordering: file[0] is the primary cover (sortOrder = 0).
+    const createdAttachmentIds: Guid[] = []
+    try {
+      if (input.gallery && input.gallery.length > 0) {
+        for (let i = 0; i < input.gallery.length; i++) {
+          const attachment = await this.attachmentService.uploadForProduct({
+            productId: product.id,
+            file: input.gallery[i]!,
+            sortOrder: i,
+          })
+          createdAttachmentIds.push(attachment.id)
+        }
       }
+      return product
+    } catch (err) {
+      await Promise.all(createdAttachmentIds.map((id) =>
+        this.attachmentService.delete(id).catch(() => undefined),
+      ))
+      await this.productRepository.delete(product.id).catch(() => undefined)
+      throw err
     }
-
-    return product
   }
 
-  async addProductImage(productId: Guid, file: ProductImageFile, sortOrder = 0): Promise<ProductImage> {
+  async addProductImage(productId: Guid, file: ProductImageFile, sortOrder = 0): Promise<Attachment> {
     assertGuid(productId, 'productId')
-    const product = await this.productRepository.require(productId, 'Product')
-    const attachment = await this.attachmentService.uploadAttachment({
-      data: file.data,
-      fileName: file.fileName,
-      mimeType: file.mimeType,
-      uploadedBy: product.createdBy,
-    })
-    const image = new ProductImage({ productId, attachmentId: attachment.id, sortOrder })
-    return this.productImageRepository.create(image)
+    await this.productRepository.require(productId, 'Product')
+    return this.attachmentService.uploadForProduct({ productId, file, sortOrder })
   }
 
-  async listProductImages(productId: Guid): Promise<ProductImage[]> {
+  async listProductImages(productId: Guid): Promise<Attachment[]> {
     assertGuid(productId, 'productId')
-    return this.productImageRepository.listBy('productId', productId)
+    return this.attachmentService.listByProduct(productId)
   }
 
-  async removeProductImage(productImageId: Guid): Promise<void> {
-    assertGuid(productImageId, 'productImageId')
-    const image = await this.productImageRepository.require(productImageId, 'Product image')
-    await this.productImageRepository.delete(productImageId)
-    await this.attachmentService.deleteAttachment(image.attachmentId)
+  async removeProductImage(attachmentId: Guid): Promise<void> {
+    assertGuid(attachmentId, 'attachmentId')
+    await this.attachmentService.delete(attachmentId)
+  }
+
+  async reorderProductImage(attachmentId: Guid, sortOrder: number): Promise<Attachment> {
+    assertGuid(attachmentId, 'attachmentId')
+    assertInteger(sortOrder, 'sortOrder')
+    assertNonNegativeNumber(sortOrder, 'sortOrder')
+    return this.attachmentService.reorder(attachmentId, sortOrder)
   }
 
   async updateProduct(id: Guid, data: Partial<Product>): Promise<Product> {
@@ -167,6 +170,8 @@ export class ProductService implements IProductService {
   async deleteProduct(id: Guid): Promise<void> {
     assertGuid(id)
     await this.productRepository.require(id, 'Product')
+    // Cascade-delete gallery attachments + their storage objects.
+    await this.attachmentService.deleteAllForProduct(id).catch(() => undefined)
     await this.productRepository.delete(id)
   }
 
@@ -283,7 +288,7 @@ export class ProductVariantService implements IProductVariantService {
   constructor(
     private readonly variantRepository: EntityRepository<ProductVariant>,
     private readonly valueRepository: EntityRepository<VariantAttributeValue>,
-    private readonly attachmentService: IAttachmentService,
+    private readonly storage: IStorageService,
   ) {}
 
   async createVariant(input: CreateVariantInput): Promise<ProductVariant> {
@@ -297,21 +302,16 @@ export class ProductVariantService implements IProductVariantService {
     }
     await this.assertUniqueSku(input.data.sku)
 
-    let imageId: Guid | null = null
+    let imageUrl: string | null = null
     if (input.image) {
-      const attachment = await this.attachmentService.uploadAttachment({
-        data: input.image.data,
-        fileName: input.image.fileName,
-        mimeType: input.image.mimeType,
-        uploadedBy: input.uploadedBy,
-      })
-      imageId = attachment.id
+      const uploaded = await uploadInlineImage(this.storage, input.image)
+      imageUrl = uploaded.url
     }
 
     const variant = new ProductVariant({
       ...input.data,
       productId: input.productId,
-      imageId,
+      imageUrl,
       stockQuantity: input.data.stockQuantity ?? 0,
     })
     return this.variantRepository.create(variant)
@@ -321,25 +321,16 @@ export class ProductVariantService implements IProductVariantService {
     assertGuid(id)
     assertGuid(uploadedBy, 'uploadedBy')
     const variant = await this.variantRepository.require(id, 'Product variant')
-    if (variant.imageId) {
-      await this.attachmentService.deleteAttachment(variant.imageId).catch(() => undefined)
-    }
-    const attachment = await this.attachmentService.uploadAttachment({
-      data: file.data,
-      fileName: file.fileName,
-      mimeType: file.mimeType,
-      uploadedBy,
-    })
-    return this.variantRepository.update(id, { imageId: attachment.id } as Partial<ProductVariant>)
+    await deleteInlineImage(this.storage, variant.imageUrl)
+    const uploaded = await uploadInlineImage(this.storage, file)
+    return this.variantRepository.update(id, { imageUrl: uploaded.url } as Partial<ProductVariant>)
   }
 
   async removeVariantImage(id: Guid): Promise<ProductVariant> {
     assertGuid(id)
     const variant = await this.variantRepository.require(id, 'Product variant')
-    if (variant.imageId) {
-      await this.attachmentService.deleteAttachment(variant.imageId).catch(() => undefined)
-    }
-    return this.variantRepository.update(id, { imageId: null } as Partial<ProductVariant>)
+    await deleteInlineImage(this.storage, variant.imageUrl)
+    return this.variantRepository.update(id, { imageUrl: null } as Partial<ProductVariant>)
   }
 
   async updateVariant(id: Guid, data: Partial<ProductVariant>): Promise<ProductVariant> {

@@ -1,19 +1,20 @@
 import { type Attachment } from '../entities/attachment.js'
 import { type Guid } from '../entities/base.js'
+import { type ImageFile } from './storage.svc.js'
 
 export interface UploadAttachmentInput {
-  fileName: string
-  mimeType: string
-  data: Buffer
-  uploadedBy: Guid
+  productId: Guid
+  file: ImageFile
+  sortOrder?: number
 }
 
 export interface IAttachmentService {
-  uploadAttachment: (input: UploadAttachmentInput) => Promise<Attachment>
-  getAttachmentById: (id: Guid) => Promise<Attachment | null>
-  getAttachmentsByUser: (uploadedBy: Guid) => Promise<Attachment[]>
-  renameAttachment: (id: Guid, fileName: string) => Promise<Attachment>
-  replaceAttachmentFile: (id: Guid, input: Omit<UploadAttachmentInput, 'uploadedBy'>) => Promise<Attachment>
-  deactivateAttachment: (id: Guid) => Promise<Attachment>
-  deleteAttachment: (id: Guid) => Promise<void>
+  uploadForProduct: (input: UploadAttachmentInput) => Promise<Attachment>
+  getById: (id: Guid) => Promise<Attachment | null>
+  listByProduct: (productId: Guid) => Promise<Attachment[]>
+  rename: (id: Guid, fileName: string) => Promise<Attachment>
+  reorder: (id: Guid, sortOrder: number) => Promise<Attachment>
+  replaceFile: (id: Guid, file: ImageFile) => Promise<Attachment>
+  delete: (id: Guid) => Promise<void>
+  deleteAllForProduct: (productId: Guid) => Promise<void>
 }

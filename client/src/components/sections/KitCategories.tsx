@@ -1,14 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from '../../config/theme';
-import { useAdminCollection } from '../../admin/hooks/useAdminCollection';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import type { UiCategory } from '../../types';
-import categoriesData from '../../data/categories.json';
-
-const categoriesSeed = categoriesData as UiCategory[];
 
 export function KitCategories() {
-  const { items: categories } = useAdminCollection<UiCategory>('kit-categories', categoriesSeed);
+  const { items: categories } = useUiContentSlot<Omit<UiCategory, 'id'>>('kit-category', { activeOnly: true });
 
   return (
     <section className="py-6 md:py-8 w-full">

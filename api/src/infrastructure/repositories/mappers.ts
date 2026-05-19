@@ -1,17 +1,19 @@
+import { AnalyticsDaily } from '../../core/entities/analytics.js'
 import { Attachment } from '../../core/entities/attachment.js'
 import { Category, CategoryType } from '../../core/entities/catalog.js'
 import { Cart, CartItem, Order, OrderItem, Review } from '../../core/entities/commerce.js'
+import { ShippingMethod, SiteConfig } from '../../core/entities/config.js'
 import { SpecialOffer } from '../../core/entities/offer.js'
 import {
   Product,
   ProductAssignedAttribute,
   ProductAttribute,
   ProductAttributeOption,
-  ProductImage,
   ProductSpecification,
   ProductVariant,
   VariantAttributeValue,
 } from '../../core/entities/product.js'
+import { UiContent } from '../../core/entities/ui-content.js'
 import { User } from '../../core/entities/user.js'
 
 const numberOrNull = (value: unknown): number | null => value === null || value === undefined ? null : Number(value)
@@ -68,10 +70,6 @@ export const mappers = {
     toDomain: (data: any): ProductVariant => new ProductVariant({ ...data, priceOverride: numberOrNull(data.priceOverride) }),
     toRow: row<ProductVariant>,
   },
-  productImage: {
-    toDomain: (data: any): ProductImage => new ProductImage(data),
-    toRow: row<ProductImage>,
-  },
   variantAttributeValue: {
     toDomain: (data: any): VariantAttributeValue => new VariantAttributeValue(data),
     toRow: row<VariantAttributeValue>,
@@ -117,5 +115,35 @@ export const mappers = {
   specialOffer: {
     toDomain: (data: any): SpecialOffer => new SpecialOffer({ ...data, discountValue: Number(data.discountValue) }),
     toRow: row<SpecialOffer>,
+  },
+  siteConfig: {
+    toDomain: (data: any): SiteConfig => new SiteConfig({
+      ...data,
+      freeShippingThreshold: numberOrZero(data.freeShippingThreshold),
+      socialLinks: data.socialLinks ?? {},
+    }),
+    toRow: row<SiteConfig>,
+  },
+  shippingMethod: {
+    toDomain: (data: any): ShippingMethod => new ShippingMethod({
+      ...data,
+      baseRate: numberOrZero(data.baseRate),
+      freeShippingThreshold: numberOrNull(data.freeShippingThreshold),
+    }),
+    toRow: row<ShippingMethod>,
+  },
+  uiContent: {
+    toDomain: (data: any): UiContent => new UiContent({ ...data, payload: data.payload ?? {} }),
+    toRow: row<UiContent>,
+  },
+  analyticsDaily: {
+    toDomain: (data: any): AnalyticsDaily => new AnalyticsDaily({
+      ...data,
+      revenue: numberOrZero(data.revenue),
+      orderCount: Number(data.orderCount ?? 0),
+      unitCount: Number(data.unitCount ?? 0),
+      newCustomers: Number(data.newCustomers ?? 0),
+    }),
+    toRow: row<AnalyticsDaily>,
   },
 }

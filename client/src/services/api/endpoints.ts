@@ -150,4 +150,46 @@ export const endpoints = {
     replace:  (id: string)        => `/attachments/${id}/file`,
     delete:   (id: string)        => `/attachments/${id}`,
   },
+
+  // ── Site config ─────────────────────────────────────────────────────────────
+  siteConfig: {
+    get:        () => '/config',
+    update:     () => '/config',
+    logo:       () => '/config/logo',
+  },
+
+  // ── Shipping methods ────────────────────────────────────────────────────────
+  shipping: {
+    create:     ()           => '/shipping-methods',
+    list:       ()           => '/shipping-methods',
+    byId:       (id: string) => `/shipping-methods/${id}`,
+    update:     (id: string) => `/shipping-methods/${id}`,
+    activate:   (id: string) => `/shipping-methods/${id}/activate`,
+    deactivate: (id: string) => `/shipping-methods/${id}/deactivate`,
+    delete:     (id: string) => `/shipping-methods/${id}`,
+  },
+
+  // ── UI content (hero slides, offer banners, sports, teams, kit categories) ──
+  uiContent: {
+    create:     ()              => '/ui-content',
+    listBySlot: (slot: string)  => `/ui-content/slots/${slot}`,
+    byId:       (id: string)    => `/ui-content/${id}`,
+    update:     (id: string)    => `/ui-content/${id}`,
+    image:      (id: string)    => `/ui-content/${id}/image`,
+    reorder:    (id: string)    => `/ui-content/${id}/reorder`,
+    activate:   (id: string)    => `/ui-content/${id}/activate`,
+    deactivate: (id: string)    => `/ui-content/${id}/deactivate`,
+    delete:     (id: string)    => `/ui-content/${id}`,
+  },
+
+  // ── Analytics (admin only) ──────────────────────────────────────────────────
+  analytics: {
+    overview:       () => '/admin/analytics/overview',
+    salesByDay:     () => '/admin/analytics/sales-by-day',
+    revenueByMonth: () => '/admin/analytics/revenue-by-month',
+    topProducts:    () => '/admin/analytics/top-products',
+    topCategories:  () => '/admin/analytics/top-categories',
+    recentActivity: () => '/admin/analytics/recent-activity',
+    recompute:      () => '/admin/analytics/recompute',
+  },
 } as const;

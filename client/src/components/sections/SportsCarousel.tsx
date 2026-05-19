@@ -1,12 +1,9 @@
 import { Link } from 'react-router-dom';
-import { useAdminCollection } from '../../admin/hooks/useAdminCollection';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import type { Sport } from '../../types';
-import sportsData from '../../data/sports.json';
-
-const sportsSeed = sportsData as Sport[];
 
 export function SportsCarousel() {
-  const { items: sports } = useAdminCollection<Sport>('sports', sportsSeed);
+  const { items: sports } = useUiContentSlot<Omit<Sport, 'id'>>('sport', { activeOnly: true });
 
   return (
     <div className="w-full">

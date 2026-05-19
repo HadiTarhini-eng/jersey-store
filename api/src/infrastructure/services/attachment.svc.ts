@@ -1,129 +1,103 @@
-import crypto from 'crypto'
 import { Attachment } from '../../core/entities/attachment.js'
 import { type Guid } from '../../core/entities/base.js'
 import { type IAttachmentService, type UploadAttachmentInput } from '../../core/services/attachment.svc.js'
-import { type IStorageService } from '../../core/services/storage.svc.js'
-import { compressImage } from '../../utils/image-compress.js'
+import { type ImageFile, type IStorageService } from '../../core/services/storage.svc.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
-import { ValidationError } from './errors.js'
+import { deleteInlineImage, uploadProductImage } from './image.svc.js'
 import { assertGuid, assertRequiredString } from './validators.js'
 
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
-const MAX_BYTES = 2 * 1024 * 1024
-
-const extFromMime = (mimeType: string): string => {
-  const map: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/jpg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-    'image/gif': 'gif',
-  }
-  return map[mimeType] ?? 'bin'
-}
-
-const originalPath = (id: Guid, mimeType: string) => `originals/${id}.${extFromMime(mimeType)}`
-const compressedPath = (id: Guid) => `compressed/${id}.webp`
-
+/**
+ * Manages the product gallery. Each Attachment belongs to exactly one product
+ * (FK `productId`), ordered by `sortOrder`. The lowest sortOrder = primary
+ * cover image.
+ *
+ * Single-image uploads for other entities use the inline-URL helpers in
+ * `image.svc.ts` directly — they don't go through this service.
+ */
 export class AttachmentService implements IAttachmentService {
   constructor(
-    private readonly attachmentsRepository: EntityRepository<Attachment>,
+    private readonly repository: EntityRepository<Attachment>,
     private readonly storage: IStorageService,
   ) {}
 
-  async uploadAttachment(input: UploadAttachmentInput): Promise<Attachment> {
-    this.validateUploadInput(input)
+  async uploadForProduct(input: UploadAttachmentInput): Promise<Attachment> {
+    assertGuid(input.productId, 'productId')
 
-    const id = crypto.randomUUID()
-    const original = await this.storage.upload(originalPath(id, input.mimeType), input.data, input.mimeType)
-
-    const compressed = await compressImage(input.data)
-    const compressedUpload = await this.storage.upload(compressedPath(id), compressed.data, compressed.mimeType)
-
-    const attachment = new Attachment({
-      id,
-      fileName: input.fileName,
-      fileUrl: original.url,
-      compressedFileUrl: compressedUpload.url,
-      mimeType: input.mimeType,
-      fileSize: input.data.length,
-      uploadedBy: input.uploadedBy,
-    })
-
-    return this.attachmentsRepository.create(attachment)
+    const uploaded = await uploadProductImage(this.storage, input.file)
+    try {
+      const compressedUrl = uploaded.fileUrl !== uploaded.originalUrl ? uploaded.fileUrl : null
+      const attachment = new Attachment({
+        productId: input.productId,
+        fileName: input.file.fileName,
+        fileUrl: uploaded.originalUrl ?? uploaded.fileUrl,
+        compressedFileUrl: compressedUrl,
+        mimeType: uploaded.mimeType,
+        fileSize: uploaded.fileSize,
+        sortOrder: input.sortOrder ?? 0,
+      })
+      return await this.repository.create(attachment)
+    } catch (err) {
+      // Storage succeeded but DB insert failed — roll back the storage upload.
+      await this.storage.delete(uploaded.paths).catch(() => undefined)
+      throw err
+    }
   }
 
-  async getAttachmentById(id: Guid): Promise<Attachment | null> {
+  async getById(id: Guid): Promise<Attachment | null> {
     assertGuid(id)
-    return this.attachmentsRepository.get(id)
+    return this.repository.get(id)
   }
 
-  async getAttachmentsByUser(uploadedBy: Guid): Promise<Attachment[]> {
-    assertGuid(uploadedBy, 'uploadedBy')
-    return this.attachmentsRepository.listBy('uploadedBy', uploadedBy)
+  async listByProduct(productId: Guid): Promise<Attachment[]> {
+    assertGuid(productId, 'productId')
+    const rows = await this.repository.listBy('productId', productId)
+    return rows.sort((a, b) => a.sortOrder - b.sortOrder)
   }
 
-  async renameAttachment(id: Guid, fileName: string): Promise<Attachment> {
+  async rename(id: Guid, fileName: string): Promise<Attachment> {
     assertGuid(id)
     assertRequiredString(fileName, 'fileName')
-    return this.attachmentsRepository.update(id, { fileName } as Partial<Attachment>)
+    return this.repository.update(id, { fileName } as Partial<Attachment>)
   }
 
-  async replaceAttachmentFile(id: Guid, input: Omit<UploadAttachmentInput, 'uploadedBy'>): Promise<Attachment> {
+  async reorder(id: Guid, sortOrder: number): Promise<Attachment> {
     assertGuid(id)
-    const existing = await this.attachmentsRepository.require(id, 'Attachment')
-    this.validateFileInput(input)
+    return this.repository.update(id, { sortOrder } as Partial<Attachment>)
+  }
 
-    await this.storage.delete([
-      originalPath(existing.id, existing.mimeType),
-      compressedPath(existing.id),
-    ])
+  async replaceFile(id: Guid, file: ImageFile): Promise<Attachment> {
+    assertGuid(id)
+    const existing = await this.repository.require(id, 'Attachment')
 
-    const original = await this.storage.upload(originalPath(id, input.mimeType), input.data, input.mimeType)
+    // Delete the old storage objects best-effort.
+    await deleteInlineImage(this.storage, existing.fileUrl).catch(() => undefined)
+    if (existing.compressedFileUrl) {
+      await deleteInlineImage(this.storage, existing.compressedFileUrl).catch(() => undefined)
+    }
 
-    const compressed = await compressImage(input.data)
-    const compressedUpload = await this.storage.upload(compressedPath(id), compressed.data, compressed.mimeType)
-
-    return this.attachmentsRepository.update(id, {
-      fileName: input.fileName,
-      fileUrl: original.url,
-      compressedFileUrl: compressedUpload.url,
-      mimeType: input.mimeType,
-      fileSize: input.data.length,
+    const uploaded = await uploadProductImage(this.storage, file)
+    return this.repository.update(id, {
+      fileName: file.fileName,
+      fileUrl: uploaded.originalUrl ?? uploaded.fileUrl,
+      compressedFileUrl: uploaded.fileUrl !== uploaded.originalUrl ? uploaded.fileUrl : null,
+      mimeType: uploaded.mimeType,
+      fileSize: uploaded.fileSize,
     } as Partial<Attachment>)
   }
 
-  async deactivateAttachment(id: Guid): Promise<Attachment> {
+  async delete(id: Guid): Promise<void> {
     assertGuid(id)
-    return this.attachmentsRepository.update(id, { isActive: false } as Partial<Attachment>)
+    const existing = await this.repository.require(id, 'Attachment')
+    await deleteInlineImage(this.storage, existing.fileUrl).catch(() => undefined)
+    if (existing.compressedFileUrl) {
+      await deleteInlineImage(this.storage, existing.compressedFileUrl).catch(() => undefined)
+    }
+    await this.repository.delete(id)
   }
 
-  async deleteAttachment(id: Guid): Promise<void> {
-    assertGuid(id)
-    const existing = await this.attachmentsRepository.require(id, 'Attachment')
-    await this.storage.delete([
-      originalPath(existing.id, existing.mimeType),
-      compressedPath(existing.id),
-    ])
-    await this.attachmentsRepository.delete(id)
-  }
-
-  private validateUploadInput(input: UploadAttachmentInput): void {
-    assertGuid(input.uploadedBy, 'uploadedBy')
-    this.validateFileInput(input)
-  }
-
-  private validateFileInput(input: { fileName: string; mimeType: string; data: Buffer }): void {
-    assertRequiredString(input.fileName, 'fileName')
-    assertRequiredString(input.mimeType, 'mimeType', 100)
-    if (!ALLOWED_MIME_TYPES.has(input.mimeType)) {
-      throw new ValidationError(`Unsupported file type: ${input.mimeType}. Allowed: ${[...ALLOWED_MIME_TYPES].join(', ')}`)
-    }
-    if (!input.data || input.data.length === 0) {
-      throw new ValidationError('Uploaded file is empty')
-    }
-    if (input.data.length > MAX_BYTES) {
-      throw new ValidationError(`File too large: ${input.data.length} bytes. Max: ${MAX_BYTES} bytes (2 MB)`)
-    }
+  async deleteAllForProduct(productId: Guid): Promise<void> {
+    assertGuid(productId, 'productId')
+    const rows = await this.repository.listBy('productId', productId)
+    await Promise.all(rows.map((row) => this.delete(row.id).catch(() => undefined)))
   }
 }

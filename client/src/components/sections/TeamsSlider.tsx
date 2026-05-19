@@ -1,11 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from '../../config/theme';
-import { useAdminCollection } from '../../admin/hooks/useAdminCollection';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import type { Team } from '../../types';
-import teamsData from '../../data/teams.json';
-
-const teamsSeed = teamsData as Team[];
 
 /**
  * Commercial-style sliding marquee of team crests. No names, no labels —
@@ -13,7 +10,7 @@ const teamsSeed = teamsData as Team[];
  * `.marquee-track:hover` rule in index.css) so users can click a crest.
  */
 export function TeamsSlider() {
-  const { items: teams } = useAdminCollection<Team>('teams', teamsSeed);
+  const { items: teams } = useUiContentSlot<Omit<Team, 'id'>>('team', { activeOnly: true });
   // Duplicate the array so the marquee can loop seamlessly without a snap.
   const looped = [...teams, ...teams];
   const scrollDuration = Math.max(20, teams.length * 3);
@@ -103,10 +100,12 @@ function getBadgeSources(logo: string) {
 }
 
 function toOriginalWikimediaAsset(url: string) {
+  if(url == null || url === undefined) return null;
+  
   const match = url.match(
     /^https:\/\/upload\.wikimedia\.org\/wikipedia\/([^/]+)\/thumb\/(.+?)\/\d+px-[^/]+$/,
   );
-
+  
   if (!match) return null;
 
   const [, bucket, assetPath] = match;

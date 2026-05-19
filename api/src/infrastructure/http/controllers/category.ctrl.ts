@@ -4,6 +4,7 @@ import type { CreateCategoryInput, ICategoryService, ICategoryTypeService } from
 import type { ImageFile } from '../../../core/services/storage.svc.js'
 import { ValidationError } from '../../services/errors.js'
 import { jwtUser, sendCreated, sendOk } from '../routes/route-utils.js'
+import { readFilePart } from '../utils/readFilePart.js'
 import type {
   CategoryQueryType, CategoryTypeBodyType,
   MoveBodyType, UpdateCategoryBodyType, UpdateCategoryTypeBodyType,
@@ -49,7 +50,7 @@ const parseCategoryMultipart = async (request: FastifyRequest): Promise<{
 
   for await (const part of request.parts()) {
     if (part.type === 'file' && part.fieldname === 'image') {
-      image = { data: await part.toBuffer(), fileName: part.filename, mimeType: part.mimetype }
+      image = await readFilePart(part)
     } else if (part.type === 'field' && part.fieldname === 'data') {
       dataJson = String(part.value)
     }
@@ -64,9 +65,9 @@ const parseCategoryMultipart = async (request: FastifyRequest): Promise<{
 }
 
 const readSingleImageUpload = async (request: FastifyRequest): Promise<ImageFile> => {
-  const file = await request.file()
-  if (!file) throw new ValidationError('No file uploaded (expected multipart field "file")')
-  return { data: await file.toBuffer(), fileName: file.filename, mimeType: file.mimetype }
+  const part = await request.file()
+  if (!part) throw new ValidationError('No file uploaded (expected multipart field "file")')
+  return readFilePart(part)
 }
 
 export const createCategory = (service: ICategoryService) =>

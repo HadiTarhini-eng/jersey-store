@@ -23,7 +23,6 @@ const ProductBody = Type.Object({
   createdBy: Type.String(),
   isActive: Type.Optional(Type.Boolean()),
   searchVector: Type.Optional(Type.String()),
-  imageId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 })
 export type ProductBodyType = Static<typeof ProductBody>
 
@@ -32,22 +31,21 @@ export type UpdateProductBodyType = Static<typeof UpdateProductBody>
 
 const ProductMultipartBody = Type.Object({
   data: Type.Unsafe<unknown>({ type: 'string', description: 'JSON string of product fields (categoryId, title, slug, basePrice, status, ...)' }),
-  primary: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Hero image file. Max 2 MB. image/*.' })),
-  gallery: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Gallery image file(s). Repeat this field to upload multiple. Max 2 MB each.' })),
+  gallery: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Gallery image file(s). The first becomes the primary/cover image (sortOrder=0). Repeat this field to upload multiple. Max 5 MB each.' })),
 })
 
 const ImageUploadBody = Type.Object({
-  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Gallery image file. Max 2 MB. image/*.' }),
+  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Gallery image file. Max 5 MB. image/*.' }),
   sortOrder: Type.Optional(Type.Unsafe<unknown>({ type: 'string', description: 'Integer sort order (defaults to 0)' })),
 })
 
 const SingleImageUploadBody = Type.Object({
-  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Image file. Max 2 MB. image/*.' }),
+  file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Image file. Max 5 MB. image/*.' }),
 })
 
 const VariantMultipartBody = Type.Object({
   data: Type.Unsafe<unknown>({ type: 'string', description: 'JSON string of variant fields (sku, priceOverride?, stockQuantity?)' }),
-  image: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Variant image file. Max 2 MB. image/*.' })),
+  image: Type.Optional(Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Variant image file. Max 5 MB. image/*.' })),
 })
 
 const ProductSearchQuery = Type.Object({

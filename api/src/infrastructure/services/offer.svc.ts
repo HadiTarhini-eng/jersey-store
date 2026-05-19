@@ -1,13 +1,13 @@
 import { type Guid } from '../../core/entities/base.js'
 import { type OfferProduct, SpecialOffer } from '../../core/entities/offer.js'
-import { type IAttachmentService } from '../../core/services/attachment.svc.js'
 import { type CreateOfferInput, type ISpecialOfferService } from '../../core/services/offer.svc.js'
-import { type ImageFile } from '../../core/services/storage.svc.js'
+import { type ImageFile, type IStorageService } from '../../core/services/storage.svc.js'
 import {
   type EntityRepository,
   type OfferProductRepository,
 } from '../repositories/entity.repository.js'
 import { ConflictError, ValidationError } from './errors.js'
+import { deleteInlineImage, uploadInlineImage } from './image.svc.js'
 import { assertAllowed, assertDateRange, assertGuid, assertNonNegativeNumber, assertRequiredString } from './validators.js'
 
 const discountTypes = ['percentage', 'fixed_amount'] as const
@@ -16,7 +16,7 @@ export class SpecialOfferService implements ISpecialOfferService {
   constructor(
     private readonly offerRepository: EntityRepository<SpecialOffer>,
     private readonly offerProductRepository: OfferProductRepository,
-    private readonly attachmentService: IAttachmentService,
+    private readonly storage: IStorageService,
   ) {}
 
   async createOffer(input: CreateOfferInput): Promise<SpecialOffer> {
@@ -26,18 +26,13 @@ export class SpecialOfferService implements ISpecialOfferService {
     this.validateDiscountValue(input.data.discountType, input.data.discountValue)
     assertDateRange(input.data.startDate, input.data.endDate)
 
-    let bannerAttachmentId: Guid | null = null
+    let bannerUrl: string | null = null
     if (input.banner) {
-      const attachment = await this.attachmentService.uploadAttachment({
-        data: input.banner.data,
-        fileName: input.banner.fileName,
-        mimeType: input.banner.mimeType,
-        uploadedBy: input.uploadedBy,
-      })
-      bannerAttachmentId = attachment.id
+      const uploaded = await uploadInlineImage(this.storage, input.banner)
+      bannerUrl = uploaded.url
     }
 
-    const offer = new SpecialOffer({ ...input.data, bannerAttachmentId })
+    const offer = new SpecialOffer({ ...input.data, bannerUrl })
     return this.offerRepository.create(offer)
   }
 
@@ -45,25 +40,16 @@ export class SpecialOfferService implements ISpecialOfferService {
     assertGuid(id)
     assertGuid(uploadedBy, 'uploadedBy')
     const offer = await this.offerRepository.require(id, 'Special offer')
-    if (offer.bannerAttachmentId) {
-      await this.attachmentService.deleteAttachment(offer.bannerAttachmentId).catch(() => undefined)
-    }
-    const attachment = await this.attachmentService.uploadAttachment({
-      data: file.data,
-      fileName: file.fileName,
-      mimeType: file.mimeType,
-      uploadedBy,
-    })
-    return this.offerRepository.update(id, { bannerAttachmentId: attachment.id } as Partial<SpecialOffer>)
+    await deleteInlineImage(this.storage, offer.bannerUrl)
+    const uploaded = await uploadInlineImage(this.storage, file)
+    return this.offerRepository.update(id, { bannerUrl: uploaded.url } as Partial<SpecialOffer>)
   }
 
   async removeOfferBanner(id: Guid): Promise<SpecialOffer> {
     assertGuid(id)
     const offer = await this.offerRepository.require(id, 'Special offer')
-    if (offer.bannerAttachmentId) {
-      await this.attachmentService.deleteAttachment(offer.bannerAttachmentId).catch(() => undefined)
-    }
-    return this.offerRepository.update(id, { bannerAttachmentId: null } as Partial<SpecialOffer>)
+    await deleteInlineImage(this.storage, offer.bannerUrl)
+    return this.offerRepository.update(id, { bannerUrl: null } as Partial<SpecialOffer>)
   }
 
   async updateOffer(id: Guid, data: Partial<SpecialOffer>): Promise<SpecialOffer> {
@@ -75,7 +61,6 @@ export class SpecialOfferService implements ISpecialOfferService {
       const existing = await this.offerRepository.require(id, 'Special offer')
       assertDateRange(data.startDate ?? existing.startDate, data.endDate ?? existing.endDate)
     }
-    if (data.bannerAttachmentId) assertGuid(data.bannerAttachmentId, 'bannerAttachmentId')
     return this.offerRepository.update(id, data)
   }
 

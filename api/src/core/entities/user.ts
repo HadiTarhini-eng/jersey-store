@@ -1,5 +1,5 @@
 import { HashPassword } from '../../utils/hash.js'
-import { BaseEntity, type BusinessEntity, type BusinessEntityPayload, type Guid } from './base.js'
+import { BaseEntity, type BusinessEntity, type BusinessEntityPayload } from './base.js'
 
 export type UserRole = 'Admin' | 'User'
 
@@ -10,7 +10,7 @@ export interface UserEntity extends BusinessEntity {
   passwordHash: string
   phone?: string | null
   role: UserRole | string
-  profileImageId?: Guid | null
+  profileImageUrl?: string | null
 }
 
 export interface UserCreatePayload extends BusinessEntityPayload {
@@ -21,7 +21,7 @@ export interface UserCreatePayload extends BusinessEntityPayload {
   passwordHash?: string
   phone?: string | null
   role: UserRole | string
-  profileImageId?: Guid | null
+  profileImageUrl?: string | null
 }
 
 export class User extends BaseEntity implements UserEntity {
@@ -31,7 +31,7 @@ export class User extends BaseEntity implements UserEntity {
   passwordHash: string
   phone?: string | null
   role: UserRole | string
-  profileImageId?: Guid | null
+  profileImageUrl?: string | null
 
   constructor(userPayload: UserCreatePayload) {
     super(userPayload)
@@ -42,7 +42,7 @@ export class User extends BaseEntity implements UserEntity {
     this.email = userPayload.email
     this.passwordHash = userPayload.passwordHash ?? HashPassword(userPayload.password ?? '')
     this.role = userPayload.role
-    this.profileImageId = userPayload.profileImageId
+    this.profileImageUrl = userPayload.profileImageUrl ?? null
   }
 
   rename(firstName: string, lastName: string): void {
@@ -66,8 +66,8 @@ export class User extends BaseEntity implements UserEntity {
     this.touch()
   }
 
-  setProfileImage(profileImageId?: Guid | null): void {
-    this.profileImageId = profileImageId
+  setProfileImage(profileImageUrl?: string | null): void {
+    this.profileImageUrl = profileImageUrl ?? null
     this.touch()
   }
 }

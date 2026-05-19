@@ -14,6 +14,7 @@ import type {
 import type { ImageFile } from '../../../core/services/storage.svc.js'
 import { ValidationError } from '../../services/errors.js'
 import { jwtUser, sendCreated, sendDeleted, sendOk } from '../routes/route-utils.js'
+import { readFilePart } from '../utils/readFilePart.js'
 import type {
   AssignAttributeBodyType, CreateAttributeOptionBodyType, CreateSpecificationBodyType,
   ProductAttributeBodyType, ProductSearchQueryType,
@@ -29,23 +30,17 @@ type SkuParams = { sku: string }
 
 const parseProductMultipart = async (request: FastifyRequest): Promise<{
   data: CreateProductInput['data']
-  primary?: ProductImageFile
   gallery: ProductImageFile[]
 }> => {
   let dataJson: string | undefined
-  let primary: ProductImageFile | undefined
   const gallery: ProductImageFile[] = []
 
   for await (const part of request.parts()) {
     if (part.type === 'file') {
-      const file: ProductImageFile = {
-        data: await part.toBuffer(),
-        fileName: part.filename,
-        mimeType: part.mimetype,
+      if (part.fieldname !== 'gallery') {
+        throw new ValidationError(`Unexpected file field "${part.fieldname}" (expected "gallery")`)
       }
-      if (part.fieldname === 'primary') primary = file
-      else if (part.fieldname === 'gallery') gallery.push(file)
-      else throw new ValidationError(`Unexpected file field "${part.fieldname}" (expected "primary" or "gallery")`)
+      gallery.push(await readFilePart(part))
     } else if (part.fieldname === 'data') {
       dataJson = String(part.value)
     }
@@ -59,16 +54,16 @@ const parseProductMultipart = async (request: FastifyRequest): Promise<{
     throw new ValidationError('"data" field is not valid JSON')
   }
 
-  return { data, primary, gallery }
+  return { data, gallery }
 }
 
 // ── Products ─────────────────────────────────────────────────────────────────
 
 export const createProduct = (service: IProductService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const { data, primary, gallery } = await parseProductMultipart(request)
+    const { data, gallery } = await parseProductMultipart(request)
     const { id: createdBy } = jwtUser(request)
-    sendCreated(reply, await service.createProduct({ data, createdBy, primary, gallery }))
+    sendCreated(reply, await service.createProduct({ data, createdBy, gallery }))
   }
 
 export const addProductImage = (service: IProductService) =>
@@ -79,7 +74,7 @@ export const addProductImage = (service: IProductService) =>
 
     for await (const part of request.parts()) {
       if (part.type === 'file' && part.fieldname === 'file') {
-        file = { data: await part.toBuffer(), fileName: part.filename, mimeType: part.mimetype }
+        file = await readFilePart(part)
       } else if (part.type === 'field' && part.fieldname === 'sortOrder') {
         const parsed = Number.parseInt(String(part.value), 10)
         if (Number.isFinite(parsed)) sortOrder = parsed
@@ -94,13 +89,6 @@ export const listProductImages = (service: IProductService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { productId } = request.params as ProductIdParams
     sendOk(reply, await service.listProductImages(productId))
-  }
-
-export const removeProductImage = (service: IProductService) =>
-  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const { id } = request.params as IdParams
-    await service.removeProductImage(id)
-    sendDeleted(reply)
   }
 
 export const searchProducts = (service: IProductService) =>
@@ -225,7 +213,7 @@ const parseVariantMultipart = async (request: FastifyRequest): Promise<{
 
   for await (const part of request.parts()) {
     if (part.type === 'file' && part.fieldname === 'image') {
-      image = { data: await part.toBuffer(), fileName: part.filename, mimeType: part.mimetype }
+      image = await readFilePart(part)
     } else if (part.type === 'field' && part.fieldname === 'data') {
       dataJson = String(part.value)
     }
@@ -240,9 +228,9 @@ const parseVariantMultipart = async (request: FastifyRequest): Promise<{
 }
 
 const readSingleImageUpload = async (request: FastifyRequest): Promise<ImageFile> => {
-  const file = await request.file()
-  if (!file) throw new ValidationError('No file uploaded (expected multipart field "file")')
-  return { data: await file.toBuffer(), fileName: file.filename, mimeType: file.mimetype }
+  const part = await request.file()
+  if (!part) throw new ValidationError('No file uploaded (expected multipart field "file")')
+  return readFilePart(part)
 }
 
 export const createVariant = (service: IProductVariantService) =>

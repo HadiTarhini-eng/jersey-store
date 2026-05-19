@@ -1,14 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from '../../config/theme';
-import { useAdminCollection } from '../../admin/hooks/useAdminCollection';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import type { OfferBanner } from '../../types';
-import uiConfig from '../../data/ui-config.json';
-
-const bannersSeed = uiConfig.offersBanners as OfferBanner[];
 
 export function OffersBanner() {
-  const { items: banners } = useAdminCollection<OfferBanner>('offer-banners', bannersSeed);
+  const { items: banners } = useUiContentSlot<Omit<OfferBanner, 'id'>>('offer-banner', { activeOnly: true });
   const [current, setCurrent] = React.useState(0);
   const [animating, setAnimating] = React.useState(false);
 

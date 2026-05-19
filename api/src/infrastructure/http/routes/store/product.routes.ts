@@ -20,10 +20,11 @@ export const productRoutes = (
   { method: 'PATCH',  url: '/products/:id/price',                    roles: ['Admin'],  schema: s.updateBasePriceSchema,         handler: ctrl.updateBasePrice(productService) },
   { method: 'DELETE', url: '/products/:id',                          roles: ['Admin'],  schema: s.deleteProductSchema,           handler: ctrl.deleteProduct(productService) },
 
-  // Product Images
+  // Product Images (gallery management — single canonical path).
+  // `GET /products/:productId/images` lists the gallery. Add / remove /
+  // reorder live under `/attachments/*` so attachment-id paths stay uniform.
   { method: 'POST',   url: '/products/:productId/images',            roles: ['Admin'],  schema: s.addProductImageSchema,         handler: ctrl.addProductImage(productService) },
   { method: 'GET',    url: '/products/:productId/images',            protected: false,  schema: s.listProductImagesSchema,       handler: ctrl.listProductImages(productService) },
-  { method: 'DELETE', url: '/products/images/:id',                   roles: ['Admin'],  schema: s.removeProductImageSchema,      handler: ctrl.removeProductImage(productService) },
 
   // Product Attributes
   { method: 'POST',   url: '/product-attributes',                    roles: ['Admin'],  schema: s.createAttributeSchema,         handler: ctrl.createAttribute(productAttributeService) },

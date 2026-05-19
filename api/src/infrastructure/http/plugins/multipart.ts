@@ -6,9 +6,9 @@ import { type FastifyPluginAsync } from "fastify"
 const multipartPlugin: FastifyPluginAsync = async (server) => {
     const limits = {
         fieldNameSize: 100,
-        fieldSize: 100,
-        fields: 10,
-        fileSize: 2 * 1024 * 1024,
+        fieldSize: 1000,
+        fields: 25,
+        fileSize: 5 * 1024 * 1024, // 5 MB per file — product photography needs more than 2 MB
         files: 11,
         headerPairs: 2000,
         parts: 1000,

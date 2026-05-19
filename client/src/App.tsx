@@ -33,6 +33,7 @@ const AdminAddProduct   = lazy(() => import('./admin/pages/AdminProducts').then(
 const AdminEditProduct  = lazy(() => import('./admin/pages/AdminProducts').then((m) => ({ default: m.AdminEditProduct })));
 const AdminOffers       = lazy(() => import('./admin/pages/AdminOffers').then((m) => ({ default: m.AdminOffers })));
 const AdminCategories   = lazy(() => import('./admin/pages/AdminCategories').then((m) => ({ default: m.AdminCategories })));
+const AdminSettings     = lazy(() => import('./admin/pages/AdminSettings').then((m) => ({ default: m.AdminSettings })));
 
 function AppRoutes() {
   const dispatch    = useAppDispatch();
@@ -74,6 +75,7 @@ function AppRoutes() {
             <Route path="products/:id/edit" element={<AdminEditProduct />} />
             <Route path="offers"          element={<AdminOffers />} />
             <Route path="categories"      element={<AdminCategories />} />
+            <Route path="settings"        element={<AdminSettings />} />
           </Route>
 
           {/* ── Storefront — uses the public Layout ────────────────────────── */}

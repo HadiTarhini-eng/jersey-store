@@ -4,17 +4,22 @@ import fastify, {
 } from "fastify"
 import { type TypeBoxTypeProvider } from "@fastify/type-provider-typebox"
 import multipart from "../plugins/multipart.js"
+import cors from "@fastify/cors"
 import storage from "../plugins/storage.js"
-import { registerAttachmentResolution } from "../hooks/resolveAttachments.js"
+import { registerSensitiveFieldStripping } from "../hooks/stripSensitive.js"
 import routes from "../routes/index.js"
 import { UserService } from "../../services/user.svc.js"
+import { AnalyticsService } from "../../services/analytics.svc.js"
 import { AttachmentService } from "../../services/attachment.svc.js"
 import { CategoryService, CategoryTypeService } from "../../services/catalog.svc.js"
 import { CartService, OrderService, ReviewService } from "../../services/commerce.svc.js"
+import { ShippingMethodService, SiteConfigService } from "../../services/config.svc.js"
 import { ServiceError } from "../../services/errors.js"
 import { SpecialOfferService } from "../../services/offer.svc.js"
 import { ProductAttributeService, ProductService, ProductVariantService } from "../../services/product.svc.js"
+import { UiContentService } from "../../services/ui-content.svc.js"
 import {
+    analyticsDaily,
     attachments,
     cartItems,
     carts,
@@ -26,12 +31,14 @@ import {
     productAssignedAttributes,
     productAttributeOptions,
     productAttributes,
-    productImages,
     productSpecifications,
     products,
     productVariants,
     reviews,
+    shippingMethods,
+    siteConfig,
     specialOffers,
+    uiContent,
     users,
     variantAttributeValues,
 } from "../../database/schema.js"
@@ -73,6 +80,11 @@ export const createServer = async (): Promise<FastifyInstance> => {
     const server =
         fastify(serverOptions).withTypeProvider<TypeBoxTypeProvider>()
 
+    await server.register(cors, {
+        origin: ["http://localhost:5173"],
+        credentials: true,
+    })
+
     await server.register(multipart)
     await server.register(config)
     await server.register(jwt)
@@ -112,7 +124,6 @@ export const createServer = async (): Promise<FastifyInstance> => {
     const productAttributeOptionRepository = new DrizzleEntityRepository(productAttributeOptions, 'Product attribute option', mappers.productAttributeOption)
     const productSpecificationRepository = new DrizzleEntityRepository(productSpecifications, 'Product specification', mappers.productSpecification)
     const productVariantRepository = new DrizzleEntityRepository(productVariants, 'Product variant', mappers.productVariant)
-    const productImageRepository = new DrizzleEntityRepository(productImages, 'Product image', mappers.productImage)
     const variantAttributeValueRepository = new DrizzleEntityRepository(variantAttributeValues, 'Variant attribute value', mappers.variantAttributeValue)
     const cartRepository = new DrizzleEntityRepository(carts, 'Cart', mappers.cart)
     const cartItemRepository = new DrizzleEntityRepository(cartItems, 'Cart item', mappers.cartItem)
@@ -121,26 +132,34 @@ export const createServer = async (): Promise<FastifyInstance> => {
     const reviewRepository = new DrizzleEntityRepository(reviews, 'Review', mappers.review)
     const specialOfferRepository = new DrizzleEntityRepository(specialOffers, 'Special offer', mappers.specialOffer)
     const offerProductRepository = new DrizzleOfferProductRepository(offerProducts)
+    const siteConfigRepository = new DrizzleEntityRepository(siteConfig, 'Site config', mappers.siteConfig)
+    const shippingMethodRepository = new DrizzleEntityRepository(shippingMethods, 'Shipping method', mappers.shippingMethod)
+    const uiContentRepository = new DrizzleEntityRepository(uiContent, 'UI content', mappers.uiContent)
+    const analyticsDailyRepository = new DrizzleEntityRepository(analyticsDaily, 'Analytics daily', mappers.analyticsDaily)
 
     const attachmentService = new AttachmentService(attachmentRepository, server.storage)
-    registerAttachmentResolution(server, attachmentService)
-    const userService = new UserService(userRepository, attachmentService)
+    registerSensitiveFieldStripping(server)
+    const userService = new UserService(userRepository, server.storage)
     const storeServices = {
         attachmentService,
         categoryTypeService: new CategoryTypeService(categoryTypeRepository),
-        categoryService: new CategoryService(categoryRepository, attachmentService),
-        productService: new ProductService(productRepository, productImageRepository, attachmentService),
+        categoryService: new CategoryService(categoryRepository, server.storage),
+        productService: new ProductService(productRepository, attachmentService),
         productAttributeService: new ProductAttributeService(
             productAttributeRepository,
             productAssignedAttributeRepository,
             productAttributeOptionRepository,
             productSpecificationRepository,
         ),
-        productVariantService: new ProductVariantService(productVariantRepository, variantAttributeValueRepository, attachmentService),
+        productVariantService: new ProductVariantService(productVariantRepository, variantAttributeValueRepository, server.storage),
         cartService: new CartService(cartRepository, cartItemRepository),
         orderService: new OrderService(orderRepository, orderItemRepository),
         reviewService: new ReviewService(reviewRepository),
-        specialOfferService: new SpecialOfferService(specialOfferRepository, offerProductRepository, attachmentService),
+        specialOfferService: new SpecialOfferService(specialOfferRepository, offerProductRepository, server.storage),
+        siteConfigService: new SiteConfigService(siteConfigRepository, server.storage),
+        shippingMethodService: new ShippingMethodService(shippingMethodRepository),
+        uiContentService: new UiContentService(uiContentRepository, server.storage),
+        analyticsService: new AnalyticsService(analyticsDailyRepository),
     }
 
     const applicationRoutes = routes(userService, storeServices)

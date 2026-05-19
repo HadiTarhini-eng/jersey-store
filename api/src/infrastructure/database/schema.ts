@@ -16,6 +16,7 @@ const ref = (name: string) => uuid(name)
 const active = () => boolean('is_active').notNull().default(true)
 const createdAt = () => timestamp('created_at').notNull().defaultNow()
 const updatedAt = () => timestamp('updated_at').notNull().defaultNow()
+const imageUrl = (col = 'image_url') => varchar(col, { length: 2048 })
 
 export const users = pgTable('users', {
   id: id(),
@@ -25,20 +26,23 @@ export const users = pgTable('users', {
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   phone: varchar('phone', { length: 40 }),
   role: varchar('role', { length: 50 }).notNull().default('User'),
-  profileImageId: ref('profile_image_id'),
+  profileImageUrl: imageUrl('profile_image_url'),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
 
+// Product gallery — many attachments belong to one product, ordered by sortOrder.
+// The first row (lowest sortOrder) is the primary/cover image.
 export const attachments = pgTable('attachments', {
   id: id(),
+  productId: ref('product_id').notNull(),
   fileName: varchar('file_name', { length: 255 }).notNull(),
   fileUrl: varchar('file_url', { length: 2048 }).notNull(),
   compressedFileUrl: varchar('compressed_file_url', { length: 2048 }),
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
   fileSize: integer('file_size').notNull(),
-  uploadedBy: ref('uploaded_by').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -61,12 +65,13 @@ export const categories = pgTable('categories', {
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 160 }).notNull().unique(),
   description: text('description'),
-  imageId: ref('image_id'),
+  imageUrl: imageUrl('image_url'),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
 
+// Primary image is the lowest-sortOrder attachment (no FK column needed).
 export const products = pgTable('products', {
   id: id(),
   categoryId: ref('category_id').notNull(),
@@ -80,18 +85,7 @@ export const products = pgTable('products', {
   status: varchar('status', { length: 50 }).notNull().default('draft'),
   featured: boolean('featured').notNull().default(false),
   searchVector: text('search_vector'),
-  imageId: ref('image_id'),
   createdBy: ref('created_by').notNull(),
-  isActive: active(),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-})
-
-export const productImages = pgTable('product_images', {
-  id: id(),
-  productId: ref('product_id').notNull(),
-  attachmentId: ref('attachment_id').notNull(),
-  sortOrder: integer('sort_order').notNull().default(0),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -147,7 +141,7 @@ export const productVariants = pgTable('product_variants', {
   sku: varchar('sku', { length: 100 }).notNull().unique(),
   priceOverride: numeric('price_override', { precision: 12, scale: 2 }),
   stockQuantity: integer('stock_quantity').notNull().default(0),
-  imageId: ref('image_id'),
+  imageUrl: imageUrl('image_url'),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -236,7 +230,7 @@ export const specialOffers = pgTable('special_offers', {
   discountValue: numeric('discount_value', { precision: 12, scale: 2 }).notNull(),
   startDate: timestamp('start_date').notNull(),
   endDate: timestamp('end_date').notNull(),
-  bannerAttachmentId: ref('banner_attachment_id'),
+  bannerUrl: imageUrl('banner_url'),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -252,5 +246,64 @@ export const offerProducts = pgTable(
     primaryKey({ columns: [table.offerId, table.productId] }),
   ],
 )
+
+// Single-row table keyed by `slug` (e.g. 'default'). Site-wide UI/storefront config.
+export const siteConfig = pgTable('site_config', {
+  id: id(),
+  slug: varchar('slug', { length: 80 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: varchar('tagline', { length: 255 }),
+  description: text('description'),
+  logoUrl: imageUrl('logo_url'),
+  email: varchar('email', { length: 320 }),
+  phone: varchar('phone', { length: 40 }),
+  currency: varchar('currency', { length: 8 }).notNull().default('USD'),
+  freeShippingThreshold: numeric('free_shipping_threshold', { precision: 12, scale: 2 }).notNull().default('0'),
+  socialLinks: jsonb('social_links').$type<Record<string, string>>().notNull().default({}),
+  isActive: active(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+})
+
+export const shippingMethods = pgTable('shipping_methods', {
+  id: id(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  baseRate: numeric('base_rate', { precision: 12, scale: 2 }).notNull().default('0'),
+  freeShippingThreshold: numeric('free_shipping_threshold', { precision: 12, scale: 2 }),
+  estimatedDaysMin: integer('estimated_days_min'),
+  estimatedDaysMax: integer('estimated_days_max'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: active(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+})
+
+// Generic CMS-like UI content store. `slot` partitions content kinds
+// (hero-slide, offer-banner, sport, team, kit-category, ...). `payload`
+// is the slot-specific shape — typed only on the client side.
+export const uiContent = pgTable('ui_content', {
+  id: id(),
+  slot: varchar('slot', { length: 60 }).notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  imageUrl: imageUrl('image_url'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: active(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+})
+
+// Pre-computed per-day analytics snapshot. Recomputed when orders change.
+export const analyticsDaily = pgTable('analytics_daily', {
+  id: id(),
+  day: varchar('day', { length: 10 }).notNull().unique(), // ISO YYYY-MM-DD
+  revenue: numeric('revenue', { precision: 14, scale: 2 }).notNull().default('0'),
+  orderCount: integer('order_count').notNull().default(0),
+  unitCount: integer('unit_count').notNull().default(0),
+  newCustomers: integer('new_customers').notNull().default(0),
+  isActive: active(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+})
 
 export default users

@@ -8,11 +8,10 @@ import { OffersBanner } from '../components/sections/OffersBanner';
 import { SportsCarousel } from '../components/sections/SportsCarousel';
 import { TeamsSlider } from '../components/sections/TeamsSlider';
 import { KitCategories } from '../components/sections/KitCategories';
-import { useAdminCollection } from '../admin/hooks/useAdminCollection';
+import { useUiContentSlot } from '../hooks/useUiContentSlot';
 import uiConfig from '../data/ui-config.json';
 import type { HeroSlide, FeaturedSection, Product } from '../types';
 
-const slidesSeed = uiConfig.hero.slides as HeroSlide[];
 const featuredSections = uiConfig.featuredSections as FeaturedSection[];
 const designYourOwn = uiConfig.hero.designYourOwn;
 
@@ -153,9 +152,7 @@ function HeroSection({ slide, slides, currentSlide, onSelectSlide, designYourOwn
 }
 
 export function HomePage() {
-  // Slides come from the admin store (seeded from ui-config.json). Edits in
-  // /admin/offers flow through to the storefront on the next render.
-  const { items: slides } = useAdminCollection<HeroSlide>('hero-slides', slidesSeed);
+  const { items: slides } = useUiContentSlot<Omit<HeroSlide, 'id'>>('hero-slide', { activeOnly: true });
 
   const [currentSlide, setCurrentSlide] = React.useState(0);
   const [featuredMap, setFeaturedMap]   = React.useState<Record<string, Product[]>>({});

@@ -1,11 +1,11 @@
 import { type Guid } from '../../core/entities/base.js'
 import { User, type UserRole } from '../../core/entities/user.js'
-import { type IAttachmentService } from '../../core/services/attachment.svc.js'
-import { type ImageFile } from '../../core/services/storage.svc.js'
+import { type ImageFile, type IStorageService } from '../../core/services/storage.svc.js'
 import { type IUserService } from '../../core/services/user.svc.js'
 import { HashPassword } from '../../utils/hash.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
 import { ConflictError, ValidationError } from './errors.js'
+import { deleteInlineImage, uploadInlineImage } from './image.svc.js'
 import { assertEmail, assertGuid, assertRequiredString } from './validators.js'
 
 const allowedRoles = ['Admin', 'User'] as const
@@ -13,7 +13,7 @@ const allowedRoles = ['Admin', 'User'] as const
 export class UserService implements IUserService {
   constructor(
     private readonly userRepository: EntityRepository<User>,
-    private readonly attachmentService: IAttachmentService,
+    private readonly storage: IStorageService,
   ) {}
 
   async createUser(user: User): Promise<User> {
@@ -61,25 +61,16 @@ export class UserService implements IUserService {
   async setProfileImage(id: Guid, file: ImageFile): Promise<User> {
     assertGuid(id)
     const user = await this.userRepository.require(id, 'User')
-    if (user.profileImageId) {
-      await this.attachmentService.deleteAttachment(user.profileImageId).catch(() => undefined)
-    }
-    const attachment = await this.attachmentService.uploadAttachment({
-      data: file.data,
-      fileName: file.fileName,
-      mimeType: file.mimeType,
-      uploadedBy: id,
-    })
-    return this.userRepository.update(id, { profileImageId: attachment.id } as Partial<User>)
+    await deleteInlineImage(this.storage, user.profileImageUrl)
+    const uploaded = await uploadInlineImage(this.storage, file)
+    return this.userRepository.update(id, { profileImageUrl: uploaded.url } as Partial<User>)
   }
 
   async removeProfileImage(id: Guid): Promise<User> {
     assertGuid(id)
     const user = await this.userRepository.require(id, 'User')
-    if (user.profileImageId) {
-      await this.attachmentService.deleteAttachment(user.profileImageId).catch(() => undefined)
-    }
-    return this.userRepository.update(id, { profileImageId: null } as Partial<User>)
+    await deleteInlineImage(this.storage, user.profileImageUrl)
+    return this.userRepository.update(id, { profileImageUrl: null } as Partial<User>)
   }
 
   async getUserById(id: Guid): Promise<User | null> {
@@ -101,7 +92,7 @@ export class UserService implements IUserService {
     assertRequiredString(user.firstName, 'firstName')
     assertRequiredString(user.lastName, 'lastName')
     assertEmail(user.email)
-    assertRequiredString(user.phone, 'phone', 40)
+    if (user.phone !== null && user.phone !== undefined) assertRequiredString(user.phone, 'phone', 40)
     assertRequiredString(user.passwordHash, 'passwordHash')
     this.assertRole(user.role)
   }

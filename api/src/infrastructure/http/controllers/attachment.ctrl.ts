@@ -1,56 +1,48 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import type { IAttachmentService } from '../../../core/services/attachment.svc.js'
 import { ValidationError } from '../../services/errors.js'
-import { jwtUser, assertOwner, sendCreated, sendDeleted, sendOk } from '../routes/route-utils.js'
-import type { RenameBodyType } from '../schemas/attachment.schemas.js'
+import { readFilePart } from '../utils/readFilePart.js'
+import { sendDeleted, sendOk } from '../routes/route-utils.js'
+import type { RenameBodyType, ReorderBodyType } from '../schemas/attachment.schemas.js'
 
 type IdParams = { id: string }
-type UserIdParams = { userId: string }
 
 const readUploadedFile = async (request: FastifyRequest) => {
-  const file = await request.file()
-  if (!file) throw new ValidationError('No file uploaded (expected multipart field "file")')
-  const data = await file.toBuffer()
-  return { data, fileName: file.filename, mimeType: file.mimetype }
+  const part = await request.file()
+  if (!part) throw new ValidationError('No file uploaded (expected multipart field "file")')
+  return readFilePart(part)
 }
-
-export const uploadAttachment = (service: IAttachmentService) =>
-  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const { data, fileName, mimeType } = await readUploadedFile(request)
-    const { id: uploadedBy } = jwtUser(request)
-    sendCreated(reply, await service.uploadAttachment({ data, fileName, mimeType, uploadedBy }))
-  }
 
 export const getAttachmentById = (service: IAttachmentService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { id } = request.params as IdParams
-    sendOk(reply, await service.getAttachmentById(id))
-  }
-
-export const getAttachmentsByUser = (service: IAttachmentService) =>
-  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const { userId } = request.params as UserIdParams
-    assertOwner(request, userId)
-    sendOk(reply, await service.getAttachmentsByUser(userId))
+    sendOk(reply, await service.getById(id))
   }
 
 export const renameAttachment = (service: IAttachmentService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { id } = request.params as IdParams
     const { fileName } = request.body as RenameBodyType
-    sendOk(reply, await service.renameAttachment(id, fileName))
+    sendOk(reply, await service.rename(id, fileName))
+  }
+
+export const reorderAttachment = (service: IAttachmentService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const { id } = request.params as IdParams
+    const { sortOrder } = request.body as ReorderBodyType
+    sendOk(reply, await service.reorder(id, sortOrder))
   }
 
 export const replaceAttachmentFile = (service: IAttachmentService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { id } = request.params as IdParams
-    const { data, fileName, mimeType } = await readUploadedFile(request)
-    sendOk(reply, await service.replaceAttachmentFile(id, { data, fileName, mimeType }))
+    const file = await readUploadedFile(request)
+    sendOk(reply, await service.replaceFile(id, file))
   }
 
 export const deleteAttachment = (service: IAttachmentService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { id } = request.params as IdParams
-    await service.deleteAttachment(id)
+    await service.delete(id)
     sendDeleted(reply)
   }

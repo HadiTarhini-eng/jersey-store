@@ -1,13 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { useAdminCollection } from '../hooks/useAdminCollection';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../../components/ui/Modal';
 import { ImageUpload } from '../components/ImageUpload';
-import uiConfig from '../../data/ui-config.json';
 import type { HeroSlide, OfferBanner } from '../../types';
-
-const slidesSeed  = uiConfig.hero.slides    as HeroSlide[];
-const bannersSeed = uiConfig.offersBanners  as OfferBanner[];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hero-slide themes
@@ -101,7 +97,7 @@ const addButtonClass = 'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg
 // ─────────────────────────────────────────────────────────────────────────────
 
 function HeroSlidesSection() {
-  const { items: slides, write, add, update, remove } = useAdminCollection<HeroSlide>('hero-slides', slidesSeed);
+  const { items: slides, add, update, remove, reorder } = useUiContentSlot<Omit<HeroSlide, 'id'>>('hero-slide');
   const [editing,       setEditing]       = useState<HeroSlide | null>(null);
   const [pendingDelete, setPendingDelete] = useState<HeroSlide | null>(null);
 
@@ -123,9 +119,9 @@ function HeroSlidesSection() {
     if (idx === -1) return;
     const next = idx + dir;
     if (next < 0 || next >= slides.length) return;
-    const reordered = [...slides];
-    [reordered[idx], reordered[next]] = [reordered[next], reordered[idx]];
-    write(reordered);
+    const a = slides[idx];
+    const b = slides[next];
+    void Promise.all([reorder(a.id, b.sortOrder), reorder(b.id, a.sortOrder)]);
   };
 
   return (
@@ -443,7 +439,7 @@ function EditorField({ label, hint, children }: { label: string; hint?: string; 
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OfferBannersSection() {
-  const { items: banners, write, add, update, remove } = useAdminCollection<OfferBanner>('offer-banners', bannersSeed);
+  const { items: banners, add, update, remove, reorder } = useUiContentSlot<Omit<OfferBanner, 'id'>>('offer-banner');
   const [editing,       setEditing]       = useState<OfferBanner | null>(null);
   const [pendingDelete, setPendingDelete] = useState<OfferBanner | null>(null);
 
@@ -463,9 +459,9 @@ function OfferBannersSection() {
     if (idx === -1) return;
     const next = idx + dir;
     if (next < 0 || next >= banners.length) return;
-    const reordered = [...banners];
-    [reordered[idx], reordered[next]] = [reordered[next], reordered[idx]];
-    write(reordered);
+    const a = banners[idx];
+    const b = banners[next];
+    void Promise.all([reorder(a.id, b.sortOrder), reorder(b.id, a.sortOrder)]);
   };
 
   return (

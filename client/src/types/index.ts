@@ -27,22 +27,22 @@ export interface BusinessEntity {
 export type UserRole = 'Admin' | 'User';
 
 export interface User extends BusinessEntity {
-  firstName:       string;
-  lastName:        string;
-  email:           string;
-  phone?:          string | null;
-  role:            UserRole;
-  profileImageId?: Guid | null;
+  firstName:        string;
+  lastName:         string;
+  email:            string;
+  phone?:           string | null;
+  role:             UserRole;
+  profileImageUrl?: string | null;
 }
 
 export interface CreateUserPayload {
-  firstName:       string;
-  lastName:        string;
-  email:           string;
-  password:        string;
-  phone?:          string;
-  role:            UserRole;
-  profileImageId?: Guid;
+  firstName:        string;
+  lastName:         string;
+  email:            string;
+  password:         string;
+  phone?:           string;
+  role:             UserRole;
+  profileImageUrl?: string;
 }
 
 export interface UpdateUserPayload {
@@ -86,7 +86,7 @@ export interface Category extends BusinessEntity {
   name:           string;
   slug:           string;
   description?:   string | null;
-  imageId?:       Guid | null;
+  imageUrl?:      string | null;
 }
 
 export interface CreateCategoryTypePayload {
@@ -102,7 +102,6 @@ export interface CreateCategoryPayload {
   name:           string;
   slug:           string;
   description?:   string;
-  imageId?:       Guid;
 }
 export interface UpdateCategoryPayload {
   categoryTypeId?: Guid;
@@ -110,7 +109,6 @@ export interface UpdateCategoryPayload {
   name?:           string;
   slug?:           string;
   description?:    string;
-  imageId?:        Guid;
 }
 
 export interface ListCategoriesQuery {
@@ -225,14 +223,13 @@ export interface ProductVariant extends BusinessEntity {
   sku:            string;
   priceOverride?: number | null;
   stockQuantity:  number;
-  imageId?:       Guid | null;
+  imageUrl?:      string | null;
 }
 
 export interface CreateVariantPayload {
   sku:             string;
   priceOverride?:  number | null;
   stockQuantity?:  number;
-  imageId?:        Guid;
 }
 
 export interface VariantAttributeValue extends BusinessEntity {
@@ -374,48 +371,35 @@ export interface UpdateReviewPayload {
 export type DiscountType = 'percentage' | 'fixed_amount';
 
 export interface SpecialOffer extends BusinessEntity {
-  title:               string;
-  description?:        string | null;
-  discountType:        DiscountType;
-  discountValue:       number;
-  startDate:           ISODate;
-  endDate:             ISODate;
-  bannerAttachmentId?: Guid | null;
+  title:         string;
+  description?:  string | null;
+  discountType:  DiscountType;
+  discountValue: number;
+  startDate:     ISODate;
+  endDate:       ISODate;
+  bannerUrl?:    string | null;
 }
 
 export interface CreateOfferPayload {
-  title:               string;
-  description?:        string;
-  discountType:        DiscountType;
-  discountValue:       number;
-  startDate:           ISODate;
-  endDate:             ISODate;
-  bannerAttachmentId?: Guid;
+  title:         string;
+  description?:  string;
+  discountType:  DiscountType;
+  discountValue: number;
+  startDate:     ISODate;
+  endDate:       ISODate;
 }
 export type UpdateOfferPayload = Partial<CreateOfferPayload>;
 
-// ── Attachments ──────────────────────────────────────────────────────────────
+// ── Attachments (product gallery only) ───────────────────────────────────────
 
 export interface Attachment extends BusinessEntity {
-  fileName:   string;
-  fileUrl:    string;
-  mimeType:   string;
-  fileSize:   number;
-  uploadedBy: Guid;
-}
-
-export interface CreateAttachmentPayload {
-  fileName:   string;
-  fileUrl:    string;
-  mimeType:   string;
-  fileSize:   number;
-  uploadedBy: Guid;
-}
-
-export interface ReplaceAttachmentPayload {
-  fileUrl:  string;
-  mimeType: string;
-  fileSize: number;
+  productId:          Guid;
+  fileName:           string;
+  fileUrl:            string;
+  compressedFileUrl?: string | null;
+  mimeType:           string;
+  fileSize:           number;
+  sortOrder:          number;
 }
 
 // ── Sort options (UI-only, applied client-side after listing) ────────────────
@@ -511,22 +495,99 @@ export interface OfferBanner {
   image:        string;
 }
 
-export interface SiteConfig {
+/**
+ * Site-wide config. When read from the backend (`siteConfigApi.get()`) the
+ * BusinessEntity fields are populated; when read from the legacy
+ * `site-config.json` fallback they are absent — both shapes are valid.
+ */
+export interface SiteConfig extends Partial<BusinessEntity> {
+  slug?:                 string;
   name:                  string;
-  tagline:               string;
-  description:           string;
-  logo:                  string;
-  email:                 string;
-  phone:                 string;
+  tagline?:              string | null;
+  description?:          string | null;
+  logoUrl?:              string | null;
+  email?:                string | null;
+  phone?:                string | null;
   currency:              string;
   freeShippingThreshold: number;
-  socialLinks: {
-    instagram?: string;
-    twitter?:   string;
-    facebook?:  string;
-    youtube?:   string;
-  };
+  socialLinks:           Record<string, string>;
+  /** Legacy fallback: simple logo URL when read from JSON. */
+  logo?: string | null;
 }
+
+export interface UpdateSiteConfigPayload {
+  name?:                  string;
+  tagline?:               string | null;
+  description?:           string | null;
+  email?:                 string | null;
+  phone?:                 string | null;
+  currency?:              string;
+  freeShippingThreshold?: number;
+  socialLinks?:           Record<string, string>;
+}
+
+// ── Shipping ────────────────────────────────────────────────────────────────
+
+export interface ShippingMethod extends BusinessEntity {
+  name:                   string;
+  description?:           string | null;
+  baseRate:               number;
+  freeShippingThreshold?: number | null;
+  estimatedDaysMin?:      number | null;
+  estimatedDaysMax?:      number | null;
+  sortOrder:              number;
+}
+
+export interface CreateShippingMethodPayload {
+  name:                   string;
+  description?:           string | null;
+  baseRate:               number;
+  freeShippingThreshold?: number | null;
+  estimatedDaysMin?:      number | null;
+  estimatedDaysMax?:      number | null;
+  sortOrder?:             number;
+}
+export type UpdateShippingMethodPayload = Partial<CreateShippingMethodPayload> & { isActive?: boolean };
+
+// ── UI content (CMS) ────────────────────────────────────────────────────────
+
+export type UiContentSlot = 'hero-slide' | 'offer-banner' | 'sport' | 'team' | 'kit-category';
+
+export interface UiContentItem<TPayload extends Record<string, unknown> = Record<string, unknown>> extends BusinessEntity {
+  slot:      UiContentSlot;
+  payload:   TPayload;
+  imageUrl?: string | null;
+  sortOrder: number;
+}
+
+export interface CreateUiContentPayload {
+  slot:       UiContentSlot;
+  payload:    Record<string, unknown>;
+  sortOrder?: number;
+}
+
+export interface UpdateUiContentPayload {
+  payload?:   Record<string, unknown>;
+  sortOrder?: number;
+  isActive?:  boolean;
+}
+
+// ── Analytics ───────────────────────────────────────────────────────────────
+
+export interface AnalyticsKpi { value: number; deltaPct: number }
+export interface AnalyticsOverview {
+  revenue:   AnalyticsKpi;
+  orders:    AnalyticsKpi;
+  customers: AnalyticsKpi;
+  units:     AnalyticsKpi;
+}
+export interface AnalyticsDayPoint   { day: string;   revenue: number; orders: number }
+export interface AnalyticsMonthPoint { month: string; revenue: number }
+export interface AnalyticsTopProduct  { productId:  string; name: string; units: number; revenue: number }
+export interface AnalyticsTopCategory { categoryId: string; name: string; revenue: number }
+export interface AnalyticsActivityItem { id: string; type: 'order' | 'customer'; message: string; at: ISODate }
+
+export interface AnalyticsRangeQuery { from?: ISODate; to?: ISODate }
 
 // ── Filters (frontend ProductFilters → backend ProductSearchQuery) ───────────
 
@@ -538,6 +599,7 @@ export interface ProductFilters {
   maxPrice?:   number;
   featured?:   boolean;
   inStock?:    boolean; // applied client-side
+  status?:     ProductStatus; // applied client-side
   // UI-only legacy reference helpers — used to drive the sports/teams JSON UI.
   sport?:      string;
   team?:       string;

@@ -144,6 +144,7 @@ export const productService = {
     let items: Product[];
     try {
       items = await productApi.search(toSearchQuery(filters));
+      console.log('Fetched products from backend:', items);
     } catch {
       items = legacyDataset;
     }

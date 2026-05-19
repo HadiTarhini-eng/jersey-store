@@ -3,6 +3,7 @@ import type { CreateOfferInput, ISpecialOfferService } from '../../../core/servi
 import type { ImageFile } from '../../../core/services/storage.svc.js'
 import { ValidationError } from '../../services/errors.js'
 import { jwtUser, sendCreated, sendDeleted, sendOk } from '../routes/route-utils.js'
+import { readFilePart } from '../utils/readFilePart.js'
 import type { ActiveOffersQueryType, RescheduleBodyType, UpdateOfferBodyType } from '../schemas/offer.schemas.js'
 
 type IdParams = { id: string }
@@ -24,7 +25,7 @@ const parseOfferMultipart = async (request: FastifyRequest): Promise<{
 
   for await (const part of request.parts()) {
     if (part.type === 'file' && part.fieldname === 'banner') {
-      banner = { data: await part.toBuffer(), fileName: part.filename, mimeType: part.mimetype }
+      banner = await readFilePart(part)
     } else if (part.type === 'field' && part.fieldname === 'data') {
       dataJson = String(part.value)
     }
@@ -40,9 +41,9 @@ const parseOfferMultipart = async (request: FastifyRequest): Promise<{
 }
 
 const readSingleImageUpload = async (request: FastifyRequest): Promise<ImageFile> => {
-  const file = await request.file()
-  if (!file) throw new ValidationError('No file uploaded (expected multipart field "file")')
-  return { data: await file.toBuffer(), fileName: file.filename, mimeType: file.mimetype }
+  const part = await request.file()
+  if (!part) throw new ValidationError('No file uploaded (expected multipart field "file")')
+  return readFilePart(part)
 }
 
 export const createOffer = (service: ISpecialOfferService) =>

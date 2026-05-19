@@ -15,14 +15,7 @@ export interface ProductEntity extends BusinessEntity {
   status: ProductStatus
   featured: boolean
   searchVector?: string | null
-  imageId?: Guid | null
   createdBy: Guid
-}
-
-export interface ProductImageEntity extends BusinessEntity {
-  productId: Guid
-  attachmentId: Guid
-  sortOrder: number
 }
 
 export interface ProductAttributeEntity extends BusinessEntity {
@@ -58,7 +51,7 @@ export interface ProductVariantEntity extends BusinessEntity {
   sku: string
   priceOverride?: number | null
   stockQuantity: number
-  imageId?: Guid | null
+  imageUrl?: string | null
 }
 
 export interface VariantAttributeValueEntity extends BusinessEntity {
@@ -79,27 +72,7 @@ export interface ProductPayload extends BusinessEntityPayload {
   status?: ProductStatus
   featured?: boolean
   searchVector?: string | null
-  imageId?: Guid | null
   createdBy: Guid
-}
-
-export interface ProductImagePayload extends BusinessEntityPayload {
-  productId: Guid
-  attachmentId: Guid
-  sortOrder?: number
-}
-
-export class ProductImage extends BaseEntity implements ProductImageEntity {
-  productId: Guid
-  attachmentId: Guid
-  sortOrder: number
-
-  constructor(payload: ProductImagePayload) {
-    super(payload)
-    this.productId = payload.productId
-    this.attachmentId = payload.attachmentId
-    this.sortOrder = payload.sortOrder ?? 0
-  }
 }
 
 export class Product extends BaseEntity implements ProductEntity {
@@ -114,7 +87,6 @@ export class Product extends BaseEntity implements ProductEntity {
   status: ProductStatus
   featured: boolean
   searchVector?: string | null
-  imageId?: Guid | null
   createdBy: Guid
 
   constructor(payload: ProductPayload) {
@@ -130,7 +102,6 @@ export class Product extends BaseEntity implements ProductEntity {
     this.status = payload.status ?? 'draft'
     this.featured = payload.featured ?? false
     this.searchVector = payload.searchVector
-    this.imageId = payload.imageId ?? null
     this.createdBy = payload.createdBy
   }
 
@@ -227,7 +198,7 @@ export class ProductVariant extends BaseEntity implements ProductVariantEntity {
   sku: string
   priceOverride?: number | null
   stockQuantity: number
-  imageId?: Guid | null
+  imageUrl?: string | null
 
   constructor(payload: ProductVariantPayload) {
     super(payload)
@@ -235,7 +206,7 @@ export class ProductVariant extends BaseEntity implements ProductVariantEntity {
     this.sku = payload.sku
     this.priceOverride = payload.priceOverride
     this.stockQuantity = payload.stockQuantity
-    this.imageId = payload.imageId
+    this.imageUrl = payload.imageUrl ?? null
   }
 
   changeStock(quantity: number): void {

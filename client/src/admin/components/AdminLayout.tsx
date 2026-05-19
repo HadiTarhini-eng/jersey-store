@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { to: '/admin/products/new', label: 'Add Product', icon: 'add'                   },
   { to: '/admin/offers',       label: 'Offers',      icon: 'offers'                },
   { to: '/admin/categories',   label: 'Categories',  icon: 'categories'            },
+  { to: '/admin/settings',     label: 'Settings',    icon: 'categories'            },
 ];
 
 const icons: Record<string, ReactNode> = {
@@ -162,6 +163,7 @@ function PageTitle({ pathname }: { pathname: string }) {
     { match: (p) => p.startsWith('/admin/products/'),        label: 'Edit Product' },
     { match: (p) => p === '/admin/offers',                   label: 'Offers' },
     { match: (p) => p === '/admin/categories',               label: 'Categories' },
+    { match: (p) => p === '/admin/settings',                 label: 'Settings'   },
   ];
   const found = titles.find((t) => t.match(pathname));
   return (

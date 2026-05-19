@@ -1,16 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { useAdminCollection } from '../hooks/useAdminCollection';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ImageUpload } from '../components/ImageUpload';
 import { Modal } from '../../components/ui/Modal';
-import sportsSeed     from '../../data/sports.json';
-import teamsSeed      from '../../data/teams.json';
-import categoriesSeed from '../../data/categories.json';
 import type { Sport, Team, UiCategory } from '../../types';
-
-const sportsSeedTyped     = sportsSeed     as Sport[];
-const teamsSeedTyped      = teamsSeed      as Team[];
-const categoriesSeedTyped = categoriesSeed as UiCategory[];
 
 type Tab = 'sports' | 'teams' | 'kit';
 
@@ -141,7 +134,7 @@ function slugify(s: string) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SportsTab() {
-  const { items, add, update, remove } = useAdminCollection<Sport>('sports', sportsSeedTyped);
+  const { items, add, update, remove } = useUiContentSlot<Omit<Sport, 'id'>>('sport');
   const [editing, setEditing] = useState<Sport | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Sport | null>(null);
 
@@ -280,8 +273,8 @@ function SportEditor({ sport, onCancel, onSave }: { sport: Sport | null; onCance
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TeamsTab() {
-  const sports = useAdminCollection<Sport>('sports', sportsSeedTyped).items;
-  const { items, add, update, remove } = useAdminCollection<Team>('teams', teamsSeedTyped);
+  const sports = useUiContentSlot<Omit<Sport, 'id'>>('sport').items;
+  const { items, add, update, remove } = useUiContentSlot<Omit<Team, 'id'>>('team');
   const [editing, setEditing] = useState<Team | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Team | null>(null);
   const [sportFilter, setSportFilter] = useState<string>('all');
@@ -457,7 +450,7 @@ function TeamEditor({ team, sports, onCancel, onSave }: { team: Team | null; spo
 // ─────────────────────────────────────────────────────────────────────────────
 
 function KitTab() {
-  const { items, add, update, remove } = useAdminCollection<UiCategory>('kit-categories', categoriesSeedTyped);
+  const { items, add, update, remove } = useUiContentSlot<Omit<UiCategory, 'id'>>('kit-category');
   const [editing, setEditing] = useState<UiCategory | null>(null);
   const [pendingDelete, setPendingDelete] = useState<UiCategory | null>(null);
 

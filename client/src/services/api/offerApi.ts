@@ -1,4 +1,4 @@
-import { http, toFormData } from './client';
+import { http, toFormData, UPLOAD_CONFIG } from './client';
 import { endpoints } from './endpoints';
 import type { CreateOfferPayload, SpecialOffer, UpdateOfferPayload } from '../../types';
 
@@ -14,7 +14,7 @@ export const offerApi = {
                          : new File([banner], bannerName)
                        : undefined,
                    }),
-                   { headers: { 'Content-Type': 'multipart/form-data' } },
+                   UPLOAD_CONFIG,
                  ),
   active:      (date?: string)                         =>
                  http.get<SpecialOffer[]>(endpoints.offers.active(), { params: date ? { date } : undefined }),
@@ -31,7 +31,7 @@ export const offerApi = {
                    toFormData({
                      file: file instanceof File ? file : new File([file], fileName),
                    }),
-                   { headers: { 'Content-Type': 'multipart/form-data' } },
+                   UPLOAD_CONFIG,
                  ),
   removeBanner:(id: string)                            => http.delete<SpecialOffer>(endpoints.offers.banner(id)),
   activate:    (id: string)                            => http.post<SpecialOffer>(endpoints.offers.activate(id)),

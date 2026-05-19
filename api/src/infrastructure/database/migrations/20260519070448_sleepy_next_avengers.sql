@@ -1,10 +1,25 @@
+CREATE TABLE "analytics_daily" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"day" varchar(10) NOT NULL,
+	"revenue" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"order_count" integer DEFAULT 0 NOT NULL,
+	"unit_count" integer DEFAULT 0 NOT NULL,
+	"new_customers" integer DEFAULT 0 NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "analytics_daily_day_unique" UNIQUE("day")
+);
+--> statement-breakpoint
 CREATE TABLE "attachments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"product_id" uuid NOT NULL,
 	"file_name" varchar(255) NOT NULL,
 	"file_url" varchar(2048) NOT NULL,
+	"compressed_file_url" varchar(2048),
 	"mime_type" varchar(100) NOT NULL,
 	"file_size" integer NOT NULL,
-	"uploaded_by" uuid NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -37,7 +52,7 @@ CREATE TABLE "categories" (
 	"name" varchar(255) NOT NULL,
 	"slug" varchar(160) NOT NULL,
 	"description" text,
-	"image_id" uuid,
+	"image_url" varchar(2048),
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -63,7 +78,7 @@ CREATE TABLE "users" (
 	"password_hash" varchar(255) NOT NULL,
 	"phone" varchar(40),
 	"role" varchar(50) DEFAULT 'User' NOT NULL,
-	"profile_image_id" uuid,
+	"profile_image_url" varchar(2048),
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -160,7 +175,7 @@ CREATE TABLE "product_variants" (
 	"sku" varchar(100) NOT NULL,
 	"price_override" numeric(12, 2),
 	"stock_quantity" integer DEFAULT 0 NOT NULL,
-	"image_id" uuid,
+	"image_url" varchar(2048),
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -200,6 +215,38 @@ CREATE TABLE "reviews" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "shipping_methods" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"description" text,
+	"base_rate" numeric(12, 2) DEFAULT '0' NOT NULL,
+	"free_shipping_threshold" numeric(12, 2),
+	"estimated_days_min" integer,
+	"estimated_days_max" integer,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "site_config" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"slug" varchar(80) NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"tagline" varchar(255),
+	"description" text,
+	"logo_url" varchar(2048),
+	"email" varchar(320),
+	"phone" varchar(40),
+	"currency" varchar(8) DEFAULT 'USD' NOT NULL,
+	"free_shipping_threshold" numeric(12, 2) DEFAULT '0' NOT NULL,
+	"social_links" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "site_config_slug_unique" UNIQUE("slug")
+);
+--> statement-breakpoint
 CREATE TABLE "special_offers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"title" varchar(255) NOT NULL,
@@ -208,7 +255,18 @@ CREATE TABLE "special_offers" (
 	"discount_value" numeric(12, 2) NOT NULL,
 	"start_date" timestamp NOT NULL,
 	"end_date" timestamp NOT NULL,
-	"banner_attachment_id" uuid,
+	"banner_url" varchar(2048),
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ui_content" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"slot" varchar(60) NOT NULL,
+	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"image_url" varchar(2048),
+	"sort_order" integer DEFAULT 0 NOT NULL,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL

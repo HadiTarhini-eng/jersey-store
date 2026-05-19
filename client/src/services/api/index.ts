@@ -16,3 +16,7 @@ export { orderApi }      from './orderApi';
 export { reviewApi }     from './reviewApi';
 export { offerApi }      from './offerApi';
 export { attachmentApi } from './attachmentApi';
+export { siteConfigApi } from './siteConfigApi';
+export { shippingApi }   from './shippingApi';
+export { uiContentApi }  from './uiContentApi';
+export { analyticsApi }  from './analyticsApi';
