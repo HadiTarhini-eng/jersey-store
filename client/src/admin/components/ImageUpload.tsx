@@ -1,39 +1,46 @@
-import { useRef, useState } from 'react';
-
-interface SingleImageUploadProps {
-  value:    string;
-  onChange: (dataUrl: string) => void;
-  label?:   string;
-}
+import { useEffect, useRef } from 'react';
 
 /**
- * Reads a File via FileReader and resolves to a base64 data URL — fine for
- * the JSON-seeded localStorage admin store; would be swapped for a real
- * uploader once a backend is wired in.
+ * File-handover pattern: the picker emits an object-URL preview (for instant
+ * feedback) plus the underlying File. The parent is responsible for shipping
+ * the File to the backend via the appropriate upload endpoint
+ * (uiContentApi.setImage, productApi.images.create, etc.) and replacing the
+ * preview with the persisted URL once the upload resolves.
+ *
+ * The `value` prop is whatever URL should be displayed right now — local
+ * objectURL while pending, remote URL once persisted. Both single and multi
+ * variants follow the same contract.
  */
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+
+interface SingleImageUploadProps {
+  value:     string;
+  /** Called with (preview-url, file). When the user removes, file is null. */
+  onChange:  (url: string, file: File | null) => void;
+  label?:    string;
 }
 
-/** Single-image picker — used inside the white admin modals. */
 export function ImageUpload({ value, onChange, label = 'Upload image' }: SingleImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [loading, setLoading] = useState(false);
+  const objectUrlRef = useRef<string | null>(null);
 
-  const pick = async (file: File | undefined) => {
+  useEffect(() => () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+  }, []);
+
+  const pick = (file: File | undefined) => {
     if (!file) return;
-    setLoading(true);
-    try {
-      const url = await fileToDataUrl(file);
-      onChange(url);
-    } finally {
-      setLoading(false);
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    onChange(url, file);
+  };
+
+  const clear = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
     }
+    onChange('', null);
   };
 
   return (
@@ -65,55 +72,79 @@ export function ImageUpload({ value, onChange, label = 'Upload image' }: SingleI
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent text-white text-xs font-bold uppercase tracking-wider border-2 border-accent hover:bg-accent-light transition-colors disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent text-white text-xs font-bold uppercase tracking-wider border-2 border-accent hover:bg-accent-light transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12" />
             </svg>
-            {loading ? 'Reading…' : label}
+            {label}
           </button>
           {value && (
             <button
               type="button"
-              onClick={() => onChange('')}
+              onClick={clear}
               className="px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-danger hover:bg-danger/10 transition-colors"
             >
               Remove
             </button>
           )}
         </div>
-        <p className="text-[10px] text-gray-500">PNG or JPG. Stored locally as a data URL.</p>
+        <p className="text-[10px] text-gray-500">PNG or JPG. Uploaded to the server on save.</p>
       </div>
     </div>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-image gallery (used by products). Each entry is { url, file? } — `file`
+// is set for newly picked entries that still need to be uploaded.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface GalleryEntry {
+  /** Either a remote URL (already persisted) or a transient object URL. */
+  url:  string;
+  /** Set for new picks awaiting upload. Undefined for already-persisted rows. */
+  file?: File;
+  /** Server-side attachment id once persisted. Useful for delete/reorder. */
+  attachmentId?: string;
+}
+
 interface MultiImageUploadProps {
-  values:   string[];
-  onChange: (next: string[]) => void;
-  /** Max images allowed. Defaults to 6. */
+  values:   GalleryEntry[];
+  onChange: (next: GalleryEntry[]) => void;
   max?:     number;
 }
 
-/** Multi-image gallery uploader — used for product images. */
 export function MultiImageUpload({ values, onChange, max = 6 }: MultiImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [loading, setLoading] = useState(false);
+  const objectUrls = useRef(new Set<string>());
 
-  const pickFiles = async (files: FileList | null) => {
+  useEffect(() => () => {
+    objectUrls.current.forEach((u) => URL.revokeObjectURL(u));
+    objectUrls.current.clear();
+  }, []);
+
+  const pickFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    setLoading(true);
-    try {
-      const urls = await Promise.all(Array.from(files).slice(0, max - values.length).map(fileToDataUrl));
-      onChange([...values, ...urls]);
-    } finally {
-      setLoading(false);
-      if (inputRef.current) inputRef.current.value = '';
-    }
+    const room = max - values.length;
+    const accepted = Array.from(files).slice(0, room);
+    const additions: GalleryEntry[] = accepted.map((file) => {
+      const url = URL.createObjectURL(file);
+      objectUrls.current.add(url);
+      return { url, file };
+    });
+    onChange([...values, ...additions]);
+    if (inputRef.current) inputRef.current.value = '';
   };
 
-  const removeAt = (idx: number) => onChange(values.filter((_, i) => i !== idx));
+  const removeAt = (idx: number) => {
+    const removed = values[idx];
+    if (removed?.file && objectUrls.current.has(removed.url)) {
+      URL.revokeObjectURL(removed.url);
+      objectUrls.current.delete(removed.url);
+    }
+    onChange(values.filter((_, i) => i !== idx));
+  };
 
   const movePrimary = (idx: number) => {
     if (idx === 0) return;
@@ -137,18 +168,23 @@ export function MultiImageUpload({ values, onChange, max = 6 }: MultiImageUpload
       />
 
       <div className="flex flex-wrap gap-2">
-        {values.map((src, i) => (
+        {values.map((entry, i) => (
           <div
-            key={`${i}-${src.slice(-8)}`}
+            key={`${i}-${entry.url.slice(-12)}`}
             className={[
               'relative w-20 h-24 rounded-xl overflow-hidden border-2 group',
               i === 0 ? 'border-accent' : 'border-gray-200',
             ].join(' ')}
           >
-            <img src={src} alt="" className="w-full h-full object-cover" />
+            <img src={entry.url} alt="" className="w-full h-full object-cover" />
             {i === 0 && (
               <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-accent text-white">
                 Primary
+              </span>
+            )}
+            {entry.file && (
+              <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-power text-white">
+                New
               </span>
             )}
             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
@@ -178,8 +214,7 @@ export function MultiImageUpload({ values, onChange, max = 6 }: MultiImageUpload
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            disabled={loading}
-            className="w-20 h-24 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 hover:text-accent hover:border-accent transition-colors flex flex-col items-center justify-center gap-1 disabled:opacity-60"
+            className="w-20 h-24 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 hover:text-accent hover:border-accent transition-colors flex flex-col items-center justify-center gap-1"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16M4 12h16" />
@@ -190,7 +225,7 @@ export function MultiImageUpload({ values, onChange, max = 6 }: MultiImageUpload
       </div>
 
       <p className="text-[10px] text-gray-500">
-        {values.length}/{max} images — first one is the primary thumbnail. Hover an image to make primary or remove.
+        {values.length}/{max} images — first one is the primary thumbnail. New picks upload on save.
       </p>
     </div>
   );

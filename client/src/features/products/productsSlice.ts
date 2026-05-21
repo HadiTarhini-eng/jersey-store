@@ -25,20 +25,30 @@ export const fetchProductBySlug = createAsyncThunk(
       const product = await productService.getProductBySlug(slug);
       return await productService.withVariants(product);
     } catch (err: any) {
-      return rejectWithValue(err?.message ?? 'Product not found.');
+      return rejectWithValue({
+        slug,
+        message: err?.message ?? 'Product not found.',
+        status:  typeof err?.status === 'number' ? err.status : undefined,
+      });
     }
   },
 );
 
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
-const initialState: ProductsState = {
+interface ExtendedProductsState extends ProductsState {
+  /** Slug we last received a 404 for — distinguishes "no such product" from network errors. */
+  notFoundSlug: string | null;
+}
+
+const initialState: ExtendedProductsState = {
   items:           [],
   selectedProduct: null,
   filters:         {},
   sort:            'newest',
   loading:         false,
   error:           null,
+  notFoundSlug:    null,
 };
 
 const productsSlice = createSlice({
@@ -66,14 +76,25 @@ const productsSlice = createSlice({
       });
 
     builder
-      .addCase(fetchProductBySlug.pending,   (state) => { state.loading = true; state.error = null; })
+      .addCase(fetchProductBySlug.pending,   (state) => {
+        state.loading      = true;
+        state.error        = null;
+        state.notFoundSlug = null;
+      })
       .addCase(fetchProductBySlug.fulfilled, (state, { payload }) => {
         state.loading         = false;
         state.selectedProduct = payload;
       })
       .addCase(fetchProductBySlug.rejected,  (state, { payload }) => {
         state.loading = false;
-        state.error   = payload as string;
+        const p = payload as { slug?: string; message?: string; status?: number } | string | undefined;
+        if (typeof p === 'object' && p !== null) {
+          state.error        = p.message ?? 'Product not found.';
+          state.notFoundSlug = p.status === 404 && p.slug ? p.slug : null;
+        } else {
+          state.error        = typeof p === 'string' ? p : 'Product not found.';
+          state.notFoundSlug = null;
+        }
       });
   },
 });

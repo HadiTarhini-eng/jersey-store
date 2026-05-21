@@ -26,11 +26,14 @@ const ImageUploadBody = Type.Object({
   file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Image. image/*.' }),
 })
 
-export const createUiContentSchema: FastifySchema = { tags: ['UiContent'], consumes: ['multipart/form-data'], body: UiContentMultipartBody }
+// Multipart: schema documents `consumes` for Swagger but skips body validation
+// — @fastify/multipart leaves request.body undefined and the handler parses
+// parts manually via request.parts().
+export const createUiContentSchema: FastifySchema = { tags: ['UiContent'], consumes: ['multipart/form-data'], description: 'Multipart: `data` (JSON) + optional `image` (file).' }
 export const listUiContentBySlotSchema: FastifySchema = { tags: ['UiContent'], params: SlotParams, querystring: SlotQuery }
 export const getUiContentSchema: FastifySchema = { tags: ['UiContent'], params: IdParams }
 export const updateUiContentSchema: FastifySchema = { tags: ['UiContent'], params: IdParams, body: UpdateUiContentBody }
-export const setUiContentImageSchema: FastifySchema = { tags: ['UiContent'], consumes: ['multipart/form-data'], params: IdParams, body: ImageUploadBody }
+export const setUiContentImageSchema: FastifySchema = { tags: ['UiContent'], consumes: ['multipart/form-data'], params: IdParams, description: 'Multipart: `file` (image).' }
 export const removeUiContentImageSchema: FastifySchema = { tags: ['UiContent'], params: IdParams }
 export const reorderUiContentSchema: FastifySchema = { tags: ['UiContent'], params: IdParams, body: ReorderBody }
 export const activateUiContentSchema: FastifySchema = { tags: ['UiContent'], params: IdParams }

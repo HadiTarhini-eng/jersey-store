@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from 'react';
-import { useUiContentSlot } from '../../hooks/useUiContentSlot';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useUiContentSlot, type UseUiContentSlotResult } from '../../hooks/useUiContentSlot';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ImageUpload } from '../components/ImageUpload';
 import { Modal } from '../../components/ui/Modal';
+import { useToast } from '../../components/ui/Toast';
+import { extractErrorMessage } from '../../services/api/client';
 import type { Sport, Team, UiCategory } from '../../types';
 
 type Tab = 'sports' | 'teams' | 'kit';
@@ -12,7 +14,6 @@ export function AdminCategories() {
 
   return (
     <div className="space-y-5">
-      {/* Tab strip */}
       <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-1 px-1">
         <TabButton active={tab === 'sports'} onClick={() => setTab('sports')}>Sports</TabButton>
         <TabButton active={tab === 'teams'}  onClick={() => setTab('teams')}>Teams</TabButton>
@@ -44,12 +45,12 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared CRUD grid + Add/Delete affordances
+// Shared CRUD grid + reusable card primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface CrudGridProps<T extends { id: string }> {
   items:        T[];
-  renderCard:   (item: T) => ReactNode;
+  renderCard:   (item: T, index: number) => ReactNode;
   onAdd:        () => void;
   addLabel:     string;
   emptyMessage: string;
@@ -80,7 +81,7 @@ function CrudGrid<T extends { id: string }>({ items, renderCard, onAdd, addLabel
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => renderCard(item))}
+          {items.map((item, idx) => renderCard(item, idx))}
         </div>
       )}
     </div>
@@ -88,37 +89,72 @@ function CrudGrid<T extends { id: string }>({ items, renderCard, onAdd, addLabel
 }
 
 const inputClass = 'w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
+const inputErrorClass = inputClass + ' border-danger ring-2 ring-danger/20';
 
-function CardActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+interface CardChromeProps {
+  isActive:   boolean;
+  isFirst:    boolean;
+  isLast:     boolean;
+  onMoveUp:   () => void;
+  onMoveDown: () => void;
+  onToggle:   () => void;
+  onEdit:     () => void;
+  onDelete:   () => void;
+}
+
+function CardChrome({ isActive, isFirst, isLast, onMoveUp, onMoveDown, onToggle, onEdit, onDelete }: CardChromeProps) {
   return (
-    <div className="flex items-center justify-end gap-2 pt-3 border-t border-stroke">
-      <button
-        type="button"
-        onClick={onDelete}
-        aria-label="Delete"
-        className="p-2 rounded-lg text-muted hover:text-danger hover:bg-danger/10 transition-colors"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        onClick={onEdit}
-        className="px-4 py-2 rounded-lg bg-white text-black font-bold text-xs uppercase tracking-wider border-2 border-white hover:bg-black hover:text-white transition-colors"
-      >
-        Edit
-      </button>
+    <div className="flex items-center justify-between gap-2 pt-3 border-t border-stroke">
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={onMoveUp} disabled={isFirst} aria-label="Move up"
+          className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">↑</button>
+        <button type="button" onClick={onMoveDown} disabled={isLast} aria-label="Move down"
+          className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">↓</button>
+        <button
+          type="button"
+          onClick={onToggle}
+          className={[
+            'ml-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border transition-colors',
+            isActive
+              ? 'border-delivered/40 text-delivered hover:bg-delivered/10'
+              : 'border-stroke text-muted hover:text-primary hover:border-white/50',
+          ].join(' ')}
+        >
+          {isActive ? 'Active' : 'Inactive'}
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label="Delete"
+          className="p-2 rounded-lg text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="px-4 py-2 rounded-lg bg-white text-black font-bold text-xs uppercase tracking-wider border-2 border-white hover:bg-black hover:text-white transition-colors"
+        >
+          Edit
+        </button>
+      </div>
     </div>
   );
 }
 
-function FormField({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function FormField({ label, hint, error, required, children }: { label: string; hint?: string; error?: string; required?: boolean; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
       <label className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">{label}</span>
-        {hint && <span className="text-[10px] text-gray-500 normal-case">{hint}</span>}
+        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+          {label} {required && <span className="text-danger">*</span>}
+        </span>
+        {hint && !error && <span className="text-[10px] text-gray-500 normal-case">{hint}</span>}
+        {error && <span className="text-[10px] text-danger normal-case">{error}</span>}
       </label>
       {children}
     </div>
@@ -130,16 +166,44 @@ function slugify(s: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Reorder helpers — swap sortOrder values between adjacent items
+// ─────────────────────────────────────────────────────────────────────────────
+
+function useMove<T extends { id: string; sortOrder: number }>(
+  items: T[],
+  hook: UseUiContentSlotResult<any>,
+  describe: string,
+) {
+  const { push } = useToast();
+  return async (id: string, dir: -1 | 1) => {
+    const idx = items.findIndex((i) => i.id === id);
+    if (idx === -1) return;
+    const next = idx + dir;
+    if (next < 0 || next >= items.length) return;
+    const a = items[idx];
+    const b = items[next];
+    try {
+      await Promise.all([hook.reorder(a.id, b.sortOrder), hook.reorder(b.id, a.sortOrder)]);
+    } catch (err) {
+      push({ variant: 'error', message: extractErrorMessage(err, `Could not reorder ${describe}`) });
+    }
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Sports tab
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SportsTab() {
-  const { items, add, update, remove } = useUiContentSlot<Omit<Sport, 'id'>>('sport');
+  const hook = useUiContentSlot<Omit<Sport, 'id'>>('sport');
+  const { items } = hook;
   const [editing, setEditing] = useState<Sport | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Sport | null>(null);
+  const { push, promise } = useToast();
+  const move = useMove(items, hook, 'sport');
 
   const newSport = (): Sport => ({
-    id:       `sport-${Date.now().toString(36)}`,
+    id:       '', // server-assigned
     name:     '',
     slug:     '',
     icon:     '⚽',
@@ -148,6 +212,46 @@ function SportsTab() {
     featured: true,
   });
 
+  const onSave = async (s: Sport, file: File | null) => {
+    const exists = items.some((existing) => existing.id === s.id);
+    const { id: _id, ...payload } = s;
+    void _id;
+    try {
+      if (exists) {
+        await promise(hook.update(s.id, payload), {
+          success: `${s.name} saved`,
+          error:   (err) => extractErrorMessage(err, 'Could not save sport'),
+        });
+        if (file) await hook.setImage(s.id, file);
+      } else {
+        await promise(hook.add(payload, file ?? undefined), {
+          success: `${s.name} created`,
+          error:   (err) => extractErrorMessage(err, 'Could not create sport'),
+        });
+      }
+      setEditing(null);
+    } catch { /* toast already shown */ }
+  };
+
+  const onToggle = async (s: Sport & { isActive: boolean }) => {
+    try {
+      await hook.setActive(s.id, !s.isActive);
+      push({ variant: 'success', message: `${s.name} ${s.isActive ? 'deactivated' : 'activated'}` });
+    } catch (err) {
+      push({ variant: 'error', message: extractErrorMessage(err, 'Could not toggle status') });
+    }
+  };
+
+  const onDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(hook.remove(target.id), {
+      success: `${target.name} deleted`,
+      error:   (err) => extractErrorMessage(err, 'Could not delete sport'),
+    }).catch(() => undefined);
+  };
+
   return (
     <>
       <CrudGrid
@@ -155,8 +259,8 @@ function SportsTab() {
         addLabel="Add Sport"
         emptyMessage="No sports yet."
         onAdd={() => setEditing(newSport())}
-        renderCard={(sport) => (
-          <div key={sport.id} className="bg-surface border border-stroke rounded-2xl p-4 space-y-3">
+        renderCard={(sport, idx) => (
+          <div key={sport.id} className={['bg-surface border border-stroke rounded-2xl p-4 space-y-3', !sport.isActive && 'opacity-60'].filter(Boolean).join(' ')}>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl shrink-0" style={{ backgroundColor: `${sport.color ?? '#007aff'}30` }}>
                 {sport.icon}
@@ -171,20 +275,21 @@ function SportsTab() {
                 <img src={sport.image} alt="" className="w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
               </div>
             )}
-            <CardActions onEdit={() => setEditing(sport)} onDelete={() => setPendingDelete(sport)} />
+            <CardChrome
+              isActive={sport.isActive}
+              isFirst={idx === 0}
+              isLast={idx === items.length - 1}
+              onMoveUp={() => move(sport.id, -1)}
+              onMoveDown={() => move(sport.id, 1)}
+              onToggle={() => onToggle(sport)}
+              onEdit={() => setEditing(sport)}
+              onDelete={() => setPendingDelete(sport)}
+            />
           </div>
         )}
       />
 
-      <SportEditor
-        sport={editing}
-        onCancel={() => setEditing(null)}
-        onSave={(s) => {
-          if (items.some((existing) => existing.id === s.id)) update(s.id, s);
-          else                                                add(s);
-          setEditing(null);
-        }}
-      />
+      <SportEditor sport={editing} onCancel={() => setEditing(null)} onSave={onSave} />
 
       <ConfirmModal
         isOpen={!!pendingDelete}
@@ -193,44 +298,64 @@ function SportsTab() {
         confirmLabel="Delete"
         destructive
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) remove(pendingDelete.id);
-          setPendingDelete(null);
-        }}
+        onConfirm={onDelete}
       />
     </>
   );
 }
 
-function SportEditor({ sport, onCancel, onSave }: { sport: Sport | null; onCancel: () => void; onSave: (s: Sport) => void }) {
-  const [form, setForm] = useState<Sport | null>(sport);
-  if (sport && (!form || form.id !== sport.id)) setForm(sport);
+function SportEditor({ sport, onCancel, onSave }: { sport: Sport | null; onCancel: () => void; onSave: (s: Sport, file: File | null) => void }) {
+  const [form, setForm] = useState<Sport | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<keyof Sport, string>>>({});
+
+  useEffect(() => {
+    setForm(sport);
+    setFile(null);
+    setErrors({});
+  }, [sport]);
+
   if (!sport || !form) return null;
 
-  const set = <K extends keyof Sport>(k: K, v: Sport[K]) => setForm((p) => p ? { ...p, [k]: v } : p);
+  const set = <K extends keyof Sport>(k: K, v: Sport[K]) => {
+    setForm((p) => p ? { ...p, [k]: v } : p);
+    if (errors[k]) setErrors((prev) => ({ ...prev, [k]: undefined }));
+  };
+
+  const submit = () => {
+    const errs: Partial<Record<keyof Sport, string>> = {};
+    if (!form.name.trim()) errs.name = 'Required';
+    if (!form.slug.trim()) errs.slug = 'Required';
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    onSave(form, file);
+  };
 
   return (
     <Modal isOpen={!!sport} onClose={onCancel} title="Sport" maxWidth="max-w-lg">
       <div className="space-y-4">
-        <FormField label="Name">
+        <FormField label="Name" error={errors.name} required>
           <input
             value={form.name}
             onChange={(e) => set('name', e.target.value)}
             onBlur={() => !form.slug && set('slug', slugify(form.name))}
-            className={inputClass}
+            className={errors.name ? inputErrorClass : inputClass}
             placeholder="Football"
           />
         </FormField>
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Slug" hint="URL identifier">
-            <input value={form.slug} onChange={(e) => set('slug', e.target.value)} className={inputClass} placeholder="football" />
+          <FormField label="Slug" hint="URL identifier" error={errors.slug} required>
+            <input value={form.slug} onChange={(e) => set('slug', e.target.value)} className={errors.slug ? inputErrorClass : inputClass} placeholder="football" />
           </FormField>
           <FormField label="Icon (emoji)">
             <input value={form.icon} onChange={(e) => set('icon', e.target.value)} className={inputClass} placeholder="⚽" maxLength={4} />
           </FormField>
         </div>
         <FormField label="Image">
-          <ImageUpload value={form.image ?? ''} onChange={(url) => set('image', url)} label="Upload image" />
+          <ImageUpload
+            value={form.image ?? ''}
+            onChange={(url, picked) => { set('image', url); setFile(picked); }}
+            label="Upload image"
+          />
         </FormField>
         <FormField label="Accent color">
           <div className="flex gap-2">
@@ -256,14 +381,7 @@ function SportEditor({ sport, onCancel, onSave }: { sport: Sport | null; onCance
         </FormField>
       </div>
 
-      <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-        <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-          Cancel
-        </button>
-        <button type="button" onClick={() => onSave(form)} className="px-5 py-2.5 rounded-xl bg-white text-black font-bold text-sm uppercase tracking-wider border-2 border-white hover:bg-black hover:text-white transition-colors">
-          Save
-        </button>
-      </div>
+      <EditorFooter onCancel={onCancel} onSave={submit} />
     </Modal>
   );
 }
@@ -274,18 +392,21 @@ function SportEditor({ sport, onCancel, onSave }: { sport: Sport | null; onCance
 
 function TeamsTab() {
   const sports = useUiContentSlot<Omit<Sport, 'id'>>('sport').items;
-  const { items, add, update, remove } = useUiContentSlot<Omit<Team, 'id'>>('team');
+  const hook = useUiContentSlot<Omit<Team, 'id'>>('team');
+  const { items } = hook;
   const [editing, setEditing] = useState<Team | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Team | null>(null);
   const [sportFilter, setSportFilter] = useState<string>('all');
+  const { push, promise } = useToast();
+  const move = useMove(items, hook, 'team');
 
   const visible = sportFilter === 'all' ? items : items.filter((t) => t.sport === sportFilter);
 
   const newTeam = (): Team => ({
-    id:             `team-${Date.now().toString(36)}`,
+    id:             '',
     name:           '',
     slug:           '',
-    sport:          sports[0]?.id ?? 'football',
+    sport:          sports[0]?.id ?? '',
     logo:           '',
     country:        '',
     color:          '#000000',
@@ -293,9 +414,48 @@ function TeamsTab() {
     abbreviation:   '',
   });
 
+  const onSave = async (t: Team, file: File | null) => {
+    const exists = items.some((existing) => existing.id === t.id);
+    const { id: _id, ...payload } = t;
+    void _id;
+    try {
+      if (exists) {
+        await promise(hook.update(t.id, payload), {
+          success: `${t.name} saved`,
+          error:   (err) => extractErrorMessage(err, 'Could not save team'),
+        });
+        if (file) await hook.setImage(t.id, file);
+      } else {
+        await promise(hook.add(payload, file ?? undefined), {
+          success: `${t.name} created`,
+          error:   (err) => extractErrorMessage(err, 'Could not create team'),
+        });
+      }
+      setEditing(null);
+    } catch { /* toast already shown */ }
+  };
+
+  const onToggle = async (t: Team & { isActive: boolean }) => {
+    try {
+      await hook.setActive(t.id, !t.isActive);
+      push({ variant: 'success', message: `${t.name} ${t.isActive ? 'deactivated' : 'activated'}` });
+    } catch (err) {
+      push({ variant: 'error', message: extractErrorMessage(err, 'Could not toggle status') });
+    }
+  };
+
+  const onDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(hook.remove(target.id), {
+      success: `${target.name} deleted`,
+      error:   (err) => extractErrorMessage(err, 'Could not delete team'),
+    }).catch(() => undefined);
+  };
+
   return (
     <div className="space-y-4">
-      {/* Sport filter */}
       <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-1 px-1">
         <button
           type="button"
@@ -328,8 +488,8 @@ function TeamsTab() {
         addLabel="Add Team"
         emptyMessage="No teams in this view."
         onAdd={() => setEditing(newTeam())}
-        renderCard={(team) => (
-          <div key={team.id} className="bg-surface border border-stroke rounded-2xl p-4 space-y-3">
+        renderCard={(team, idx) => (
+          <div key={team.id} className={['bg-surface border border-stroke rounded-2xl p-4 space-y-3', !team.isActive && 'opacity-60'].filter(Boolean).join(' ')}>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shrink-0 overflow-hidden">
                 {team.logo ? (
@@ -345,21 +505,21 @@ function TeamsTab() {
                 <p className="text-[10px] uppercase tracking-widest text-muted truncate">{team.sport} · {team.country}</p>
               </div>
             </div>
-            <CardActions onEdit={() => setEditing(team)} onDelete={() => setPendingDelete(team)} />
+            <CardChrome
+              isActive={team.isActive}
+              isFirst={idx === 0}
+              isLast={idx === visible.length - 1}
+              onMoveUp={() => move(team.id, -1)}
+              onMoveDown={() => move(team.id, 1)}
+              onToggle={() => onToggle(team)}
+              onEdit={() => setEditing(team)}
+              onDelete={() => setPendingDelete(team)}
+            />
           </div>
         )}
       />
 
-      <TeamEditor
-        team={editing}
-        sports={sports}
-        onCancel={() => setEditing(null)}
-        onSave={(t) => {
-          if (items.some((existing) => existing.id === t.id)) update(t.id, t);
-          else                                                add(t);
-          setEditing(null);
-        }}
-      />
+      <TeamEditor team={editing} sports={sports as Sport[]} onCancel={() => setEditing(null)} onSave={onSave} />
 
       <ConfirmModal
         isOpen={!!pendingDelete}
@@ -368,45 +528,63 @@ function TeamsTab() {
         confirmLabel="Delete"
         destructive
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) remove(pendingDelete.id);
-          setPendingDelete(null);
-        }}
+        onConfirm={onDelete}
       />
     </div>
   );
 }
 
-function TeamEditor({ team, sports, onCancel, onSave }: { team: Team | null; sports: Sport[]; onCancel: () => void; onSave: (t: Team) => void }) {
-  const [form, setForm] = useState<Team | null>(team);
-  if (team && (!form || form.id !== team.id)) setForm(team);
+function TeamEditor({ team, sports, onCancel, onSave }: { team: Team | null; sports: Sport[]; onCancel: () => void; onSave: (t: Team, file: File | null) => void }) {
+  const [form, setForm] = useState<Team | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<keyof Team, string>>>({});
+
+  useEffect(() => {
+    setForm(team);
+    setFile(null);
+    setErrors({});
+  }, [team]);
+
   if (!team || !form) return null;
 
-  const set = <K extends keyof Team>(k: K, v: Team[K]) => setForm((p) => p ? { ...p, [k]: v } : p);
+  const set = <K extends keyof Team>(k: K, v: Team[K]) => {
+    setForm((p) => p ? { ...p, [k]: v } : p);
+    if (errors[k]) setErrors((prev) => ({ ...prev, [k]: undefined }));
+  };
+
+  const submit = () => {
+    const errs: Partial<Record<keyof Team, string>> = {};
+    if (!form.name.trim()) errs.name = 'Required';
+    if (!form.slug.trim()) errs.slug = 'Required';
+    if (!form.sport)       errs.sport = 'Required';
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    onSave(form, file);
+  };
 
   return (
     <Modal isOpen={!!team} onClose={onCancel} title="Team" maxWidth="max-w-lg">
       <div className="space-y-4">
-        <FormField label="Name">
+        <FormField label="Name" error={errors.name} required>
           <input
             value={form.name}
             onChange={(e) => set('name', e.target.value)}
             onBlur={() => !form.slug && set('slug', slugify(form.name))}
-            className={inputClass}
+            className={errors.name ? inputErrorClass : inputClass}
             placeholder="Real Madrid"
           />
         </FormField>
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Slug">
-            <input value={form.slug} onChange={(e) => set('slug', e.target.value)} className={inputClass} placeholder="real-madrid" />
+          <FormField label="Slug" error={errors.slug} required>
+            <input value={form.slug} onChange={(e) => set('slug', e.target.value)} className={errors.slug ? inputErrorClass : inputClass} placeholder="real-madrid" />
           </FormField>
           <FormField label="Abbreviation" hint="3-letter code">
             <input value={form.abbreviation ?? ''} onChange={(e) => set('abbreviation', e.target.value.toUpperCase())} maxLength={4} className={inputClass} placeholder="RMA" />
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Sport">
-            <select value={form.sport} onChange={(e) => set('sport', e.target.value)} className={inputClass}>
+          <FormField label="Sport" error={errors.sport} required>
+            <select value={form.sport} onChange={(e) => set('sport', e.target.value)} className={errors.sport ? inputErrorClass : inputClass}>
+              <option value="" disabled>Select a sport</option>
               {sports.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </FormField>
@@ -415,7 +593,11 @@ function TeamEditor({ team, sports, onCancel, onSave }: { team: Team | null; spo
           </FormField>
         </div>
         <FormField label="Logo" hint="PNG / SVG of the team crest">
-          <ImageUpload value={form.logo} onChange={(url) => set('logo', url)} label="Upload crest" />
+          <ImageUpload
+            value={form.logo}
+            onChange={(url, picked) => { set('logo', url); setFile(picked); }}
+            label="Upload crest"
+          />
         </FormField>
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Primary color">
@@ -433,14 +615,7 @@ function TeamEditor({ team, sports, onCancel, onSave }: { team: Team | null; spo
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-        <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-          Cancel
-        </button>
-        <button type="button" onClick={() => onSave(form)} className="px-5 py-2.5 rounded-xl bg-white text-black font-bold text-sm uppercase tracking-wider border-2 border-white hover:bg-black hover:text-white transition-colors">
-          Save
-        </button>
-      </div>
+      <EditorFooter onCancel={onCancel} onSave={submit} />
     </Modal>
   );
 }
@@ -450,12 +625,15 @@ function TeamEditor({ team, sports, onCancel, onSave }: { team: Team | null; spo
 // ─────────────────────────────────────────────────────────────────────────────
 
 function KitTab() {
-  const { items, add, update, remove } = useUiContentSlot<Omit<UiCategory, 'id'>>('kit-category');
+  const hook = useUiContentSlot<Omit<UiCategory, 'id'>>('kit-category');
+  const { items } = hook;
   const [editing, setEditing] = useState<UiCategory | null>(null);
   const [pendingDelete, setPendingDelete] = useState<UiCategory | null>(null);
+  const { push, promise } = useToast();
+  const move = useMove(items, hook, 'category');
 
   const newCategory = (): UiCategory => ({
-    id:          `cat-${Date.now().toString(36)}`,
+    id:          '',
     name:        '',
     slug:        '',
     description: '',
@@ -464,6 +642,46 @@ function KitTab() {
     image:       '',
   });
 
+  const onSave = async (c: UiCategory, file: File | null) => {
+    const exists = items.some((existing) => existing.id === c.id);
+    const { id: _id, ...payload } = c;
+    void _id;
+    try {
+      if (exists) {
+        await promise(hook.update(c.id, payload), {
+          success: `${c.name} saved`,
+          error:   (err) => extractErrorMessage(err, 'Could not save category'),
+        });
+        if (file) await hook.setImage(c.id, file);
+      } else {
+        await promise(hook.add(payload, file ?? undefined), {
+          success: `${c.name} created`,
+          error:   (err) => extractErrorMessage(err, 'Could not create category'),
+        });
+      }
+      setEditing(null);
+    } catch { /* toast already shown */ }
+  };
+
+  const onToggle = async (c: UiCategory & { isActive: boolean }) => {
+    try {
+      await hook.setActive(c.id, !c.isActive);
+      push({ variant: 'success', message: `${c.name} ${c.isActive ? 'deactivated' : 'activated'}` });
+    } catch (err) {
+      push({ variant: 'error', message: extractErrorMessage(err, 'Could not toggle status') });
+    }
+  };
+
+  const onDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(hook.remove(target.id), {
+      success: `${target.name} deleted`,
+      error:   (err) => extractErrorMessage(err, 'Could not delete category'),
+    }).catch(() => undefined);
+  };
+
   return (
     <>
       <CrudGrid
@@ -471,8 +689,8 @@ function KitTab() {
         addLabel="Add Category"
         emptyMessage="No kit categories yet."
         onAdd={() => setEditing(newCategory())}
-        renderCard={(cat) => (
-          <div key={cat.id} className="bg-surface border border-stroke rounded-2xl overflow-hidden">
+        renderCard={(cat, idx) => (
+          <div key={cat.id} className={['bg-surface border border-stroke rounded-2xl overflow-hidden', !cat.isActive && 'opacity-60'].filter(Boolean).join(' ')}>
             <div className="relative aspect-[16/10] bg-surface-raised">
               {cat.image && (
                 <img src={cat.image} alt="" className="absolute inset-0 w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
@@ -487,21 +705,22 @@ function KitTab() {
             </div>
             <div className="p-3">
               <p className="text-[10px] uppercase tracking-widest text-muted mb-2">/shop?categoryId={cat.slug}</p>
-              <CardActions onEdit={() => setEditing(cat)} onDelete={() => setPendingDelete(cat)} />
+              <CardChrome
+                isActive={cat.isActive}
+                isFirst={idx === 0}
+                isLast={idx === items.length - 1}
+                onMoveUp={() => move(cat.id, -1)}
+                onMoveDown={() => move(cat.id, 1)}
+                onToggle={() => onToggle(cat)}
+                onEdit={() => setEditing(cat)}
+                onDelete={() => setPendingDelete(cat)}
+              />
             </div>
           </div>
         )}
       />
 
-      <KitEditor
-        category={editing}
-        onCancel={() => setEditing(null)}
-        onSave={(c) => {
-          if (items.some((existing) => existing.id === c.id)) update(c.id, c);
-          else                                                add(c);
-          setEditing(null);
-        }}
-      />
+      <KitEditor category={editing} onCancel={() => setEditing(null)} onSave={onSave} />
 
       <ConfirmModal
         isOpen={!!pendingDelete}
@@ -510,36 +729,52 @@ function KitTab() {
         confirmLabel="Delete"
         destructive
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) remove(pendingDelete.id);
-          setPendingDelete(null);
-        }}
+        onConfirm={onDelete}
       />
     </>
   );
 }
 
-function KitEditor({ category, onCancel, onSave }: { category: UiCategory | null; onCancel: () => void; onSave: (c: UiCategory) => void }) {
-  const [form, setForm] = useState<UiCategory | null>(category);
-  if (category && (!form || form.id !== category.id)) setForm(category);
+function KitEditor({ category, onCancel, onSave }: { category: UiCategory | null; onCancel: () => void; onSave: (c: UiCategory, file: File | null) => void }) {
+  const [form, setForm] = useState<UiCategory | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<keyof UiCategory, string>>>({});
+
+  useEffect(() => {
+    setForm(category);
+    setFile(null);
+    setErrors({});
+  }, [category]);
+
   if (!category || !form) return null;
 
-  const set = <K extends keyof UiCategory>(k: K, v: UiCategory[K]) => setForm((p) => p ? { ...p, [k]: v } : p);
+  const set = <K extends keyof UiCategory>(k: K, v: UiCategory[K]) => {
+    setForm((p) => p ? { ...p, [k]: v } : p);
+    if (errors[k]) setErrors((prev) => ({ ...prev, [k]: undefined }));
+  };
+
+  const submit = () => {
+    const errs: Partial<Record<keyof UiCategory, string>> = {};
+    if (!form.name.trim()) errs.name = 'Required';
+    if (!form.slug.trim()) errs.slug = 'Required';
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    onSave(form, file);
+  };
 
   return (
     <Modal isOpen={!!category} onClose={onCancel} title="Kit Category" maxWidth="max-w-lg">
       <div className="space-y-4">
-        <FormField label="Name">
+        <FormField label="Name" error={errors.name} required>
           <input
             value={form.name}
             onChange={(e) => set('name', e.target.value)}
             onBlur={() => !form.slug && set('slug', slugify(form.name))}
-            className={inputClass}
+            className={errors.name ? inputErrorClass : inputClass}
             placeholder="Hoodies"
           />
         </FormField>
-        <FormField label="Slug">
-          <input value={form.slug} onChange={(e) => set('slug', e.target.value)} className={inputClass} placeholder="hoodies" />
+        <FormField label="Slug" error={errors.slug} required>
+          <input value={form.slug} onChange={(e) => set('slug', e.target.value)} className={errors.slug ? inputErrorClass : inputClass} placeholder="hoodies" />
         </FormField>
         <FormField label="Description">
           <textarea
@@ -551,7 +786,11 @@ function KitEditor({ category, onCancel, onSave }: { category: UiCategory | null
           />
         </FormField>
         <FormField label="Image">
-          <ImageUpload value={form.image ?? ''} onChange={(url) => set('image', url)} label="Upload image" />
+          <ImageUpload
+            value={form.image ?? ''}
+            onChange={(url, picked) => { set('image', url); setFile(picked); }}
+            label="Upload image"
+          />
         </FormField>
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Primary color">
@@ -569,14 +808,20 @@ function KitEditor({ category, onCancel, onSave }: { category: UiCategory | null
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-        <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-          Cancel
-        </button>
-        <button type="button" onClick={() => onSave(form)} className="px-5 py-2.5 rounded-xl bg-white text-black font-bold text-sm uppercase tracking-wider border-2 border-white hover:bg-black hover:text-white transition-colors">
-          Save
-        </button>
-      </div>
+      <EditorFooter onCancel={onCancel} onSave={submit} />
     </Modal>
+  );
+}
+
+function EditorFooter({ onCancel, onSave }: { onCancel: () => void; onSave: () => void }) {
+  return (
+    <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+      <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+        Cancel
+      </button>
+      <button type="button" onClick={onSave} className="px-5 py-2.5 rounded-xl bg-white text-black font-bold text-sm uppercase tracking-wider border-2 border-white hover:bg-black hover:text-white transition-colors">
+        Save
+      </button>
+    </div>
   );
 }

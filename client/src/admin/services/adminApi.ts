@@ -1,89 +1,120 @@
-import { orderApi, userApi } from '../../services/api';
-import type { AdminCustomer, AdminOrder, Order, OrderItem, PaymentStatus, User } from '../../types';
+import { http } from '../../services/api/client';
+import { endpoints } from '../../services/api/endpoints';
+import type {
+  AddressSnapshot, AdminCustomer, AdminOrder, ISODate, OrderStatus, PaymentStatus,
+} from '../../types';
 
-function toOrderStatus(status: Order['status']): AdminOrder['status'] {
-  if (status === 'confirmed') return 'processing';
-  return status;
+/**
+ * Backend admin view-models — single joined queries on the server replace the
+ * old per-user/per-order N+1 fan-out the client used to do.
+ */
+
+interface BackendAdminCustomer {
+  id:          string;
+  firstName:   string;
+  lastName:    string;
+  email:       string;
+  phone:       string | null;
+  country:     string | null;
+  ordersCount: number;
+  totalSpent:  number;
+  joinedAt:    ISODate;
+  isActive:    boolean;
 }
 
-function toPaymentStatus(status: PaymentStatus): AdminOrder['paymentStatus'] {
-  if (status === 'authorized' || status === 'paid') return 'paid';
-  return status;
+interface BackendAdminOrderItem {
+  productVariantId:     string;
+  productTitleSnapshot: string;
+  size:                 string;
+  quantity:             number;
+  unitPrice:            number;
+  totalPrice:           number;
 }
 
-function getItemSize(snapshot: Record<string, unknown>) {
-  const label = snapshot.label;
-  return typeof label === 'string' && label.trim() ? label : 'Standard';
+interface BackendAdminOrder {
+  id:               string;
+  orderNumber:      string;
+  customer:         { id: string; firstName: string; lastName: string; email: string };
+  items:            BackendAdminOrderItem[];
+  itemsCount:       number;
+  subtotal:         number;
+  shippingAmount:   number;
+  totalAmount:      number;
+  status:           OrderStatus;
+  paymentStatus:    PaymentStatus;
+  shippingAddress:  AddressSnapshot;
+  billingAddress:   AddressSnapshot;
+  createdAt:        ISODate;
+  placedAt:         ISODate | null;
 }
 
-function mapOrder(order: Order, user: User, items: OrderItem[]): AdminOrder {
+function mapOrderStatus(status: OrderStatus): AdminOrder['status'] {
+  return status === 'confirmed' ? 'processing' : status;
+}
+
+function mapPaymentStatus(status: PaymentStatus): AdminOrder['paymentStatus'] {
+  return status === 'authorized' || status === 'paid' ? 'paid' : (status as AdminOrder['paymentStatus']);
+}
+
+function toAdminCustomer(c: BackendAdminCustomer): AdminCustomer {
   return {
-    id: order.id,
-    orderNumber: order.orderNumber,
+    id:          c.id,
+    firstName:   c.firstName,
+    lastName:    c.lastName,
+    email:       c.email,
+    phone:       c.phone ?? undefined,
+    country:     c.country ?? undefined,
+    ordersCount: c.ordersCount,
+    totalSpent:  c.totalSpent,
+    joinedAt:    c.joinedAt,
+    status:      c.isActive ? 'active' : 'inactive',
+  };
+}
+
+function toAdminOrder(o: BackendAdminOrder): AdminOrder {
+  return {
+    id:          o.id,
+    orderNumber: o.orderNumber,
     customer: {
-      id: user.id,
-      name: `${user.firstName} ${user.lastName}`.trim(),
-      email: user.email,
+      id:    o.customer.id,
+      name:  `${o.customer.firstName} ${o.customer.lastName}`.trim(),
+      email: o.customer.email,
     },
-    items: items.map((item) => ({
+    items: o.items.map((item) => ({
       productId: item.productVariantId,
-      name: item.productTitleSnapshot,
-      size: getItemSize(item.variantSnapshot),
-      quantity: item.quantity,
-      price: item.unitPrice,
+      name:      item.productTitleSnapshot,
+      size:      item.size,
+      quantity:  item.quantity,
+      price:     item.unitPrice,
     })),
-    subtotal: order.subtotal,
-    shipping: order.shippingAmount,
-    total: order.totalAmount,
-    status: toOrderStatus(order.status),
-    paymentStatus: toPaymentStatus(order.paymentStatus),
+    subtotal:      o.subtotal,
+    shipping:      o.shippingAmount,
+    total:         o.totalAmount,
+    status:        mapOrderStatus(o.status),
+    paymentStatus: mapPaymentStatus(o.paymentStatus),
     shippingAddress: {
-      ...order.shippingAddress,
-      addressLine2: order.shippingAddress.addressLine2 ?? undefined,
-      state: order.shippingAddress.state ?? undefined,
-      postalCode: order.shippingAddress.postalCode ?? undefined,
+      ...o.shippingAddress,
+      addressLine2: o.shippingAddress.addressLine2 ?? undefined,
+      state:        o.shippingAddress.state ?? undefined,
+      postalCode:   o.shippingAddress.postalCode ?? undefined,
     },
-    createdAt: order.createdAt,
+    createdAt: o.createdAt,
   };
 }
 
 export const adminApi = {
   async listCustomers(): Promise<AdminCustomer[]> {
-    const users = await userApi.list();
-    const customers = users.filter((user) => user.role === 'User');
-
-    return Promise.all(customers.map(async (user) => {
-      const orders = await orderApi.forUser(user.id).catch(() => []);
-      return {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone ?? undefined,
-        country: orders[0]?.shippingAddress.country,
-        ordersCount: orders.length,
-        totalSpent: orders.reduce((sum, order) => sum + order.totalAmount, 0),
-        joinedAt: user.createdAt,
-        status: user.isActive ? 'active' : 'inactive',
-      } satisfies AdminCustomer;
-    }));
+    const rows = await http.get<BackendAdminCustomer[]>(endpoints.admin.listCustomers());
+    return rows.map(toAdminCustomer);
   },
 
   async listOrders(): Promise<AdminOrder[]> {
-    const users = await userApi.list();
-    const customers = users.filter((user) => user.role === 'User');
+    const rows = await http.get<BackendAdminOrder[]>(endpoints.admin.listOrders());
+    return rows.map(toAdminOrder);
+  },
 
-    const perUserOrders = await Promise.all(customers.map(async (user) => {
-      const orders = await orderApi.forUser(user.id).catch(() => []);
-      const mapped = await Promise.all(orders.map(async (order) => {
-        const items = await orderApi.items(order.id).catch(() => []);
-        return mapOrder(order, user, items);
-      }));
-      return mapped;
-    }));
-
-    return perUserOrders
-      .flat()
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  async getOrder(id: string): Promise<AdminOrder> {
+    const row = await http.get<BackendAdminOrder>(endpoints.admin.getOrder(id));
+    return toAdminOrder(row);
   },
 };

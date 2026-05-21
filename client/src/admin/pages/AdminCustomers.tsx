@@ -4,13 +4,17 @@ import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { adminApi } from '../services/adminApi';
 import { userApi } from '../../services/api';
+import { extractErrorMessage } from '../../services/api/client';
+import { useToast } from '../../components/ui/Toast';
 import type { AdminCustomer } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
 export function AdminCustomers() {
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
-  const [pendingDelete, setPendingDelete] = useState<AdminCustomer | null>(null);
+  const [pendingDeactivate, setPendingDeactivate] = useState<AdminCustomer | null>(null);
+  const [pendingReactivate, setPendingReactivate] = useState<AdminCustomer | null>(null);
   const [loading, setLoading] = useState(true);
+  const { push, promise } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -19,6 +23,8 @@ export function AdminCustomers() {
       try {
         const next = await adminApi.listCustomers();
         if (!cancelled) setCustomers(next);
+      } catch (err) {
+        if (!cancelled) push({ variant: 'error', message: extractErrorMessage(err, 'Failed to load customers') });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -26,7 +32,7 @@ export function AdminCustomers() {
 
     void load();
     return () => { cancelled = true; };
-  }, []);
+  }, [push]);
 
   const columns: DataGridColumn<AdminCustomer>[] = [
     {
@@ -80,19 +86,50 @@ export function AdminCustomers() {
       label: '',
       align: 'right',
       render: (customer) => (
-        <button
-          type="button"
-          onClick={(event) => { event.stopPropagation(); setPendingDelete(customer); }}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-danger hover:bg-danger/10 transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
-          </svg>
-          Delete
-        </button>
+        customer.status === 'active' ? (
+          <button
+            type="button"
+            onClick={(event) => { event.stopPropagation(); setPendingDeactivate(customer); }}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-danger hover:bg-danger/10 transition-colors"
+          >
+            Deactivate
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(event) => { event.stopPropagation(); setPendingReactivate(customer); }}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-delivered hover:bg-delivered/10 transition-colors"
+          >
+            Reactivate
+          </button>
+        )
       ),
     },
   ];
+
+  const onConfirmDeactivate = async () => {
+    if (!pendingDeactivate) return;
+    const target = pendingDeactivate;
+    setPendingDeactivate(null);
+    await promise(userApi.deactivate(target.id), {
+      success: `${target.firstName} ${target.lastName} deactivated`,
+      error:   (err) => extractErrorMessage(err, 'Could not deactivate customer'),
+    }).then(() => {
+      setCustomers((current) => current.map((c) => (c.id === target.id ? { ...c, status: 'inactive' } : c)));
+    }).catch(() => undefined);
+  };
+
+  const onConfirmReactivate = async () => {
+    if (!pendingReactivate) return;
+    const target = pendingReactivate;
+    setPendingReactivate(null);
+    await promise(userApi.activate(target.id), {
+      success: `${target.firstName} ${target.lastName} reactivated`,
+      error:   (err) => extractErrorMessage(err, 'Could not reactivate customer'),
+    }).then(() => {
+      setCustomers((current) => current.map((c) => (c.id === target.id ? { ...c, status: 'active' } : c)));
+    }).catch(() => undefined);
+  };
 
   return (
     <>
@@ -112,27 +149,30 @@ export function AdminCustomers() {
       )}
 
       <ConfirmModal
-        isOpen={!!pendingDelete}
-        title="Delete customer"
+        isOpen={!!pendingDeactivate}
+        title="Deactivate customer"
         message={
-          pendingDelete
-            ? `Deactivate ${pendingDelete.firstName} ${pendingDelete.lastName}? Their ${pendingDelete.ordersCount} order${pendingDelete.ordersCount !== 1 ? 's' : ''} will remain in the orders log.`
+          pendingDeactivate
+            ? `Deactivate ${pendingDeactivate.firstName} ${pendingDeactivate.lastName}? Their ${pendingDeactivate.ordersCount} order${pendingDeactivate.ordersCount !== 1 ? 's' : ''} will remain in the orders log. You can reactivate them at any time.`
             : ''
         }
         confirmLabel="Deactivate"
         destructive
-        onCancel={() => setPendingDelete(null)}
-        onConfirm={async () => {
-          if (pendingDelete) {
-            await userApi.deactivate(pendingDelete.id);
-            setCustomers((current) => current.map((customer) => (
-              customer.id === pendingDelete.id
-                ? { ...customer, status: 'inactive' }
-                : customer
-            )));
-          }
-          setPendingDelete(null);
-        }}
+        onCancel={() => setPendingDeactivate(null)}
+        onConfirm={onConfirmDeactivate}
+      />
+
+      <ConfirmModal
+        isOpen={!!pendingReactivate}
+        title="Reactivate customer"
+        message={
+          pendingReactivate
+            ? `Reactivate ${pendingReactivate.firstName} ${pendingReactivate.lastName}? They'll be able to sign in and place orders again.`
+            : ''
+        }
+        confirmLabel="Reactivate"
+        onCancel={() => setPendingReactivate(null)}
+        onConfirm={onConfirmReactivate}
       />
     </>
   );

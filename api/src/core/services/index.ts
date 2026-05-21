@@ -1,3 +1,4 @@
+export * from './admin.svc.js'
 export * from './analytics.svc.js'
 export * from './attachment.svc.js'
 export * from './catalog.svc.js'

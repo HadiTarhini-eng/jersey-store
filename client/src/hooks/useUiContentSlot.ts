@@ -35,6 +35,7 @@ export interface UseUiContentSlotResult<T extends AnyPayload> {
   setImage: (id: string, file: File | Blob) => Promise<UiContentItem<T>>;
   removeImage: (id: string) => Promise<UiContentItem<T>>;
   reorder: (id: string, sortOrder: number) => Promise<UiContentItem<T>>;
+  setActive: (id: string, isActive: boolean) => Promise<UiContentItem<T>>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -95,6 +96,14 @@ export function useUiContentSlot<T extends AnyPayload>(slot: UiContentSlot, opti
     return updated;
   }, []);
 
+  const setActive = useCallback(async (id: string, isActive: boolean) => {
+    const updated = isActive
+      ? await uiContentApi.activate<T>(id)
+      : await uiContentApi.deactivate<T>(id);
+    setRaw((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    return updated;
+  }, []);
+
   const remove = useCallback(async (id: string) => {
     await uiContentApi.delete(id);
     setRaw((prev) => prev.filter((item) => item.id !== id));
@@ -111,6 +120,7 @@ export function useUiContentSlot<T extends AnyPayload>(slot: UiContentSlot, opti
     setImage,
     removeImage,
     reorder,
+    setActive,
     remove,
   };
 }

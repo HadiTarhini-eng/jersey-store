@@ -8,7 +8,7 @@
  * The JSON dataset still uses the old front-end shape (name/price/variants[size,stock]/…),
  * so it's adapted into the new backend-shaped `Product` via `adaptLegacyProduct`.
  */
-import { productApi, extractErrorMessage } from './api';
+import { productApi, extractErrorMessage, extractErrorStatus } from './api';
 import localProducts from '../data/products.json';
 import type { Product, ProductFilters, ProductSearchQuery, SortOption } from '../types';
 
@@ -165,7 +165,9 @@ export const productService = {
     } catch (err) {
       const match = legacyDataset.find((p) => p.slug === slug);
       if (match) return match;
-      throw new Error(extractErrorMessage(err, `Product not found: ${slug}`));
+      const wrapped = new Error(extractErrorMessage(err, `Product not found: ${slug}`)) as Error & { status?: number };
+      wrapped.status = extractErrorStatus(err);
+      throw wrapped;
     }
   },
 

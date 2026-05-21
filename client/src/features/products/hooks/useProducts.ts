@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../app/hooks';
-import { fetchProducts, fetchProductBySlug } from '../productsSlice';
+import { fetchProducts, fetchProductBySlug, clearSelectedProduct } from '../productsSlice';
 import type { ProductFilters, SortOption } from '../../../types';
 
 /** Fetches product list whenever filters or sort change. */
@@ -24,11 +24,23 @@ export function useProducts(
 /** Fetches a single product by slug. */
 export function useProduct(slug: string) {
   const dispatch = useAppDispatch();
-  const { selectedProduct, loading, error } = useAppSelector((s) => s.products);
+  const { selectedProduct, loading, error, notFoundSlug } = useAppSelector((s) => s.products);
 
   useEffect(() => {
-    if (slug) dispatch(fetchProductBySlug(slug));
+    if (!slug) return;
+    // Clear immediately so the stale product never renders against the new slug.
+    dispatch(clearSelectedProduct());
+    dispatch(fetchProductBySlug(slug));
   }, [slug, dispatch]);
 
-  return { product: selectedProduct, loading, error };
+  // Gate on slug match — even after fetch resolves, only return the product
+  // once it corresponds to the URL we're currently rendering.
+  const matches  = !!selectedProduct && selectedProduct.slug === slug;
+  const notFound = notFoundSlug === slug;
+  return {
+    product:  matches ? selectedProduct : null,
+    loading:  loading || (!!slug && !matches && !error && !notFound),
+    error,
+    notFound,
+  };
 }

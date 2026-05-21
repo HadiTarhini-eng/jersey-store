@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from 'react';
-import { useUiContentSlot } from '../../hooks/useUiContentSlot';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useUiContentSlot, type UseUiContentSlotResult } from '../../hooks/useUiContentSlot';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../../components/ui/Modal';
 import { ImageUpload } from '../components/ImageUpload';
+import { useToast } from '../../components/ui/Toast';
+import { extractErrorMessage } from '../../services/api/client';
 import type { HeroSlide, OfferBanner } from '../../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,7 +42,7 @@ function findSlideTheme(slide: HeroSlide): SlideTheme {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Banner themes — simpler: just a color preset.
+// Banner themes
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface BannerTheme {
@@ -66,7 +68,7 @@ function findBannerTheme(banner: OfferBanner): BannerTheme {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Offers admin page — two sections: hero slides + offer banners.
+// Page entry
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function AdminOffers() {
@@ -93,16 +95,40 @@ function SectionHeader({ title, subtitle, action }: { title: string; subtitle: s
 const addButtonClass = 'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white font-bold text-xs uppercase tracking-wider border-2 border-accent hover:bg-accent-light transition-colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hero slides section
+// Shared reorder helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+function useMove<T extends { id: string; sortOrder: number }>(items: T[], hook: UseUiContentSlotResult<any>, describe: string) {
+  const { push } = useToast();
+  return async (id: string, dir: -1 | 1) => {
+    const idx = items.findIndex((i) => i.id === id);
+    if (idx === -1) return;
+    const next = idx + dir;
+    if (next < 0 || next >= items.length) return;
+    const a = items[idx];
+    const b = items[next];
+    try {
+      await Promise.all([hook.reorder(a.id, b.sortOrder), hook.reorder(b.id, a.sortOrder)]);
+    } catch (err) {
+      push({ variant: 'error', message: extractErrorMessage(err, `Could not reorder ${describe}`) });
+    }
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hero slides
 // ─────────────────────────────────────────────────────────────────────────────
 
 function HeroSlidesSection() {
-  const { items: slides, add, update, remove, reorder } = useUiContentSlot<Omit<HeroSlide, 'id'>>('hero-slide');
+  const hook = useUiContentSlot<Omit<HeroSlide, 'id'>>('hero-slide');
+  const slides = hook.items;
   const [editing,       setEditing]       = useState<HeroSlide | null>(null);
   const [pendingDelete, setPendingDelete] = useState<HeroSlide | null>(null);
+  const { promise } = useToast();
+  const move = useMove(slides, hook, 'slide');
 
   const newSlide = (): HeroSlide => ({
-    id:           `slide-${Date.now().toString(36)}`,
+    id:           '', // server-assigned
     headline:     'New\nSlogan',
     subheadline:  'Supporting line — describe what this slide is about.',
     ctaLabel:     'Shop Now',
@@ -114,14 +140,35 @@ function HeroSlidesSection() {
     overlay:      slideThemes[0].overlay,
   });
 
-  const move = (id: string, dir: -1 | 1) => {
-    const idx = slides.findIndex((s) => s.id === id);
-    if (idx === -1) return;
-    const next = idx + dir;
-    if (next < 0 || next >= slides.length) return;
-    const a = slides[idx];
-    const b = slides[next];
-    void Promise.all([reorder(a.id, b.sortOrder), reorder(b.id, a.sortOrder)]);
+  const onSave = async (s: HeroSlide, file: File | null) => {
+    const exists = !!s.id && slides.some((existing) => existing.id === s.id);
+    const { id: _id, ...payload } = s;
+    void _id;
+    try {
+      if (exists) {
+        await promise(hook.update(s.id, payload), {
+          success: 'Slide saved',
+          error:   (err) => extractErrorMessage(err, 'Could not save slide'),
+        });
+        if (file) await hook.setImage(s.id, file);
+      } else {
+        await promise(hook.add(payload, file ?? undefined), {
+          success: 'Slide added',
+          error:   (err) => extractErrorMessage(err, 'Could not add slide'),
+        });
+      }
+      setEditing(null);
+    } catch { /* toast already shown */ }
+  };
+
+  const onDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(hook.remove(target.id), {
+      success: 'Slide deleted',
+      error:   (err) => extractErrorMessage(err, 'Could not delete slide'),
+    }).catch(() => undefined);
   };
 
   return (
@@ -158,16 +205,7 @@ function HeroSlidesSection() {
         })}
       </div>
 
-      <SlideEditor
-        slide={editing}
-        onCancel={() => setEditing(null)}
-        onSave={(s) => {
-          const exists = slides.some((existing) => existing.id === s.id);
-          if (exists) update(s.id, s);
-          else        add(s);
-          setEditing(null);
-        }}
-      />
+      <SlideEditor slide={editing} onCancel={() => setEditing(null)} onSave={onSave} />
 
       <ConfirmModal
         isOpen={!!pendingDelete}
@@ -176,10 +214,7 @@ function HeroSlidesSection() {
         confirmLabel="Delete"
         destructive
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) remove(pendingDelete.id);
-          setPendingDelete(null);
-        }}
+        onConfirm={onDelete}
       />
     </section>
   );
@@ -293,30 +328,57 @@ function SlidePreview({ slide }: { slide: HeroSlide }) {
           style={{ color: '#000', WebkitTextStroke: '0.5px #fff', paintOrder: 'stroke fill' }}>
           {slide.subheadline}
         </p>
+        {slide.ctaLabel && (
+          <span
+            className="inline-flex items-center px-2.5 py-1 mt-2 rounded text-[9px] font-bold uppercase tracking-widest text-white"
+            style={{ backgroundColor: accent }}
+          >
+            {slide.ctaLabel} →
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
 const editorInput = 'w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
+const editorInputError = editorInput + ' border-danger ring-2 ring-danger/20';
 
 interface SlideEditorProps {
   slide:    HeroSlide | null;
   onCancel: () => void;
-  onSave:   (slide: HeroSlide) => void;
+  onSave:   (slide: HeroSlide, file: File | null) => void;
 }
 
 function SlideEditor({ slide, onCancel, onSave }: SlideEditorProps) {
-  const [form, setForm] = useState<HeroSlide | null>(slide);
+  const [form, setForm] = useState<HeroSlide | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<keyof HeroSlide, string>>>({});
 
-  if (slide && (!form || form.id !== slide.id)) setForm(slide);
+  useEffect(() => {
+    setForm(slide);
+    setFile(null);
+    setErrors({});
+  }, [slide]);
+
   if (!slide || !form) return null;
 
   const setField = <K extends keyof HeroSlide>(key: K, value: HeroSlide[K]) => {
     setForm((prev) => prev ? { ...prev, [key]: value } : prev);
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
   };
   const applyTheme = (theme: SlideTheme) => {
     setForm((prev) => prev ? { ...prev, accent: theme.accent, align: theme.align, overlay: theme.overlay } : prev);
+  };
+
+  const submit = () => {
+    const errs: Partial<Record<keyof HeroSlide, string>> = {};
+    if (!form.headline.trim())    errs.headline = 'Required';
+    if (!form.subheadline.trim()) errs.subheadline = 'Required';
+    if (!form.ctaLabel.trim())    errs.ctaLabel = 'Required';
+    if (!form.ctaHref.trim())     errs.ctaHref = 'Required';
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    onSave(form, file);
   };
 
   const currentTheme = findSlideTheme(form);
@@ -355,32 +417,36 @@ function SlideEditor({ slide, onCancel, onSave }: SlideEditorProps) {
             </div>
           </div>
 
-          <EditorField label="Headline" hint="Use a real newline for a line break">
+          <EditorField label="Headline" hint="Use a real newline for a line break" error={errors.headline} required>
             <textarea value={form.headline} onChange={(e) => setField('headline', e.target.value)}
-              rows={2} className={`${editorInput} resize-y font-sport text-lg tracking-wide`} />
+              rows={2} className={`${errors.headline ? editorInputError : editorInput} resize-y font-sport text-lg tracking-wide`} />
           </EditorField>
 
-          <EditorField label="Sub-headline">
+          <EditorField label="Sub-headline" error={errors.subheadline} required>
             <textarea value={form.subheadline} onChange={(e) => setField('subheadline', e.target.value)}
-              rows={2} className={`${editorInput} resize-y`} />
+              rows={2} className={`${errors.subheadline ? editorInputError : editorInput} resize-y`} />
           </EditorField>
 
           <EditorField label="Background image">
-            <ImageUpload value={form.image} onChange={(url) => setField('image', url)} label="Upload background" />
+            <ImageUpload
+              value={form.image}
+              onChange={(url, picked) => { setField('image', url); setFile(picked); }}
+              label="Upload background"
+            />
           </EditorField>
 
           <div className="grid grid-cols-2 gap-3">
             <EditorField label="Badge (optional)">
               <input value={form.badge ?? ''} onChange={(e) => setField('badge', e.target.value)} className={editorInput} placeholder="Match Day" />
             </EditorField>
-            <EditorField label="CTA label">
-              <input value={form.ctaLabel} onChange={(e) => setField('ctaLabel', e.target.value)} className={editorInput} placeholder="Shop Now" />
+            <EditorField label="CTA label" error={errors.ctaLabel} required>
+              <input value={form.ctaLabel} onChange={(e) => setField('ctaLabel', e.target.value)} className={errors.ctaLabel ? editorInputError : editorInput} placeholder="Shop Now" />
             </EditorField>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <EditorField label="CTA link">
-              <input value={form.ctaHref} onChange={(e) => setField('ctaHref', e.target.value)} className={editorInput} placeholder="/shop" />
+            <EditorField label="CTA link" error={errors.ctaHref} required>
+              <input value={form.ctaHref} onChange={(e) => setField('ctaHref', e.target.value)} className={errors.ctaHref ? editorInputError : editorInput} placeholder="/shop" />
             </EditorField>
             <EditorField label="Alignment">
               <select value={form.align ?? 'left'} onChange={(e) => setField('align', e.target.value as HeroSlide['align'])} className={editorInput}>
@@ -402,7 +468,7 @@ function SlideEditor({ slide, onCancel, onSave }: SlideEditorProps) {
         </div>
       </div>
 
-      <EditorFooter onCancel={onCancel} onSave={() => onSave(form)} />
+      <EditorFooter onCancel={onCancel} onSave={submit} />
     </Modal>
   );
 }
@@ -422,12 +488,15 @@ function EditorFooter({ onCancel, onSave, label = 'Save' }: { onCancel: () => vo
   );
 }
 
-function EditorField({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function EditorField({ label, hint, error, required, children }: { label: string; hint?: string; error?: string; required?: boolean; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
       <label className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">{label}</span>
-        {hint && <span className="text-[10px] text-gray-500 normal-case">{hint}</span>}
+        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+          {label} {required && <span className="text-danger">*</span>}
+        </span>
+        {hint && !error && <span className="text-[10px] text-gray-500 normal-case">{hint}</span>}
+        {error && <span className="text-[10px] text-danger normal-case">{error}</span>}
       </label>
       {children}
     </div>
@@ -435,16 +504,19 @@ function EditorField({ label, hint, children }: { label: string; hint?: string; 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Offer banners section — the rotating slab below the hero.
+// Offer banners
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OfferBannersSection() {
-  const { items: banners, add, update, remove, reorder } = useUiContentSlot<Omit<OfferBanner, 'id'>>('offer-banner');
+  const hook = useUiContentSlot<Omit<OfferBanner, 'id'>>('offer-banner');
+  const banners = hook.items;
   const [editing,       setEditing]       = useState<OfferBanner | null>(null);
   const [pendingDelete, setPendingDelete] = useState<OfferBanner | null>(null);
+  const { promise } = useToast();
+  const move = useMove(banners, hook, 'banner');
 
   const newBanner = (): OfferBanner => ({
-    id:          `banner-${Date.now().toString(36)}`,
+    id:          '',
     label:       'New',
     headline:    'Headline',
     subheadline: 'Supporting line',
@@ -454,14 +526,35 @@ function OfferBannersSection() {
     image:       '',
   });
 
-  const move = (id: string, dir: -1 | 1) => {
-    const idx = banners.findIndex((b) => b.id === id);
-    if (idx === -1) return;
-    const next = idx + dir;
-    if (next < 0 || next >= banners.length) return;
-    const a = banners[idx];
-    const b = banners[next];
-    void Promise.all([reorder(a.id, b.sortOrder), reorder(b.id, a.sortOrder)]);
+  const onSave = async (b: OfferBanner, file: File | null) => {
+    const exists = !!b.id && banners.some((existing) => existing.id === b.id);
+    const { id: _id, ...payload } = b;
+    void _id;
+    try {
+      if (exists) {
+        await promise(hook.update(b.id, payload), {
+          success: 'Banner saved',
+          error:   (err) => extractErrorMessage(err, 'Could not save banner'),
+        });
+        if (file) await hook.setImage(b.id, file);
+      } else {
+        await promise(hook.add(payload, file ?? undefined), {
+          success: 'Banner added',
+          error:   (err) => extractErrorMessage(err, 'Could not add banner'),
+        });
+      }
+      setEditing(null);
+    } catch { /* toast already shown */ }
+  };
+
+  const onDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(hook.remove(target.id), {
+      success: 'Banner deleted',
+      error:   (err) => extractErrorMessage(err, 'Could not delete banner'),
+    }).catch(() => undefined);
   };
 
   return (
@@ -495,16 +588,7 @@ function OfferBannersSection() {
         ))}
       </div>
 
-      <BannerEditor
-        banner={editing}
-        onCancel={() => setEditing(null)}
-        onSave={(b) => {
-          const exists = banners.some((existing) => existing.id === b.id);
-          if (exists) update(b.id, b);
-          else        add(b);
-          setEditing(null);
-        }}
-      />
+      <BannerEditor banner={editing} onCancel={() => setEditing(null)} onSave={onSave} />
 
       <ConfirmModal
         isOpen={!!pendingDelete}
@@ -513,10 +597,7 @@ function OfferBannersSection() {
         confirmLabel="Delete"
         destructive
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) remove(pendingDelete.id);
-          setPendingDelete(null);
-        }}
+        onConfirm={onDelete}
       />
     </section>
   );
@@ -568,6 +649,14 @@ function BannerPreview({ banner }: { banner: OfferBanner }) {
         </span>
         <p className="font-sport text-xl tracking-wide text-primary uppercase leading-none">{banner.headline}</p>
         <p className="text-[10px] text-secondary mt-0.5 line-clamp-1">{banner.subheadline}</p>
+        {banner.ctaLabel && (
+          <span
+            className="inline-flex items-center self-start mt-1.5 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest text-white"
+            style={{ backgroundColor: banner.color }}
+          >
+            {banner.ctaLabel} →
+          </span>
+        )}
       </div>
     </div>
   );
@@ -576,18 +665,37 @@ function BannerPreview({ banner }: { banner: OfferBanner }) {
 interface BannerEditorProps {
   banner:   OfferBanner | null;
   onCancel: () => void;
-  onSave:   (banner: OfferBanner) => void;
+  onSave:   (banner: OfferBanner, file: File | null) => void;
 }
 
 function BannerEditor({ banner, onCancel, onSave }: BannerEditorProps) {
-  const [form, setForm] = useState<OfferBanner | null>(banner);
+  const [form, setForm] = useState<OfferBanner | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<keyof OfferBanner, string>>>({});
 
-  if (banner && (!form || form.id !== banner.id)) setForm(banner);
+  useEffect(() => {
+    setForm(banner);
+    setFile(null);
+    setErrors({});
+  }, [banner]);
+
   if (!banner || !form) return null;
 
   const setField = <K extends keyof OfferBanner>(key: K, value: OfferBanner[K]) => {
     setForm((prev) => prev ? { ...prev, [key]: value } : prev);
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
   };
+
+  const submit = () => {
+    const errs: Partial<Record<keyof OfferBanner, string>> = {};
+    if (!form.label.trim())     errs.label = 'Required';
+    if (!form.headline.trim())  errs.headline = 'Required';
+    if (!form.ctaLabel.trim())  errs.ctaLabel = 'Required';
+    if (!form.ctaHref.trim())   errs.ctaHref = 'Required';
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    onSave(form, file);
+  };
+
   const currentTheme = findBannerTheme(form);
 
   return (
@@ -625,15 +733,19 @@ function BannerEditor({ banner, onCancel, onSave }: BannerEditorProps) {
           </div>
 
           <EditorField label="Background image">
-            <ImageUpload value={form.image} onChange={(url) => setField('image', url)} label="Upload background" />
+            <ImageUpload
+              value={form.image}
+              onChange={(url, picked) => { setField('image', url); setFile(picked); }}
+              label="Upload background"
+            />
           </EditorField>
 
           <div className="grid grid-cols-2 gap-3">
-            <EditorField label="Label" hint="Short tag (Sale, New, etc.)">
-              <input value={form.label} onChange={(e) => setField('label', e.target.value)} className={editorInput} placeholder="Sale" />
+            <EditorField label="Label" hint="Short tag (Sale, New, etc.)" error={errors.label} required>
+              <input value={form.label} onChange={(e) => setField('label', e.target.value)} className={errors.label ? editorInputError : editorInput} placeholder="Sale" />
             </EditorField>
-            <EditorField label="Headline">
-              <input value={form.headline} onChange={(e) => setField('headline', e.target.value)} className={editorInput} placeholder="Up To 40% Off" />
+            <EditorField label="Headline" error={errors.headline} required>
+              <input value={form.headline} onChange={(e) => setField('headline', e.target.value)} className={errors.headline ? editorInputError : editorInput} placeholder="Up To 40% Off" />
             </EditorField>
           </div>
 
@@ -642,17 +754,17 @@ function BannerEditor({ banner, onCancel, onSave }: BannerEditorProps) {
           </EditorField>
 
           <div className="grid grid-cols-2 gap-3">
-            <EditorField label="CTA label">
-              <input value={form.ctaLabel} onChange={(e) => setField('ctaLabel', e.target.value)} className={editorInput} placeholder="Shop Sale" />
+            <EditorField label="CTA label" error={errors.ctaLabel} required>
+              <input value={form.ctaLabel} onChange={(e) => setField('ctaLabel', e.target.value)} className={errors.ctaLabel ? editorInputError : editorInput} placeholder="Shop Sale" />
             </EditorField>
-            <EditorField label="CTA link">
-              <input value={form.ctaHref} onChange={(e) => setField('ctaHref', e.target.value)} className={editorInput} placeholder="/shop?badge=Sale" />
+            <EditorField label="CTA link" error={errors.ctaHref} required>
+              <input value={form.ctaHref} onChange={(e) => setField('ctaHref', e.target.value)} className={errors.ctaHref ? editorInputError : editorInput} placeholder="/shop?badge=Sale" />
             </EditorField>
           </div>
         </div>
       </div>
 
-      <EditorFooter onCancel={onCancel} onSave={() => onSave(form)} />
+      <EditorFooter onCancel={onCancel} onSave={submit} />
     </Modal>
   );
 }

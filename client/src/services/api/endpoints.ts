@@ -182,6 +182,13 @@ export const endpoints = {
     delete:     (id: string)    => `/ui-content/${id}`,
   },
 
+  // ── Admin aggregated views (single-query alternatives to N+1 in adminApi) ──
+  admin: {
+    listCustomers: () => '/admin/customers',
+    listOrders:    () => '/admin/orders',
+    getOrder:      (id: string) => `/admin/orders/${id}`,
+  },
+
   // ── Analytics (admin only) ──────────────────────────────────────────────────
   analytics: {
     overview:       () => '/admin/analytics/overview',

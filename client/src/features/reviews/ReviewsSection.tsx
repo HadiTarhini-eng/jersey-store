@@ -1,39 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAppSelector } from '../../app/hooks';
 import { reviewApi } from '../../services/api';
 import { extractErrorMessage } from '../../services/api/client';
 import { theme } from '../../config/theme';
 import type { CreateReviewPayload, Review } from '../../types';
+import type { ProductReviewsState } from './useProductReviews';
 
 interface ReviewsSectionProps {
   productId: string;
+  state:     ProductReviewsState;
 }
 
-export function ReviewsSection({ productId }: ReviewsSectionProps) {
-  const user = useAppSelector((state) => state.auth.user);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setReviews(await reviewApi.forProduct(productId));
-    } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to load reviews'));
-    } finally {
-      setLoading(false);
-    }
-  }, [productId]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const average = reviews.length === 0
-    ? 0
-    : reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+export function ReviewsSection({ productId, state }: ReviewsSectionProps) {
+  const user = useAppSelector((s) => s.auth.user);
+  const { reviews, loading, error, average, refresh } = state;
 
   return (
     <section className="mt-12 border-t border-stroke pt-10">

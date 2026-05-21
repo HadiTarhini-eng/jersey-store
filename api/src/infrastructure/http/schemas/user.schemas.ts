@@ -50,7 +50,8 @@ export const getUserSchema: FastifySchema = { tags: ['Users'], params: IdParams 
 export const updateUserSchema: FastifySchema = { tags: ['Users'], params: IdParams, body: UpdateUserBody }
 export const changePasswordSchema: FastifySchema = { tags: ['Users'], params: IdParams, body: ChangePasswordBody }
 export const changeRoleSchema: FastifySchema = { tags: ['Users'], params: IdParams, body: ChangeRoleBody }
-export const setProfileImageSchema: FastifySchema = { tags: ['Users'], consumes: ['multipart/form-data'], params: IdParams, body: AvatarUploadBody }
+// Multipart: handler parses `file` part via request.file().
+export const setProfileImageSchema: FastifySchema = { tags: ['Users'], consumes: ['multipart/form-data'], params: IdParams, description: 'Multipart: `file` (avatar image).' }
 export const removeProfileImageSchema: FastifySchema = { tags: ['Users'], params: IdParams }
 export const activateUserSchema: FastifySchema = { tags: ['Users'], params: IdParams }
 export const deactivateUserSchema: FastifySchema = { tags: ['Users'], params: IdParams }

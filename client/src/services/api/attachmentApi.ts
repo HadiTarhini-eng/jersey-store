@@ -11,7 +11,6 @@ import type { Attachment } from '../../types';
 export const attachmentApi = {
   byId:    (id: string)                              => http.get<Attachment>(endpoints.attachments.byId(id)),
   rename:  (id: string, fileName: string)            => http.patch<Attachment>(endpoints.attachments.rename(id), { fileName }),
-  reorder: (id: string, sortOrder: number)           => http.patch<Attachment>(endpoints.attachments.reorder(id), { sortOrder }),
   replace: (id: string, file: File | Blob, fileName = 'attachment') =>
              http.patch<Attachment>(
                endpoints.attachments.replace(id),

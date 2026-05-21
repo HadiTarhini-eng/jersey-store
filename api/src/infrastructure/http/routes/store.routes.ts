@@ -1,4 +1,5 @@
 import { type RouteOptions } from 'fastify'
+import { type IAdminService } from '../../../core/services/admin.svc.js'
 import { type IAnalyticsService } from '../../../core/services/analytics.svc.js'
 import { type IAttachmentService } from '../../../core/services/attachment.svc.js'
 import { type ICategoryService, type ICategoryTypeService } from '../../../core/services/catalog.svc.js'
@@ -7,6 +8,7 @@ import { type IShippingMethodService, type ISiteConfigService } from '../../../c
 import { type ISpecialOfferService } from '../../../core/services/offer.svc.js'
 import { type IProductAttributeService, type IProductService, type IProductVariantService } from '../../../core/services/product.svc.js'
 import { type IUiContentService } from '../../../core/services/ui-content.svc.js'
+import { adminRoutes } from './store/admin.routes.js'
 import { analyticsRoutes } from './store/analytics.routes.js'
 import { attachmentRoutes } from './store/attachment.routes.js'
 import { cartRoutes } from './store/cart.routes.js'
@@ -33,6 +35,7 @@ export interface StoreRouteServices {
   shippingMethodService: IShippingMethodService
   uiContentService: IUiContentService
   analyticsService: IAnalyticsService
+  adminService: IAdminService
 }
 
 export const storeRoutes = (services: StoreRouteServices): RouteOptions[] => [
@@ -46,4 +49,5 @@ export const storeRoutes = (services: StoreRouteServices): RouteOptions[] => [
   ...configRoutes(services.siteConfigService, services.shippingMethodService),
   ...uiContentRoutes(services.uiContentService),
   ...analyticsRoutes(services.analyticsService),
+  ...adminRoutes(services.adminService),
 ]

@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link, Navigate } from 'react-router-dom';
 import { DataGrid, type DataGridColumn } from '../components/DataGrid';
 import { StatusBadge } from '../components/StatusBadge';
 import { adminApi } from '../services/adminApi';
 import { orderApi } from '../../services/api';
+import { extractErrorMessage } from '../../services/api/client';
+import { useToast } from '../../components/ui/Toast';
 import type { AdminOrder } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
@@ -12,40 +14,35 @@ type StatusFilter = typeof statusFilters[number];
 const orderStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
 
 const statusSelectedClass: Record<typeof orderStatuses[number], string> = {
-  pending: 'bg-black text-white border-power shadow-lg shadow-power/30',
+  pending:    'bg-black text-white border-power shadow-lg shadow-power/30',
   processing: 'bg-black text-white border-accent shadow-lg shadow-accent/30',
-  shipped: 'bg-black text-white border-gray-500 shadow-lg shadow-gray-500/30',
-  delivered: 'bg-black text-white border-delivered shadow-lg shadow-delivered/30',
-  cancelled: 'bg-black text-white border-danger shadow-lg shadow-danger/30',
+  shipped:    'bg-black text-white border-gray-500 shadow-lg shadow-gray-500/30',
+  delivered:  'bg-black text-white border-delivered shadow-lg shadow-delivered/30',
+  cancelled:  'bg-black text-white border-danger shadow-lg shadow-danger/30',
 };
 
-function useAdminOrdersData() {
+export function AdminOrders() {
+  const navigate = useNavigate();
+  const { push } = useToast();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   useEffect(() => {
     let cancelled = false;
-
     const load = async () => {
       try {
         const next = await adminApi.listOrders();
         if (!cancelled) setOrders(next);
+      } catch (err) {
+        if (!cancelled) push({ variant: 'error', message: extractErrorMessage(err, 'Failed to load orders') });
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
-
     void load();
     return () => { cancelled = true; };
-  }, []);
-
-  return { orders, setOrders, loading };
-}
-
-export function AdminOrders() {
-  const navigate = useNavigate();
-  const { orders, loading } = useAdminOrdersData();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  }, [push]);
 
   const visible = statusFilter === 'all'
     ? orders
@@ -143,17 +140,47 @@ export function AdminOrders() {
 
 export function AdminOrderDetail() {
   const { id } = useParams<{ id: string }>();
-  const { orders, setOrders, loading } = useAdminOrdersData();
+  const { push, promise } = useToast();
+  const [order, setOrder] = useState<AdminOrder | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const order = useMemo(
-    () => orders.find((entry) => entry.id === id),
-    [id, orders],
-  );
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setLoading(true);
+    setNotFound(false);
+    adminApi.getOrder(id)
+      .then((next) => { if (!cancelled) setOrder(next); })
+      .catch((err) => {
+        if (cancelled) return;
+        const status = err?.response?.status;
+        if (status === 404) setNotFound(true);
+        else push({ variant: 'error', message: extractErrorMessage(err, 'Could not load order') });
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id, push]);
 
-  if (!loading && !order) return <Navigate to="/admin/orders" replace />;
-  if (!order) return null;
+  if (notFound) return <Navigate to="/admin/orders" replace />;
+  if (loading || !order) {
+    return (
+      <div className="bg-surface border border-stroke rounded-2xl px-4 py-10 text-center text-muted text-sm">
+        Loading order…
+      </div>
+    );
+  }
 
   const itemsCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const onStatusChange = (status: typeof orderStatuses[number]) => {
+    void promise(orderApi.updateStatus(order.id, status), {
+      success: `Status set to ${status}`,
+      error:   (err) => extractErrorMessage(err, 'Could not update status'),
+    }).then(() => {
+      setOrder((current) => current ? { ...current, status } : current);
+    }).catch(() => undefined);
+  };
 
   return (
     <div className="space-y-5">
@@ -243,12 +270,7 @@ export function AdminOrderDetail() {
               {orderStatuses.map((status) => (
                 <button
                   key={status}
-                  onClick={async () => {
-                    await orderApi.updateStatus(order.id, status);
-                    setOrders((current) => current.map((entry) => (
-                      entry.id === order.id ? { ...entry, status } : entry
-                    )));
-                  }}
+                  onClick={() => onStatusChange(status)}
                   className={[
                     'px-3 py-2 rounded-lg border-2 text-xs font-bold uppercase tracking-wider transition-colors',
                     order.status === status

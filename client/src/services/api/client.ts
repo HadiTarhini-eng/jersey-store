@@ -50,6 +50,11 @@ export function extractErrorMessage(err: unknown, fallback = 'Request failed.'):
   return e?.response?.data?.message ?? e?.message ?? fallback;
 }
 
+/** HTTP status code from an axios error, or undefined for network failures. */
+export function extractErrorStatus(err: unknown): number | undefined {
+  return (err as AxiosError)?.response?.status;
+}
+
 /** Generic typed helpers — every API module uses these instead of axios directly. */
 export const http = {
   get:    <T>(url: string, config?: AxiosRequestConfig)             => api.get<T>(url, config).then((r) => r.data),

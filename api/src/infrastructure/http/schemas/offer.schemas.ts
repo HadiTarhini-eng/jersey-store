@@ -36,8 +36,9 @@ const BannerUploadBody = Type.Object({
   file: Type.Unsafe<unknown>({ type: 'string', format: 'binary', description: 'Banner image. Max 2 MB. image/*.' }),
 })
 
-export const createOfferSchema: FastifySchema = { tags: ['Offers'], consumes: ['multipart/form-data'], body: OfferMultipartBody }
-export const setOfferBannerSchema: FastifySchema = { tags: ['Offers'], consumes: ['multipart/form-data'], params: IdParams, body: BannerUploadBody }
+// Multipart routes: handler parses parts via request.parts() / request.file().
+export const createOfferSchema: FastifySchema = { tags: ['Offers'], consumes: ['multipart/form-data'], description: 'Multipart: `data` (JSON) + optional `banner` (image).' }
+export const setOfferBannerSchema: FastifySchema = { tags: ['Offers'], consumes: ['multipart/form-data'], params: IdParams, description: 'Multipart: `file` (banner image).' }
 export const removeOfferBannerSchema: FastifySchema = { tags: ['Offers'], params: IdParams }
 export const listActiveOffersSchema: FastifySchema = { tags: ['Offers'], querystring: ActiveOffersQuery }
 export const getOfferSchema: FastifySchema = { tags: ['Offers'], params: IdParams }

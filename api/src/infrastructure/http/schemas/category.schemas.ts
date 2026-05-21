@@ -55,13 +55,16 @@ export const getCategoryTypeSchema: FastifySchema = { tags: ['CategoryTypes'], p
 export const updateCategoryTypeSchema: FastifySchema = { tags: ['CategoryTypes'], params: IdParams, body: UpdateCategoryTypeBody }
 export const deleteCategoryTypeSchema: FastifySchema = { tags: ['CategoryTypes'], params: IdParams }
 
-export const createCategorySchema: FastifySchema = { tags: ['Categories'], consumes: ['multipart/form-data'], body: CategoryMultipartBody }
+// Multipart routes: schema documents `consumes` for Swagger but skips body
+// validation — @fastify/multipart leaves request.body undefined and the
+// handler parses parts manually via request.parts().
+export const createCategorySchema: FastifySchema = { tags: ['Categories'], consumes: ['multipart/form-data'], description: 'Multipart: `data` (JSON) + optional `image` (file).' }
 export const listCategoriesSchema: FastifySchema = { tags: ['Categories'], querystring: CategoryQuery }
 export const getCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams }
 export const getCategoryChildrenSchema: FastifySchema = { tags: ['Categories'], params: IdParams }
 export const updateCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams, body: UpdateCategoryBody }
 export const moveCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams, body: MoveBody }
-export const setCategoryImageSchema: FastifySchema = { tags: ['Categories'], consumes: ['multipart/form-data'], params: IdParams, body: CategoryImageUploadBody }
+export const setCategoryImageSchema: FastifySchema = { tags: ['Categories'], consumes: ['multipart/form-data'], params: IdParams, description: 'Multipart: `file` (image).' }
 export const removeCategoryImageSchema: FastifySchema = { tags: ['Categories'], params: IdParams }
 export const activateCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams }
 export const deleteCategorySchema: FastifySchema = { tags: ['Categories'], params: IdParams }

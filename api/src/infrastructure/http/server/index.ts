@@ -9,6 +9,7 @@ import storage from "../plugins/storage.js"
 import { registerSensitiveFieldStripping } from "../hooks/stripSensitive.js"
 import routes from "../routes/index.js"
 import { UserService } from "../../services/user.svc.js"
+import { AdminService } from "../../services/admin.svc.js"
 import { AnalyticsService } from "../../services/analytics.svc.js"
 import { AttachmentService } from "../../services/attachment.svc.js"
 import { CategoryService, CategoryTypeService } from "../../services/catalog.svc.js"
@@ -160,6 +161,7 @@ export const createServer = async (): Promise<FastifyInstance> => {
         shippingMethodService: new ShippingMethodService(shippingMethodRepository),
         uiContentService: new UiContentService(uiContentRepository, server.storage),
         analyticsService: new AnalyticsService(analyticsDailyRepository),
+        adminService: new AdminService(),
     }
 
     const applicationRoutes = routes(userService, storeServices)

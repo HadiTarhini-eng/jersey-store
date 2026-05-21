@@ -17,11 +17,12 @@ const MultipartFormDataBody = Type.Object({
   }),
 })
 
+// Multipart: handler parses `file` part via request.file().
 export const replaceAttachmentFileSchema: FastifySchema = {
   tags: ['Attachments'],
   consumes: ['multipart/form-data'],
   params: IdParams,
-  body: MultipartFormDataBody,
+  description: 'Multipart: `file` (replacement image).',
 }
 
 export const getAttachmentSchema: FastifySchema = { tags: ['Attachments'], params: IdParams }

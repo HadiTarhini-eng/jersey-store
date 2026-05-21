@@ -149,7 +149,10 @@ export type SetVariantAttributesBodyType = Static<typeof SetVariantAttributesBod
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
-export const createProductSchema: FastifySchema = { tags: ['Products'], consumes: ['multipart/form-data'], body: ProductMultipartBody }
+// Multipart routes: schema documents `consumes` for Swagger but skips body
+// validation — @fastify/multipart leaves request.body undefined and the
+// handler parses parts manually via request.parts().
+export const createProductSchema: FastifySchema = { tags: ['Products'], consumes: ['multipart/form-data'], description: 'Multipart: `data` (JSON) + optional `gallery` (image files).' }
 export const searchProductsSchema: FastifySchema = { tags: ['Products'], querystring: ProductSearchQuery }
 export const getProductSchema: FastifySchema = { tags: ['Products'], params: IdParams }
 export const getProductBySlugSchema: FastifySchema = { tags: ['Products'], params: SlugParams }
@@ -160,7 +163,7 @@ export const setFeaturedSchema: FastifySchema = { tags: ['Products'], params: Id
 export const updateBasePriceSchema: FastifySchema = { tags: ['Products'], params: IdParams, body: SetPriceBody }
 export const deleteProductSchema: FastifySchema = { tags: ['Products'], params: IdParams }
 
-export const addProductImageSchema: FastifySchema = { tags: ['Products'], consumes: ['multipart/form-data'], params: ProductIdParams, body: ImageUploadBody }
+export const addProductImageSchema: FastifySchema = { tags: ['Products'], consumes: ['multipart/form-data'], params: ProductIdParams, description: 'Multipart: `file` (image) + optional `sortOrder` (string integer).' }
 export const listProductImagesSchema: FastifySchema = { tags: ['Products'], params: ProductIdParams }
 export const removeProductImageSchema: FastifySchema = { tags: ['Products'], params: IdParams }
 
@@ -176,8 +179,8 @@ export const listAttributeOptionsSchema: FastifySchema = { tags: ['ProductAttrib
 export const createSpecificationSchema: FastifySchema = { tags: ['ProductSpecifications'], params: ProductIdParams, body: CreateSpecificationBody }
 export const listSpecificationsSchema: FastifySchema = { tags: ['ProductSpecifications'], params: ProductIdParams }
 
-export const createVariantSchema: FastifySchema = { tags: ['ProductVariants'], consumes: ['multipart/form-data'], params: ProductIdParams, body: VariantMultipartBody }
-export const setVariantImageSchema: FastifySchema = { tags: ['ProductVariants'], consumes: ['multipart/form-data'], params: IdParams, body: SingleImageUploadBody }
+export const createVariantSchema: FastifySchema = { tags: ['ProductVariants'], consumes: ['multipart/form-data'], params: ProductIdParams, description: 'Multipart: `data` (JSON) + optional `image` (file).' }
+export const setVariantImageSchema: FastifySchema = { tags: ['ProductVariants'], consumes: ['multipart/form-data'], params: IdParams, description: 'Multipart: `file` (image).' }
 export const removeVariantImageSchema: FastifySchema = { tags: ['ProductVariants'], params: IdParams }
 export const listVariantsSchema: FastifySchema = { tags: ['ProductVariants'], params: ProductIdParams }
 export const getVariantSchema: FastifySchema = { tags: ['ProductVariants'], params: IdParams }

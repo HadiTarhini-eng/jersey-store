@@ -1,17 +1,41 @@
 import { useParams, Link, Navigate } from 'react-router-dom';
+import { useAppDispatch } from '../app/hooks';
 import { useProduct } from '../features/products/hooks/useProducts';
+import { useProductEnrichment } from '../features/products/hooks/useProductEnrichment';
+import { fetchProductBySlug } from '../features/products/productsSlice';
 import { ProductDetailView } from '../features/products/components/ProductDetailView';
 import { ReviewsSection } from '../features/reviews/ReviewsSection';
+import { useProductReviews } from '../features/reviews/useProductReviews';
+import { useProductSeo } from '../features/products/hooks/useProductSeo';
+import { decodeProductTags } from '../features/products/lib/productMeta';
+import { ProductSlider } from '../features/products/components/ProductSlider';
 import { ROUTES } from '../config/routes';
 import { theme } from '../config/theme';
 
 export function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
-  const { product, loading, error } = useProduct(slug ?? '');
+  const dispatch = useAppDispatch();
+  const { product, loading, error, notFound } = useProduct(slug ?? '');
+  const enrichment = useProductEnrichment(product?.id, product?.categoryId);
+  const reviewsState = useProductReviews(product?.id ?? '');
+
+  const primaryImage =
+    enrichment.attachments[0]?.compressedFileUrl
+    ?? enrichment.attachments[0]?.fileUrl
+    ?? product?.images?.[0];
+  useProductSeo(product ? {
+    product,
+    primaryImage,
+    price:       product.basePrice,
+    currency:    decodeProductTags(product.tags).currency || 'USD',
+    inStock:     product.inStock ?? false,
+    rating:      reviewsState.count > 0 ? reviewsState.average : undefined,
+    reviewCount: reviewsState.count,
+  } : null);
 
   if (loading) {
     return (
-      <div className={`${theme.pageContainer} py-8 lg:py-12`}>
+      <main className={`${theme.pageContainer} py-8 lg:py-12`} aria-busy="true" aria-live="polite">
         {/* Breadcrumb skeleton */}
         <div className="flex items-center gap-2 mb-8">
           <div className="h-3 w-10 rounded shimmer" />
@@ -52,28 +76,67 @@ export function ProductDetailPage() {
             <div className="h-12 w-full rounded-xl shimmer" />
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
-  if (error || !product) {
+  if (notFound) {
     return <Navigate to={ROUTES.NOT_FOUND} replace />;
   }
 
+  if (error || !product) {
+    return (
+      <main className={`${theme.pageContainer} py-16 text-center`} role="alert">
+        <h1 className="font-sport text-3xl text-primary mb-3">Could not load this product</h1>
+        <p className="text-muted text-sm mb-6">{error ?? 'Something went wrong.'}</p>
+        <button
+          type="button"
+          onClick={() => slug && dispatch(fetchProductBySlug(slug))}
+          className="px-5 py-3 rounded-xl bg-black text-white text-sm font-bold uppercase tracking-wider border-2 border-white hover:bg-white hover:text-black transition-colors"
+        >
+          Try again
+        </button>
+      </main>
+    );
+  }
+
   return (
-    <div className={`${theme.pageContainer} py-8 lg:py-12`}>
+    <main className={`${theme.pageContainer} py-8 lg:py-12`}>
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xs text-muted mb-8" aria-label="Breadcrumb">
         <Link to="/" className="hover:text-primary transition-colors">Home</Link>
         <span>/</span>
         <Link to="/shop" className="hover:text-primary transition-colors">Shop</Link>
+        {enrichment.category && (
+          <>
+            <span>/</span>
+            <Link
+              to={`/shop?category=${encodeURIComponent(enrichment.category.slug)}`}
+              className="hover:text-primary transition-colors"
+            >
+              {enrichment.category.name}
+            </Link>
+          </>
+        )}
         <span>/</span>
-        <span className="text-secondary truncate max-w-[200px]">{product.title}</span>
+        <span className="text-secondary truncate max-w-[200px]" aria-current="page">{product.title}</span>
       </nav>
 
-      <ProductDetailView product={product} />
+      <ProductDetailView
+        product={{ ...product, rating: reviewsState.average, reviewCount: reviewsState.count }}
+        specs={enrichment.specs}
+        offers={enrichment.offers}
+        attachments={enrichment.attachments}
+      />
 
-      <ReviewsSection productId={product.id} />
-    </div>
+      <ReviewsSection productId={product.id} state={reviewsState} />
+
+      {enrichment.related.length > 0 && (
+        <section className="mt-16 pt-10 border-t border-stroke" aria-label="Related products">
+          <h2 className={`${theme.sectionTitle} mb-6`}>You may also like</h2>
+          <ProductSlider products={enrichment.related} />
+        </section>
+      )}
+    </main>
   );
 }

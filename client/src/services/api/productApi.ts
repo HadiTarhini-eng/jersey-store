@@ -1,7 +1,7 @@
-import { http } from './client';
+import { http, toFormData, UPLOAD_CONFIG } from './client';
 import { endpoints } from './endpoints';
 import type {
-  AssignAttributePayload, CreateAttributeOptionPayload,
+  AssignAttributePayload, Attachment, CreateAttributeOptionPayload,
   CreateProductPayload, CreateSpecificationPayload, CreateVariantPayload,
   Product, ProductAssignedAttribute, ProductAttribute, ProductAttributeOption,
   ProductSearchQuery, ProductSpecification, ProductVariant,
@@ -10,7 +10,16 @@ import type {
 
 export const productApi = {
   // ── Products ────────────────────────────────────────────────────────────────
-  create:    (body: CreateProductPayload)                  => http.post<Product>(endpoints.products.create(), body),
+  /**
+   * Multipart create: `data` is the JSON-encoded product fields, `gallery` is
+   * a list of image files. The first file becomes the primary cover image.
+   */
+  create: (body: CreateProductPayload, gallery: File[] = []) => {
+    const form = new FormData();
+    form.append('data', JSON.stringify(body));
+    for (const file of gallery) form.append('gallery', file);
+    return http.post<Product>(endpoints.products.create(), form, UPLOAD_CONFIG);
+  },
   search:    (query: ProductSearchQuery = {})              => http.get<Product[]>(endpoints.products.search(), { params: query }),
   byId:      (id: string)                                  => http.get<Product>(endpoints.products.byId(id)),
   bySlug:    (slug: string)                                => http.get<Product>(endpoints.products.bySlug(slug)),
@@ -21,9 +30,20 @@ export const productApi = {
   setPrice:  (id: string, basePrice: number)               => http.patch<Product>(endpoints.products.price(id), { basePrice }),
   delete:    (id: string)                                  => http.delete<void>(endpoints.products.delete(id)),
   images: {
-    create: (productId: string, imageId: string, sortOrder?: number) =>
-      http.post(endpoints.products.images(productId), { imageId, sortOrder }),
-    list:   (productId: string) => http.get(endpoints.products.images(productId)),
+    /**
+     * Multipart upload — adds a single image to a product's gallery.
+     * `sortOrder` defaults to 0 (primary cover) if omitted.
+     */
+    create: (productId: string, file: File | Blob, sortOrder = 0, fileName = 'product-image') =>
+      http.post<Attachment>(
+        endpoints.products.images(productId),
+        toFormData({
+          file:      file instanceof File ? file : new File([file], fileName),
+          sortOrder: String(sortOrder),
+        }),
+        UPLOAD_CONFIG,
+      ),
+    list:   (productId: string) => http.get<Attachment[]>(endpoints.products.images(productId)),
     remove: (id: string)        => http.delete<void>(endpoints.products.imageById(id)),
   },
 
@@ -55,15 +75,24 @@ export const productApi = {
 
   // ── Variants ────────────────────────────────────────────────────────────────
   variants: {
-    create:        (productId: string, body: CreateVariantPayload) =>
-                     http.post<ProductVariant>(endpoints.variants.create(productId), body),
+    /** Multipart create. The optional `image` is uploaded alongside the variant data. */
+    create: (productId: string, body: CreateVariantPayload, image?: File | Blob) => {
+      const form = new FormData();
+      form.append('data', JSON.stringify(body));
+      if (image) form.append('image', image instanceof File ? image : new File([image], 'variant-image'));
+      return http.post<ProductVariant>(endpoints.variants.create(productId), form, UPLOAD_CONFIG);
+    },
     list:          (productId: string) => http.get<ProductVariant[]>(endpoints.variants.list(productId)),
     byId:          (id: string)        => http.get<ProductVariant>(endpoints.variants.byId(id)),
     bySku:         (sku: string)       => http.get<ProductVariant>(endpoints.variants.bySku(sku)),
     update:        (id: string, body: Partial<CreateVariantPayload>) =>
                      http.patch<ProductVariant>(endpoints.variants.update(id), body),
-    setImage:      (id: string, imageId: string) =>
-                     http.post<ProductVariant>(endpoints.variants.image(id), { imageId }),
+    setImage:      (id: string, file: File | Blob, fileName = 'variant-image') =>
+                     http.post<ProductVariant>(
+                       endpoints.variants.image(id),
+                       toFormData({ file: file instanceof File ? file : new File([file], fileName) }),
+                       UPLOAD_CONFIG,
+                     ),
     removeImage:   (id: string) => http.delete<ProductVariant>(endpoints.variants.image(id)),
     setStock:      (id: string, stockQuantity: number) =>
                      http.patch<ProductVariant>(endpoints.variants.stock(id), { stockQuantity }),

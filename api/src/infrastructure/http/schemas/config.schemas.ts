@@ -23,7 +23,8 @@ const LogoUploadBody = Type.Object({
 
 export const getSiteConfigSchema: FastifySchema = { tags: ['Config'] }
 export const updateSiteConfigSchema: FastifySchema = { tags: ['Config'], body: UpdateSiteConfigBody }
-export const setSiteLogoSchema: FastifySchema = { tags: ['Config'], consumes: ['multipart/form-data'], body: LogoUploadBody }
+// Multipart: handler parses `file` part via request.file().
+export const setSiteLogoSchema: FastifySchema = { tags: ['Config'], consumes: ['multipart/form-data'], description: 'Multipart: `file` (logo image).' }
 export const removeSiteLogoSchema: FastifySchema = { tags: ['Config'] }
 
 // ── Shipping methods ─────────────────────────────────────────────────────────

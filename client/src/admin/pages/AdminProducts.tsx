@@ -1,31 +1,33 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { DataGrid, type DataGridColumn } from '../components/DataGrid';
 import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../../components/ui/Modal';
-import { MultiImageUpload } from '../components/ImageUpload';
-import { useAdminCollection } from '../hooks/useAdminCollection';
-import productsSeed from '../../data/products.json';
-import type { AdminProduct } from '../../types';
+import { MultiImageUpload, type GalleryEntry } from '../components/ImageUpload';
+import { useToast } from '../../components/ui/Toast';
+import { useAppSelector } from '../../app/hooks';
+import { extractErrorMessage } from '../../services/api/client';
+import { useAdminProducts } from '../hooks/useAdminProducts';
+import type { AdminProductRow, UpsertProductInput } from '../services/adminProductsApi';
+import type { AdminProduct, Category } from '../../types';
 import { formatPrice } from '../../utils/formatters';
-
-const productsSeedTyped = productsSeed as AdminProduct[];
 
 const totalStock = (p: AdminProduct) => p.variants.reduce((s, v) => s + v.stock, 0);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Products list (dark — lives on the dark admin layout)
+// Products list
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function AdminProducts() {
-  const { items: products, update, remove } = useAdminCollection<AdminProduct>('products', productsSeedTyped);
+  const { items: products, loading, remove, setStock } = useAdminProducts();
 
-  const [pendingDelete, setPendingDelete] = useState<AdminProduct | null>(null);
-  const [stockEditing,  setStockEditing]  = useState<AdminProduct | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AdminProductRow | null>(null);
+  const [stockEditing,  setStockEditing]  = useState<AdminProductRow | null>(null);
   const navigate = useNavigate();
+  const { promise } = useToast();
 
-  const columns: DataGridColumn<AdminProduct>[] = [
+  const columns: DataGridColumn<AdminProductRow>[] = [
     {
       key: 'product',
       label: 'Product',
@@ -39,7 +41,7 @@ export function AdminProducts() {
           <div className="min-w-0">
             <p className="font-medium text-primary truncate">{p.name}</p>
             <p className="text-[10px] uppercase tracking-widest text-muted mt-0.5">
-              {p.sport} · {p.team.replace(/-/g, ' ')}
+              {p.sport || '—'} · {p.team ? p.team.replace(/-/g, ' ') : '—'}
             </p>
           </div>
         </div>
@@ -48,7 +50,7 @@ export function AdminProducts() {
     {
       key: 'category',
       label: 'Category',
-      render: (p) => <span className="text-secondary capitalize">{p.category}</span>,
+      render: (p) => <span className="text-secondary capitalize">{p.category || '—'}</span>,
     },
     {
       key: 'price',
@@ -117,39 +119,55 @@ export function AdminProducts() {
     },
   ];
 
+  const onSaveStock = async (variants: AdminProduct['variants']) => {
+    if (!stockEditing) return;
+    const target = stockEditing;
+    setStockEditing(null);
+    await promise(setStock(target.id, variants), {
+      success: 'Stock updated',
+      error:   (err) => extractErrorMessage(err, 'Could not update stock'),
+    }).catch(() => undefined);
+  };
+
+  const onConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(remove(target.id), {
+      success: `${target.name} deleted`,
+      error:   (err) => extractErrorMessage(err, 'Could not delete product'),
+    }).catch(() => undefined);
+  };
+
   return (
     <>
-      <DataGrid<AdminProduct>
-        rows={products}
-        columns={columns}
-        rowKey={(p) => p.id}
-        searchableText={(p) => `${p.name} ${p.sport} ${p.team} ${p.category} ${p.tags.join(' ')}`}
-        searchPlaceholder="Search products…"
-        toolbar={
-          <Link
-            to="/admin/products/new"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white font-bold text-xs uppercase tracking-wider border-2 border-accent hover:bg-accent-light transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-            </svg>
-            Add Product
-          </Link>
-        }
-        emptyMessage="No products yet. Click 'Add Product' to create one."
-      />
-
-      <StockEditorModal
-        product={stockEditing}
-        onClose={() => setStockEditing(null)}
-        onSave={(variants) => {
-          if (stockEditing) {
-            const inStock = variants.some((v) => v.stock > 0);
-            update(stockEditing.id, { variants, inStock });
+      {loading ? (
+        <div className="bg-surface border border-stroke rounded-2xl px-4 py-10 text-center text-muted text-sm">
+          Loading products…
+        </div>
+      ) : (
+        <DataGrid<AdminProductRow>
+          rows={products}
+          columns={columns}
+          rowKey={(p) => p.id}
+          searchableText={(p) => `${p.name} ${p.sport} ${p.team} ${p.category} ${p.tags.join(' ')}`}
+          searchPlaceholder="Search products…"
+          toolbar={
+            <Link
+              to="/admin/products/new"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white font-bold text-xs uppercase tracking-wider border-2 border-accent hover:bg-accent-light transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+              </svg>
+              Add Product
+            </Link>
           }
-          setStockEditing(null);
-        }}
-      />
+          emptyMessage="No products yet. Click 'Add Product' to create one."
+        />
+      )}
+
+      <StockEditorModal product={stockEditing} onClose={() => setStockEditing(null)} onSave={onSaveStock} />
 
       <ConfirmModal
         isOpen={!!pendingDelete}
@@ -158,21 +176,18 @@ export function AdminProducts() {
         confirmLabel="Delete"
         destructive
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) remove(pendingDelete.id);
-          setPendingDelete(null);
-        }}
+        onConfirm={onConfirmDelete}
       />
     </>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stock editor — white modal (matches the panel theme)
+// Stock editor modal
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface StockEditorModalProps {
-  product: AdminProduct | null;
+  product: AdminProductRow | null;
   onClose: () => void;
   onSave:  (variants: AdminProduct['variants']) => void;
 }
@@ -180,9 +195,9 @@ interface StockEditorModalProps {
 function StockEditorModal({ product, onClose, onSave }: StockEditorModalProps) {
   const [variants, setVariants] = useState<AdminProduct['variants']>([]);
 
-  if (product && variants.length !== product.variants.length) {
-    setVariants(product.variants.map((v) => ({ ...v })));
-  }
+  useEffect(() => {
+    if (product) setVariants(product.variants.map((v) => ({ ...v })));
+  }, [product]);
 
   if (!product) return null;
 
@@ -196,7 +211,6 @@ function StockEditorModal({ product, onClose, onSave }: StockEditorModalProps) {
         {variants.map((v, i) => (
           <div key={`${v.size}-${i}`} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50">
             <span className="font-sport text-xl tracking-wide text-gray-900 uppercase w-12 text-center">{v.size}</span>
-
             <div className="flex-1 flex items-center gap-2 justify-end">
               <button
                 type="button"
@@ -246,33 +260,14 @@ function StockEditorModal({ product, onClose, onSave }: StockEditorModalProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Edit-product modal — wraps the shared ProductForm with the existing record.
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function EditProductModal({ product, onCancel, onSave }: {
-  product: AdminProduct | null; onCancel: () => void; onSave: (p: AdminProduct) => void;
-}) {
-  if (!product) return null;
-  return (
-    <Modal isOpen={!!product} onClose={onCancel} title={`Edit — ${product.name}`} maxWidth="max-w-4xl">
-      <ProductForm
-        initial={product}
-        onCancel={onCancel}
-        onSave={onSave}
-        submitLabel="Save changes"
-      />
-    </Modal>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Add product page — wraps the shared ProductForm with empty defaults.
-// The form is light-themed; on the dark admin layout it reads as white cards.
+// Add / Edit pages — wrap ProductForm with empty defaults / existing record
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function AdminAddProduct() {
   const navigate = useNavigate();
-  const { add } = useAdminCollection<AdminProduct>('products', productsSeedTyped);
+  const { items, categories, create } = useAdminProducts();
+  const { promise } = useToast();
+  const adminUser = useAppSelector((s) => s.auth.user);
 
   return (
     <div className="space-y-5 max-w-5xl">
@@ -281,9 +276,15 @@ export function AdminAddProduct() {
       </Link>
       <ProductForm
         initial={null}
+        categories={categories}
+        existingSlugs={items.map((p) => p.slug)}
         onCancel={() => navigate('/admin/products')}
-        onSave={(product) => {
-          add(product);
+        onSubmit={async (input) => {
+          if (!adminUser?.id) throw new Error('Admin user missing');
+          await promise(create(input, adminUser.id), {
+            success: 'Product created',
+            error:   (err) => extractErrorMessage(err, 'Could not create product'),
+          });
           navigate('/admin/products');
         }}
         submitLabel="Save Product"
@@ -295,9 +296,17 @@ export function AdminAddProduct() {
 export function AdminEditProduct() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { items: products, update } = useAdminCollection<AdminProduct>('products', productsSeedTyped);
-  const product = products.find((item) => item.id === id);
+  const { items, categories, loading, update } = useAdminProducts();
+  const product = items.find((item) => item.id === id);
+  const { promise } = useToast();
 
+  if (loading) {
+    return (
+      <div className="bg-surface border border-stroke rounded-2xl px-4 py-10 text-center text-muted text-sm">
+        Loading product…
+      </div>
+    );
+  }
   if (!product) return <Navigate to="/admin/products" replace />;
 
   return (
@@ -308,9 +317,14 @@ export function AdminEditProduct() {
       <ProductForm
         key={product.id}
         initial={product}
+        categories={categories}
+        existingSlugs={items.filter((p) => p.id !== product.id).map((p) => p.slug)}
         onCancel={() => navigate('/admin/products')}
-        onSave={(next) => {
-          update(next.id, next);
+        onSubmit={async (input) => {
+          await promise(update(product.id, input), {
+            success: 'Product saved',
+            error:   (err) => extractErrorMessage(err, 'Could not save product'),
+          });
           navigate('/admin/products');
         }}
         submitLabel="Save changes"
@@ -320,7 +334,7 @@ export function AdminEditProduct() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared ProductForm (light theme — works inside white modal and on dark page)
+// Shared ProductForm
 // ─────────────────────────────────────────────────────────────────────────────
 
 const defaultSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
@@ -330,14 +344,14 @@ interface FormState {
   slug:           string;
   sport:          string;
   team:           string;
-  category:       string;
+  categoryId:     string;
   price:          string;
   originalPrice:  string;
   currency:       string;
   description:    string;
   features:       string;
   tags:           string;
-  images:         string[];
+  gallery:        GalleryEntry[];
   badge:          string;
   variants:       { size: string; stock: number }[];
 }
@@ -346,13 +360,13 @@ function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-function fromProduct(p: AdminProduct | null): FormState {
+function fromProduct(p: AdminProductRow | null): FormState {
   if (!p) {
     return {
-      name: '', slug: '', sport: 'football', team: '', category: 'jerseys',
+      name: '', slug: '', sport: 'football', team: '', categoryId: '',
       price: '', originalPrice: '', currency: 'USD',
       description: '', features: '', tags: '',
-      images: [], badge: '',
+      gallery: [], badge: '',
       variants: defaultSizes.map((size) => ({ size, stock: 0 })),
     };
   }
@@ -361,14 +375,14 @@ function fromProduct(p: AdminProduct | null): FormState {
     slug:          p.slug,
     sport:         p.sport,
     team:          p.team,
-    category:      p.category,
+    categoryId:    p.categoryId,
     price:         String(p.price),
     originalPrice: p.originalPrice ? String(p.originalPrice) : '',
     currency:      p.currency,
     description:   p.description,
     features:      p.features.join('\n'),
     tags:          p.tags.join(', '),
-    images:        [...p.images],
+    gallery:       p.images.map((url, i) => ({ url, attachmentId: p.imageAttachmentIds[i] })),
     badge:         p.badge ?? '',
     variants:      defaultSizes.map((size) => {
       const existing = p.variants.find((v) => v.size === size);
@@ -378,20 +392,30 @@ function fromProduct(p: AdminProduct | null): FormState {
 }
 
 interface ProductFormProps {
-  initial:     AdminProduct | null;
-  onSave:      (product: AdminProduct) => void;
-  onCancel:    () => void;
-  submitLabel: string;
+  initial:       AdminProductRow | null;
+  categories:    Category[];
+  existingSlugs: string[];
+  onSubmit:      (input: UpsertProductInput) => Promise<void>;
+  onCancel:      () => void;
+  submitLabel:   string;
 }
 
-function ProductForm({ initial, onSave, onCancel, submitLabel }: ProductFormProps) {
+function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, submitLabel }: ProductFormProps) {
   const [form, setForm] = useState<FormState>(() => fromProduct(initial));
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     setForm(fromProduct(initial));
     setErrors({});
   }, [initial]);
+
+  // Default the category to the first available when creating new.
+  useEffect(() => {
+    if (!form.categoryId && categories.length > 0) {
+      setForm((prev) => ({ ...prev, categoryId: categories[0].id }));
+    }
+  }, [categories, form.categoryId]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -409,48 +433,66 @@ function ProductForm({ initial, onSave, onCancel, submitLabel }: ProductFormProp
     if (!form.slug && form.name) set('slug', slugify(form.name));
   };
 
-  const previewImage = form.images[0] ?? '';
+  const previewImage = form.gallery[0]?.url ?? '';
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const initialAttachmentIds = useMemo(
+    () => new Set(initial?.imageAttachmentIds ?? []),
+    [initial],
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const errs: Partial<Record<keyof FormState, string>> = {};
-    if (!form.name.trim())   errs.name = 'Required';
-    if (!form.slug.trim())   errs.slug = 'Required';
-    if (!form.team.trim())   errs.team = 'Required';
-    if (!form.price.trim() || Number.isNaN(Number(form.price))) errs.price = 'Valid price required';
-    if (form.images.length === 0) errs.images = 'At least one image';
+    if (!form.name.trim())                                       errs.name = 'Required';
+    if (!form.slug.trim())                                       errs.slug = 'Required';
+    if (existingSlugs.includes(form.slug))                       errs.slug = 'Slug already in use';
+    if (!form.team.trim())                                       errs.team = 'Required';
+    if (!form.categoryId)                                        errs.categoryId = 'Pick a category';
+    if (!form.price.trim() || Number.isNaN(Number(form.price)))  errs.price = 'Valid price required';
+    if (form.gallery.length === 0)                               errs.gallery = 'At least one image';
 
     if (Object.values(errs).some(Boolean)) {
       setErrors(errs);
       return;
     }
 
-    const totalVariantStock = form.variants.reduce((s, v) => s + v.stock, 0);
+    const removedImageIds = (initial?.imageAttachmentIds ?? [])
+      .filter((id) => !form.gallery.some((g) => g.attachmentId === id));
+    const newImageFiles = form.gallery.filter((g) => g.file).map((g) => g.file as File);
 
-    const product: AdminProduct = {
-      id:            initial?.id ?? `prod-${Date.now().toString(36)}`,
+    const input: UpsertProductInput = {
+      id:            initial?.id ?? '',
       name:          form.name.trim(),
       slug:          form.slug.trim(),
       sport:         form.sport.trim(),
       team:          form.team.trim(),
-      category:      form.category.trim(),
+      category:      categories.find((c) => c.id === form.categoryId)?.slug ?? '',
       price:         Number(form.price),
       originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined,
       currency:      form.currency || 'USD',
-      images:        form.images,
+      images:        form.gallery.map((g) => g.url),
       description:   form.description.trim(),
       features:      form.features.split('\n').map((s) => s.trim()).filter(Boolean),
       tags:          form.tags.split(',').map((s) => s.trim()).filter(Boolean),
       variants:      form.variants,
       badge:         form.badge.trim() || undefined,
-      inStock:       totalVariantStock > 0,
+      inStock:       form.variants.some((v) => v.stock > 0),
       rating:        initial?.rating ?? 0,
       reviewCount:   initial?.reviewCount ?? 0,
       createdAt:     initial?.createdAt ?? new Date().toISOString(),
+      categoryId:    form.categoryId,
+      newImageFiles,
+      removedImageIds,
     };
 
-    onSave(product);
+    void initialAttachmentIds; // referenced for memoization deps
+    setSubmitting(true);
+    try {
+      await onSubmit(input);
+    } catch {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -512,17 +554,17 @@ function ProductForm({ initial, onSave, onCancel, submitLabel }: ProductFormProp
               <input
                 value={form.tags}
                 onChange={(e) => set('tags', e.target.value)}
-                placeholder="real madrid, white, home, adidas"
+                placeholder="white, home, adidas"
                 className={lightInputClass}
               />
             </FormField>
           </FormSection>
 
           <FormSection title="Images">
-            <FormField label="Product photos" error={errors.images} required hint="Upload up to 6">
+            <FormField label="Product photos" error={errors.gallery} required hint="Upload up to 6">
               <MultiImageUpload
-                values={form.images}
-                onChange={(next) => set('images', next)}
+                values={form.gallery}
+                onChange={(next) => set('gallery', next)}
                 max={6}
               />
             </FormField>
@@ -603,13 +645,12 @@ function ProductForm({ initial, onSave, onCancel, submitLabel }: ProductFormProp
 
           <FormSection title="Taxonomy">
             <FormField label="Sport">
-              <select value={form.sport} onChange={(e) => set('sport', e.target.value)} className={lightInputClass}>
-                <option value="football">Football</option>
-                <option value="basketball">Basketball</option>
-                <option value="american-football">American Football</option>
-                <option value="baseball">Baseball</option>
-                <option value="formula1">Formula 1</option>
-              </select>
+              <input
+                value={form.sport}
+                onChange={(e) => set('sport', e.target.value)}
+                placeholder="football"
+                className={lightInputClass}
+              />
             </FormField>
             <FormField label="Team" error={errors.team} required>
               <input
@@ -619,14 +660,12 @@ function ProductForm({ initial, onSave, onCancel, submitLabel }: ProductFormProp
                 className={lightInputClass}
               />
             </FormField>
-            <FormField label="Category">
-              <select value={form.category} onChange={(e) => set('category', e.target.value)} className={lightInputClass}>
-                <option value="jerseys">Jerseys</option>
-                <option value="shorts">Shorts</option>
-                <option value="tshirts">T-Shirts</option>
-                <option value="hoodies">Hoodies</option>
-                <option value="jackets">Jackets</option>
-                <option value="shoes">Shoes</option>
+            <FormField label="Category" error={errors.categoryId} required hint="Backend category (required)">
+              <select value={form.categoryId} onChange={(e) => set('categoryId', e.target.value)} className={lightInputClass}>
+                <option value="" disabled>Select a category</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
               </select>
             </FormField>
           </FormSection>
@@ -637,15 +676,17 @@ function ProductForm({ initial, onSave, onCancel, submitLabel }: ProductFormProp
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          disabled={submitting}
+          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-60"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-5 py-2.5 rounded-xl bg-black text-white font-bold text-sm uppercase tracking-wider border-2 border-accent hover:bg-accent-light shadow-lg shadow-accent/30 transition-colors"
+          disabled={submitting}
+          className="px-5 py-2.5 rounded-xl bg-black text-white font-bold text-sm uppercase tracking-wider border-2 border-accent hover:bg-accent-light shadow-lg shadow-accent/30 transition-colors disabled:opacity-60"
         >
-          {submitLabel}
+          {submitting ? 'Saving…' : submitLabel}
         </button>
       </div>
     </form>
@@ -653,7 +694,7 @@ function ProductForm({ initial, onSave, onCancel, submitLabel }: ProductFormProp
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Light form primitives — shared by ProductForm
+// Light form primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
 const lightInputClass = 'w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
