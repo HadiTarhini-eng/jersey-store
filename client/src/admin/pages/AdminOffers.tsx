@@ -76,6 +76,7 @@ export function AdminOffers() {
     <div className="space-y-10">
       <HeroSlidesSection />
       <OfferBannersSection />
+      <OfferStripSection />
     </div>
   );
 }
@@ -766,5 +767,192 @@ function BannerEditor({ banner, onCancel, onSave }: BannerEditorProps) {
 
       <EditorFooter onCancel={onCancel} onSave={submit} />
     </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Offer strip — short marquee lines under the hero
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface OfferStripPayload extends Record<string, unknown> {
+  text: string;
+}
+
+function OfferStripSection() {
+  const hook = useUiContentSlot<OfferStripPayload>('offer-strip');
+  const items = hook.items;
+  const [editing,       setEditing]       = useState<{ id: string; text: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; text: string } | null>(null);
+  const [draft,         setDraft]         = useState('');
+  const { promise } = useToast();
+  const move = useMove(items, hook, 'strip item');
+
+  const addItem = async () => {
+    const text = draft.trim();
+    if (!text) return;
+    try {
+      await promise(hook.add({ text }), {
+        success: 'Strip item added',
+        error:   (err) => extractErrorMessage(err, 'Could not add item'),
+      });
+      setDraft('');
+    } catch { /* toast shown */ }
+  };
+
+  const onSave = async (id: string, text: string) => {
+    try {
+      await promise(hook.update(id, { text: text.trim() }), {
+        success: 'Strip item saved',
+        error:   (err) => extractErrorMessage(err, 'Could not save item'),
+      });
+      setEditing(null);
+    } catch { /* toast shown */ }
+  };
+
+  const onDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(hook.remove(target.id), {
+      success: 'Strip item deleted',
+      error:   (err) => extractErrorMessage(err, 'Could not delete item'),
+    }).catch(() => undefined);
+  };
+
+  return (
+    <section className="space-y-5">
+      <SectionHeader
+        title="Offer Strip"
+        subtitle={`${items.length} message${items.length !== 1 ? 's' : ''} — scrolls below the hero. Keep each line short and punchy.`}
+        action={null}
+      />
+
+      {/* Quick add */}
+      <div className="flex items-center gap-3">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }}
+          placeholder="Free shipping on orders over $75"
+          className="flex-1 px-4 py-2.5 rounded-xl bg-surface border border-stroke text-primary placeholder:text-muted text-sm outline-none focus:border-accent"
+        />
+        <button
+          type="button"
+          onClick={addItem}
+          disabled={!draft.trim()}
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white font-bold text-xs uppercase tracking-wider border-2 border-accent hover:bg-accent-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+          </svg>
+          Add
+        </button>
+      </div>
+
+      {/* Live strip preview */}
+      {items.length > 0 && (
+        <div className="rounded-xl border border-stroke overflow-hidden bg-surface-raised">
+          <div className="overflow-hidden h-10">
+            <div className="flex items-center h-full">
+              <div className="marquee-track" style={{ animationDuration: '24s' }}>
+                {[...items, ...items].map((it, i) => (
+                  <span key={`${it.id}-${i}`} className="flex items-center shrink-0">
+                    <span className="text-secondary text-xs px-5">{it.text}</span>
+                    <span className="text-muted text-xs" aria-hidden="true">·</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Editable list */}
+      <ul className="space-y-2">
+        {items.map((it, i) => {
+          const isEditing = editing?.id === it.id;
+          return (
+            <li
+              key={it.id}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-stroke bg-surface"
+            >
+              <ReorderArrows
+                isFirst={i === 0}
+                isLast={i === items.length - 1}
+                onUp={() => move(it.id, -1)}
+                onDown={() => move(it.id, 1)}
+              />
+              {isEditing ? (
+                <input
+                  autoFocus
+                  value={editing.text}
+                  onChange={(e) => setEditing({ id: editing.id, text: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); onSave(editing.id, editing.text); }
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-surface-raised border border-accent text-primary text-sm outline-none"
+                />
+              ) : (
+                <span className="flex-1 text-sm text-primary truncate">{it.text}</span>
+              )}
+              {isEditing ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onSave(editing.id, editing.text)}
+                    className="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-bold uppercase tracking-wider"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(null)}
+                    className="px-3 py-1.5 rounded-lg text-muted hover:text-primary text-xs font-bold uppercase tracking-wider"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setEditing({ id: it.id, text: it.text })}
+                    className="px-3 py-1.5 rounded-lg bg-black text-white text-xs font-bold uppercase tracking-wider border-2 border-power hover:bg-black transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDelete({ id: it.id, text: it.text })}
+                    aria-label="Delete"
+                    className="p-2 rounded-lg text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </li>
+          );
+        })}
+        {items.length === 0 && (
+          <li className="px-4 py-6 rounded-xl border border-dashed border-stroke text-center text-sm text-muted">
+            No strip messages yet. Add your first one above.
+          </li>
+        )}
+      </ul>
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        title="Delete strip item"
+        message={pendingDelete ? `Remove this message? "${pendingDelete.text}"` : ''}
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={onDelete}
+      />
+    </section>
   );
 }

@@ -1,11 +1,34 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from '../../config/theme';
-import { useUiContentSlot } from '../../hooks/useUiContentSlot';
-import type { UiCategory } from '../../types';
+import { useCategories, type StoreCategory } from '../../features/products/hooks/useCategories';
+
+/**
+ * Vibrant palette used when an admin-managed category hasn't supplied its own
+ * `color`. Cycles by index so adjacent tiles always read distinct, matching
+ * the punchy palette of the offers banner.
+ */
+const VIBRANT_PALETTE = [
+  { color: '#ff4d00', dark: '#9c2e00' }, // power orange
+  { color: '#007aff', dark: '#003d80' }, // accent blue
+  { color: '#af52de', dark: '#5a2877' }, // purple
+  { color: '#34c759', dark: '#1a6b30' }, // green
+  { color: '#ff2d55', dark: '#8a1530' }, // hot pink
+  { color: '#ffd60a', dark: '#7a6500' }, // yellow
+];
+
+function paletteFor(index: number, cat: StoreCategory) {
+  const fallback = VIBRANT_PALETTE[index % VIBRANT_PALETTE.length];
+  return {
+    color: cat.color ?? fallback.color,
+    dark:  cat.colorDark ?? fallback.dark,
+  };
+}
 
 export function KitCategories() {
-  const { items: categories } = useUiContentSlot<Omit<UiCategory, 'id'>>('kit-category', { activeOnly: true });
+  const { categories } = useCategories();
+
+  if (categories.length === 0) return null;
 
   return (
     <section className="py-6 md:py-8 w-full">
@@ -20,8 +43,8 @@ export function KitCategories() {
 
       {/* ── Mobile: stacked tiles ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-3 md:hidden">
-        {categories.map((cat) => (
-          <MobileTile key={cat.id} category={cat} />
+        {categories.map((cat, i) => (
+          <MobileTile key={cat.id} category={cat} palette={paletteFor(i, cat)} />
         ))}
       </div>
     </section>
@@ -30,25 +53,27 @@ export function KitCategories() {
 
 // ── Desktop accordion ────────────────────────────────────────────────────────
 
-function DesktopAccordion({ categories }: { categories: UiCategory[] }) {
+function DesktopAccordion({ categories }: { categories: StoreCategory[] }) {
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
 
   return (
     <div className="hidden md:flex gap-2 h-[440px] w-full">
-      {categories.map((cat) => {
+      {categories.map((cat, i) => {
         const expanded = hoveredId === cat.id;
         const shrunk   = hoveredId !== null && !expanded;
+        const palette  = paletteFor(i, cat);
 
         return (
           <Link
             key={cat.id}
-            to={`/shop?categoryId=${cat.slug}`}
+            to={`/shop?categoryId=${cat.id}`}
             onMouseEnter={() => setHoveredId(cat.id)}
             onMouseLeave={() => setHoveredId(null)}
             className="relative overflow-hidden rounded-2xl group cursor-pointer"
             style={{
               flex: expanded ? '3.2 1 0%' : shrunk ? '0.7 1 0%' : '1 1 0%',
-              transition: 'flex 700ms cubic-bezier(0.22, 1, 0.36, 1)',
+              transition: 'flex 700ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 500ms ease',
+              boxShadow: expanded ? `0 18px 50px -10px ${palette.color}80` : 'none',
             }}
           >
             {/* Background image */}
@@ -63,24 +88,35 @@ function DesktopAccordion({ categories }: { categories: UiCategory[] }) {
               />
             )}
 
-            {/* Gradient overlay */}
+            {/* Vibrant gradient overlay — vertical color wash from bottom */}
             <div
               className="absolute inset-0"
               style={{
                 background: `linear-gradient(to top,
-                  ${cat.colorDark ?? cat.color ?? '#000'}f2 0%,
-                  ${cat.color ?? '#000'}55 50%,
+                  ${palette.dark}f5 0%,
+                  ${palette.color}88 45%,
+                  ${palette.color}22 75%,
                   transparent 100%)`,
-                opacity: expanded ? 1 : 0.7,
+                opacity: expanded ? 1 : 0.85,
                 transition: 'opacity 500ms ease',
+              }}
+            />
+
+            {/* Diagonal color slash — appears more strongly when expanded */}
+            <div
+              className="absolute -right-20 -top-10 w-72 h-72 rounded-full blur-3xl mix-blend-screen"
+              style={{
+                backgroundColor: palette.color,
+                opacity: expanded ? 0.55 : 0.2,
+                transition: 'opacity 600ms ease',
               }}
             />
 
             {/* Color accent bar — slides up on hover */}
             <div
-              className="absolute inset-x-0 bottom-0 h-1"
+              className="absolute inset-x-0 bottom-0 h-1.5"
               style={{
-                backgroundColor: cat.color ?? 'rgb(var(--accent))',
+                backgroundColor: palette.color,
                 transform: expanded ? 'scaleX(1)' : 'scaleX(0.2)',
                 transformOrigin: 'left',
                 transition: 'transform 500ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -89,13 +125,7 @@ function DesktopAccordion({ categories }: { categories: UiCategory[] }) {
 
             {/* Content */}
             <div className="absolute inset-0 flex flex-col justify-end p-6 lg:p-8">
-              <p
-                className="font-sport text-3xl lg:text-4xl tracking-wide text-white uppercase leading-none drop-shadow-lg whitespace-nowrap"
-                style={{
-                  writingMode: expanded ? 'horizontal-tb' : 'horizontal-tb',
-                  transition: 'transform 500ms ease, opacity 500ms ease',
-                }}
-              >
+              <p className="font-sport text-3xl lg:text-4xl tracking-wide text-white uppercase leading-none drop-shadow-lg whitespace-nowrap">
                 {cat.name}
               </p>
 
@@ -110,13 +140,13 @@ function DesktopAccordion({ categories }: { categories: UiCategory[] }) {
                 }}
               >
                 {cat.description && (
-                  <p className="text-white/85 text-sm max-w-md mb-3">{cat.description}</p>
+                  <p className="text-white/90 text-sm max-w-md mb-3">{cat.description}</p>
                 )}
-                <span
-                  className="inline-flex items-center gap-1.5 font-semibold text-sm uppercase tracking-wider"
-                  style={{ color: '#fff' }}
-                >
-                  Shop {cat.name} →
+                <span className="inline-flex items-center gap-1.5 font-bold text-sm uppercase tracking-wider text-white">
+                  Shop {cat.name}
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
                 </span>
               </div>
             </div>
@@ -129,11 +159,12 @@ function DesktopAccordion({ categories }: { categories: UiCategory[] }) {
 
 // ── Mobile tile ──────────────────────────────────────────────────────────────
 
-function MobileTile({ category }: { category: UiCategory }) {
+function MobileTile({ category, palette }: { category: StoreCategory; palette: { color: string; dark: string } }) {
   return (
     <Link
-      to={`/shop?categoryId=${category.slug}`}
+      to={`/shop?categoryId=${category.id}`}
       className="relative block h-32 rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
+      style={{ boxShadow: `0 10px 30px -10px ${palette.color}60` }}
     >
       {category.image && (
         <div
@@ -145,21 +176,26 @@ function MobileTile({ category }: { category: UiCategory }) {
         className="absolute inset-0"
         style={{
           background: `linear-gradient(90deg,
-            ${category.colorDark ?? category.color ?? '#000'}ee 0%,
-            ${category.color ?? '#000'}55 70%,
-            transparent 100%)`,
+            ${palette.dark}f0 0%,
+            ${palette.color}88 55%,
+            ${palette.color}22 100%)`,
         }}
+      />
+      {/* Color glow at right edge */}
+      <div
+        className="absolute -right-8 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full blur-2xl mix-blend-screen"
+        style={{ backgroundColor: palette.color, opacity: 0.5 }}
       />
       <div className="relative h-full flex items-center px-5">
         <div>
           <p className="font-sport text-2xl tracking-wide text-white uppercase leading-tight drop-shadow-lg">
             {category.name}
           </p>
-          <span
-            className="text-xs font-semibold uppercase tracking-widest mt-1 inline-block"
-            style={{ color: category.color ?? '#fff' }}
-          >
-            Shop now →
+          <span className="text-[11px] font-bold uppercase tracking-widest mt-1 inline-flex items-center gap-1 text-white">
+            Shop now
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
           </span>
         </div>
       </div>

@@ -1,19 +1,48 @@
+import { useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../app/hooks';
 import { CheckoutForm } from '../features/checkout/components/CheckoutForm';
 import { OrderSummary } from '../features/checkout/components/OrderSummary';
 import { Button } from '../components/ui/Button';
-import { submitOrder } from '../features/checkout/checkoutSlice';
-import { formatDate } from '../utils/formatters';
+import { useToast } from '../components/ui/Toast';
+import { submitOrder, setStep, resetCheckout } from '../features/checkout/checkoutSlice';
+import { formatDate, formatPrice } from '../utils/formatters';
 import { ROUTES } from '../config/routes';
+import siteConfig from '../data/site-config.json';
+
+/**
+ * Strip everything except digits from a phone string — required by wa.me URLs.
+ * Returns null when nothing remains so we hide the WhatsApp CTA gracefully.
+ */
+function phoneToWaNumber(phone: string | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 6 ? digits : null;
+}
 
 export function CheckoutPage() {
   const dispatch = useAppDispatch();
+  const toast    = useToast();
   const { step, shippingAddress, order, loading, error } = useAppSelector((s) => s.checkout);
   const { items } = useAppSelector((s) => s.cart);
 
-  // Nothing to checkout
-  if (items.length === 0 && step !== 'confirmation') {
+  // Surface any submit error as a toast (and dismiss the inline banner reliance).
+  useEffect(() => {
+    if (error) toast.push({ variant: 'error', title: 'Order failed', message: error });
+  }, [error, toast]);
+
+  // When the step advances (shipping → review → confirmation), scroll the page
+  // back to the top so the user actually sees the freshly rendered step.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step]);
+
+  // Bounce back to /cart only when the user lands on checkout with an empty
+  // cart at the start. Once the flow has advanced past `shipping`, we never
+  // redirect again — `submitOrder` clears the cart before the slice transitions
+  // to `confirmation`, and redirecting in that window would yank the user away
+  // from the success screen.
+  if (items.length === 0 && step === 'shipping') {
     return <Navigate to={ROUTES.CART} replace />;
   }
 
@@ -21,24 +50,26 @@ export function CheckoutPage() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
       {/* Progress indicator */}
       <nav className="flex items-center gap-2 mb-10" aria-label="Checkout steps">
-        {(['shipping', 'review', 'confirmation'] as const).map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <div className={[
-              'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors',
-              step === s
-                ? 'bg-accent text-accent-dark'
-                : (['review', 'confirmation'].includes(step) && i < (['shipping', 'review', 'confirmation'].indexOf(step)))
-                ? 'bg-ok/20 text-ok'
-                : 'bg-surface-raised text-muted',
-            ].join(' ')}>
-              {i + 1}
+        {(['shipping', 'review', 'confirmation'] as const).map((s, i) => {
+          const reached = ['shipping', 'review', 'confirmation'].indexOf(step) >= i;
+          const current = step === s;
+          return (
+            <div key={s} className="flex items-center gap-2">
+              <div className={[
+                'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors',
+                current  ? 'bg-accent text-white shadow-lg shadow-accent/30' :
+                reached  ? 'bg-ok/20 text-ok' :
+                'bg-surface-raised text-muted',
+              ].join(' ')}>
+                {i + 1}
+              </div>
+              <span className={`text-sm hidden sm:block ${current ? 'text-primary font-medium' : 'text-muted'}`}>
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </span>
+              {i < 2 && <span className="text-stroke mx-1 hidden sm:block">→</span>}
             </div>
-            <span className={`text-sm hidden sm:block ${step === s ? 'text-primary font-medium' : 'text-muted'}`}>
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-            </span>
-            {i < 2 && <span className="text-stroke mx-1 hidden sm:block">→</span>}
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* ── Shipping step ─────────────────────────────────────── */}
@@ -57,8 +88,17 @@ export function CheckoutPage() {
       {step === 'review' && shippingAddress && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-surface rounded-2xl border border-stroke p-5">
-              <h2 className="font-semibold text-primary mb-4">Shipping to</h2>
+            <div className="bg-surface rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.45)]">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h2 className="font-semibold text-primary">Shipping to</h2>
+                <button
+                  type="button"
+                  onClick={() => dispatch(setStep('shipping'))}
+                  className="text-xs font-bold uppercase tracking-wider text-accent hover:text-accent-light transition-colors"
+                >
+                  Edit
+                </button>
+              </div>
               <div className="text-sm text-secondary space-y-0.5">
                 <p className="text-primary font-medium">{shippingAddress.fullName}</p>
                 <p>{shippingAddress.addressLine1}</p>
@@ -73,12 +113,6 @@ export function CheckoutPage() {
               </div>
             </div>
 
-            {error && (
-              <div className="p-3.5 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm">
-                {error}
-              </div>
-            )}
-
             <Button
               variant="primary"
               size="lg"
@@ -86,7 +120,7 @@ export function CheckoutPage() {
               loading={loading}
               onClick={() => dispatch(submitOrder(shippingAddress))}
             >
-              Place Order
+              Confirm Order
             </Button>
           </div>
           <div className="sticky top-24">
@@ -97,35 +131,115 @@ export function CheckoutPage() {
 
       {/* ── Confirmation step ─────────────────────────────────── */}
       {step === 'confirmation' && order && (
-        <div className="max-w-lg mx-auto text-center space-y-6 py-10">
-          <div className="w-20 h-20 rounded-full bg-ok/10 flex items-center justify-center text-4xl mx-auto">
-            ✅
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-primary">Order Confirmed!</h1>
-            <p className="text-secondary mt-2 text-sm">
-              Thank you for your order. We'll send a confirmation email shortly.
-            </p>
-          </div>
-          <div className="bg-surface rounded-2xl border border-stroke p-5 text-left space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted">Order ID</span>
-              <span className="text-primary font-mono">{order.id}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted">Date</span>
-              <span className="text-primary">{formatDate(order.createdAt)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted">Status</span>
-              <span className="text-ok font-medium capitalize">{order.status}</span>
-            </div>
-          </div>
-          <Link to="/shop">
-            <Button variant="primary" size="lg">Continue Shopping</Button>
-          </Link>
-        </div>
+        <ConfirmationView order={order} onContinueShopping={() => dispatch(resetCheckout())} />
       )}
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Confirmation — order summary + WhatsApp share
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ConfirmationViewProps {
+  order: import('../types').Order;
+  onContinueShopping: () => void;
+}
+
+function ConfirmationView({ order, onContinueShopping }: ConfirmationViewProps) {
+  const waNumber = phoneToWaNumber(siteConfig.phone);
+  const waUrl    = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(buildWhatsAppMessage(order))}` : null;
+
+  return (
+    <div className="max-w-xl mx-auto text-center space-y-6 py-10">
+      {/* Animated check — circle scales in, ring pulses outward, path draws itself. */}
+      <div className="relative w-24 h-24 mx-auto">
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-full bg-ok/30 animate-confirm-pulse"
+        />
+        <div className="relative w-24 h-24 rounded-full bg-ok flex items-center justify-center animate-scale-in shadow-lg shadow-ok/40">
+          <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+            <path
+              d="M5 13l4 4L19 7"
+              style={{
+                strokeDasharray:  22,
+                strokeDashoffset: 22,
+                animation: 'drawCheck 0.55s cubic-bezier(0.65,0,0.45,1) 0.15s forwards',
+              }}
+            />
+          </svg>
+        </div>
+      </div>
+
+      <div>
+        <h1 className="text-2xl font-bold text-primary">Order sent!</h1>
+        <p className="text-secondary mt-2 text-sm leading-relaxed">
+          Thanks for your order. Send us a quick WhatsApp message and we'll confirm shipping details right away.
+        </p>
+      </div>
+
+      <div className="bg-surface rounded-2xl p-5 text-left space-y-2 text-sm shadow-[0_4px_20px_rgba(0,0,0,0.45)]">
+        <Row label="Order ID"      value={<span className="text-primary font-mono">{order.orderNumber || order.id}</span>} />
+        <Row label="Date"          value={<span className="text-primary">{formatDate(order.createdAt)}</span>} />
+        <Row label="Subtotal"      value={<span className="text-primary">{formatPrice(order.subtotal ?? 0)}</span>} />
+        <Row label="Total"         value={<span className="text-primary font-bold">{formatPrice(order.totalAmount ?? order.subtotal ?? 0)}</span>} />
+        <Row label="Status"        value={<span className="text-ok font-medium capitalize">{order.status}</span>} />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {waUrl ? (
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-ok text-white font-bold text-sm uppercase tracking-wider hover:bg-ok/90 shadow-lg shadow-ok/30 transition-colors"
+          >
+            <WhatsAppIcon />
+            Message us on WhatsApp
+          </a>
+        ) : null}
+
+        <Link to="/shop" onClick={onContinueShopping}>
+          <Button variant="ghost" size="lg" fullWidth>Continue shopping</Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-muted">{label}</span>
+      {value}
+    </div>
+  );
+}
+
+function WhatsAppIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.521.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.711.306 1.265.489 1.697.625.713.227 1.362.195 1.875.118.572-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z" />
+    </svg>
+  );
+}
+
+function buildWhatsAppMessage(order: import('../types').Order): string {
+  const lines: string[] = [];
+  lines.push(`Hi ${siteConfig.name}, I just placed order *${order.orderNumber || order.id}*.`);
+  lines.push('');
+  lines.push(`Subtotal: ${formatPrice(order.subtotal ?? 0)}`);
+  if (order.shippingAmount) lines.push(`Shipping: ${formatPrice(order.shippingAmount)}`);
+  lines.push(`*Total: ${formatPrice(order.totalAmount ?? order.subtotal ?? 0)}*`);
+  lines.push('');
+  lines.push('*Ship to*');
+  const a = order.shippingAddress;
+  lines.push(a.fullName);
+  lines.push(a.addressLine1);
+  if (a.addressLine2) lines.push(a.addressLine2);
+  lines.push([a.city, a.state, a.postalCode].filter(Boolean).join(', '));
+  lines.push(a.country);
+  lines.push(`Phone: ${a.phone}`);
+  return lines.join('\n');
 }

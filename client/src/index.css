@@ -3,41 +3,12 @@
 @tailwind utilities;
 
 /**
- * Jerseys4Ever — Sport Theme.
- * Single source of truth for all colors.
- * Values are raw RGB channels so Tailwind can apply opacity modifiers
- * via rgba(var(--token), opacityValue). To retheme: edit only this block.
+ * Jerseys4Ever — Sport Theme (dark, single-mode).
+ *
+ * Only typography lives here as a CSS variable; all colors live as hex
+ * tokens in tailwind.config.js so they're deterministic.
  */
 :root {
-  /* Backgrounds */
-  --background:     8 9 10;          /* #08090a — near-black pitch */
-  --surface:        17 18 20;        /* #111214 — cards, panels */
-  --surface-raised: 26 27 31;        /* #1a1b1f — dropdowns, tooltips */
-
-  /* Text */
-  --text-primary:   245 245 247;     /* #f5f5f7 — clean white */
-  --text-secondary: 152 152 157;     /* #98989d — muted gray */
-  --text-muted:     72 72 76;        /* #48484c — very muted */
-
-  /* Borders / Dividers */
-  --stroke:         44 44 46;        /* #2c2c2e */
-
-  /* Accent — Electric Blue (interactive, links, active states) */
-  --accent:         0 122 255;       /* #007aff */
-  --accent-light:   64 156 255;      /* #409cff — hover */
-  --accent-dark:    0 0 0;           /* foreground ON accent buttons */
-
-  /* Power — Fiery Orange (prominent CTAs, "Design Your Own") */
-  --power:          255 77 0;        /* #ff4d00 */
-  --power-light:    255 102 51;      /* #ff6633 — hover */
-  --power-dark:     0 0 0;           /* foreground ON power buttons */
-
-  /* Status */
-  --danger:         255 59 48;       /* #ff3b30 */
-  --ok:             52 199 89;       /* #34c759 */
-  --caution:        255 159 10;      /* #ff9f0a */
-
-  /* Typography */
   --font-display: 'Bebas Neue', 'Inter', sans-serif;
   --font-body:    'Inter', system-ui, sans-serif;
 }

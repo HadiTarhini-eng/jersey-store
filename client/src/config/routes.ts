@@ -8,8 +8,14 @@ export const ROUTES = {
   LOGIN:          '/login',
   REGISTER:       '/register',
   PROFILE:        '/profile',
+  ORDERS:         '/orders',
+  ORDER_DETAIL:   '/orders/:id',
+  FAVORITES:      '/favorites',
   NOT_FOUND:      '*',
 } as const;
 
 /** Build a product detail URL from a slug. */
 export const productPath = (slug: string) => `/shop/${slug}`;
+
+/** Build a customer order detail URL from an order id. */
+export const orderPath = (id: string) => `/orders/${id}`;

@@ -59,6 +59,7 @@ function adaptLegacyProduct(p: LegacyProduct): Product {
     rating:           p.rating,
     reviewCount:      p.reviewCount,
     inStock:          p.inStock,
+    originalPrice:    p.originalPrice,
     variants:         p.variants.map((v, i) => ({
       id:            `${p.id}-v${i}`,
       productId:     p.id,
@@ -181,8 +182,15 @@ export const productService = {
     }
   },
 
+  /**
+   * "Featured" historically required `featured: true`, but most of our seed
+   * data (and legacy JSON adapter) leaves that flag false, which caused the
+   * homepage's New Arrivals row to silently disappear. We now ask for newest
+   * products that match the supplied filters and ignore the featured flag,
+   * which gives a sensible feed in both backend and offline-fallback modes.
+   */
   getFeatured: async (filters: Partial<ProductFilters> = {}, limit = 4): Promise<Product[]> => {
-    const { data } = await productService.getProducts({ ...filters, featured: true }, 'newest', 1, limit);
+    const { data } = await productService.getProducts(filters, 'newest', 1, limit);
     return data;
   },
 

@@ -20,6 +20,9 @@ const CheckoutPage      = lazy(() => import('./pages/CheckoutPage').then((m) => 
 const LoginPage         = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
 const RegisterPage      = lazy(() => import('./pages/RegisterPage').then((m) => ({ default: m.RegisterPage })));
 const ProfilePage       = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const OrdersPage        = lazy(() => import('./pages/OrdersPage').then((m) => ({ default: m.OrdersPage })));
+const OrderDetailPage   = lazy(() => import('./pages/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })));
+const FavoritesPage     = lazy(() => import('./pages/FavoritesPage').then((m) => ({ default: m.FavoritesPage })));
 const NotFoundPage      = lazy(() => import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 // Admin section — own layout, sidebar, role gate
@@ -86,13 +89,23 @@ function AppRoutes() {
             <Route path={ROUTES.PRODUCT} element={<ProductDetailPage />} />
             <Route path={ROUTES.CART}    element={<CartPage />} />
 
-            <Route
-              path={ROUTES.CHECKOUT}
-              element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>}
-            />
+            {/* Guest checkout — auth is optional throughout */}
+            <Route path={ROUTES.CHECKOUT} element={<CheckoutPage />} />
             <Route
               path={ROUTES.PROFILE}
               element={<ProtectedRoute><ProfilePage /></ProtectedRoute>}
+            />
+            <Route
+              path={ROUTES.ORDERS}
+              element={<ProtectedRoute><OrdersPage /></ProtectedRoute>}
+            />
+            <Route
+              path={ROUTES.ORDER_DETAIL}
+              element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>}
+            />
+            <Route
+              path={ROUTES.FAVORITES}
+              element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>}
             />
             <Route
               path={ROUTES.LOGIN}

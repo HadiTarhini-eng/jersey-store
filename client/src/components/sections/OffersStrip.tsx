@@ -1,10 +1,28 @@
+import { useMemo } from 'react';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import type { OfferStripItem } from '../../types';
 import uiConfig from '../../data/ui-config.json';
 
-const items = uiConfig.offersStrip as OfferStripItem[];
-const looped = [...items, ...items];
-
+/**
+ * Marquee strip of promo lines shown directly under the hero. Items are
+ * sourced from the admin-managed `offer-strip` UI content slot; when the
+ * backend slot is empty (or unreachable) we fall back to the static seed
+ * list in `ui-config.json` so the UI never goes blank.
+ */
 export function OffersStrip() {
+  const { items: remote } = useUiContentSlot<{ text: string }>('offer-strip', { activeOnly: true });
+
+  const items = useMemo<OfferStripItem[]>(() => {
+    if (remote.length > 0) {
+      return remote.map((it) => ({ id: it.id, text: String(it.text ?? '').trim() }))
+                   .filter((it) => it.text.length > 0);
+    }
+    return uiConfig.offersStrip as OfferStripItem[];
+  }, [remote]);
+
+  if (items.length === 0) return null;
+  const looped = [...items, ...items];
+
   return (
     <div className="w-full bg-surface-raised border-y border-stroke/60">
       <div className="overflow-hidden" style={{ height: '40px' }}>

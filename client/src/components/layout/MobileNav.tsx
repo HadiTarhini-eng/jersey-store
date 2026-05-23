@@ -111,6 +111,18 @@ export function MobileNav({ isOpen, onClose, links, siteName: _siteName }: Mobil
                 {user?.firstName} {user?.lastName}
               </p>
               <Link
+                to="/orders"
+                className="block px-4 py-3 rounded-xl text-sm font-bold uppercase tracking-wide text-white hover:bg-white/10 transition-colors"
+              >
+                My Orders
+              </Link>
+              <Link
+                to="/favorites"
+                className="block px-4 py-3 rounded-xl text-sm font-bold uppercase tracking-wide text-white hover:bg-white/10 transition-colors"
+              >
+                Favorites
+              </Link>
+              <Link
                 to="/profile"
                 className="block px-4 py-3 rounded-xl text-sm font-bold uppercase tracking-wide text-white hover:bg-white/10 transition-colors"
               >

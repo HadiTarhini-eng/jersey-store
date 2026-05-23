@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { useFilters } from '../hooks/useFilters';
-import type { Sport, Team, UiCategory } from '../../../types';
+import { useCategories } from '../hooks/useCategories';
+import type { Sport, Team } from '../../../types';
 import sportsData     from '../../../data/sports.json';
 import teamsData      from '../../../data/teams.json';
-import categoriesData from '../../../data/categories.json';
 import uiConfig       from '../../../data/ui-config.json';
 
 /** Sidebar filter panel — collapses to a modal trigger on mobile. */
@@ -12,9 +12,9 @@ export function ProductFilters() {
   const { filters, sort, setFilter, clearFilters, setSort, activeFilterCount } = useFilters();
   const [isMobileOpen, setMobileOpen] = useState(false);
 
-  const sports     = sportsData     as Sport[];
-  const teams      = teamsData      as Team[];
-  const categories = categoriesData as UiCategory[];
+  const sports = sportsData as Sport[];
+  const teams  = teamsData  as Team[];
+  const { categories } = useCategories();
 
   // Only show teams for the selected sport
   const visibleTeams = filters.sport
@@ -22,6 +22,9 @@ export function ProductFilters() {
     : teams;
 
   const { priceRange, sortOptions } = uiConfig.filters;
+  const optionClass = 'w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-white transition-colors';
+  const activeOptionClass = 'bg-accent text-black font-bold shadow-lg shadow-accent/30';
+  const idleOptionClass = 'hover:bg-white/10';
 
   const FilterContent = () => (
     <div className="space-y-6">
@@ -33,10 +36,10 @@ export function ProductFilters() {
               key={opt.value}
               onClick={() => setSort(opt.value as any)}
               className={[
-                'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                optionClass,
                 sort === opt.value
-                  ? 'bg-accent/10 text-accent font-medium'
-                  : 'text-secondary hover:text-primary hover:bg-surface-raised',
+                  ? activeOptionClass
+                  : idleOptionClass,
               ].join(' ')}
             >
               {opt.label}
@@ -53,10 +56,10 @@ export function ProductFilters() {
               key={sport.id}
               onClick={() => setFilter('sport', filters.sport === sport.id ? undefined : sport.id)}
               className={[
-                'w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
+                `${optionClass} flex items-center gap-2.5`,
                 filters.sport === sport.id
-                  ? 'bg-accent/10 text-accent font-medium'
-                  : 'text-secondary hover:text-primary hover:bg-surface-raised',
+                  ? activeOptionClass
+                  : idleOptionClass,
               ].join(' ')}
             >
               <span>{sport.icon}</span>
@@ -74,10 +77,10 @@ export function ProductFilters() {
               key={cat.id}
               onClick={() => setFilter('categoryId', filters.categoryId === cat.id ? undefined : cat.id)}
               className={[
-                'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                optionClass,
                 filters.categoryId === cat.id
-                  ? 'bg-accent/10 text-accent font-medium'
-                  : 'text-secondary hover:text-primary hover:bg-surface-raised',
+                  ? activeOptionClass
+                  : idleOptionClass,
               ].join(' ')}
             >
               {cat.name}
@@ -95,10 +98,10 @@ export function ProductFilters() {
                 key={team.id}
                 onClick={() => setFilter('team', filters.team === team.id ? undefined : team.id)}
                 className={[
-                  'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                  optionClass,
                   filters.team === team.id
-                    ? 'bg-accent/10 text-accent font-medium'
-                    : 'text-secondary hover:text-primary hover:bg-surface-raised',
+                    ? activeOptionClass
+                    : idleOptionClass,
                 ].join(' ')}
               >
                 {team.name}
@@ -110,28 +113,24 @@ export function ProductFilters() {
 
       {/* Price range */}
       <FilterSection title="Price Range">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min={priceRange.min}
-              max={filters.maxPrice ?? priceRange.max}
-              value={filters.minPrice ?? priceRange.min}
-              onChange={(e) => setFilter('minPrice', e.target.value || undefined)}
-              placeholder="Min"
-              className="w-full px-3 py-2 rounded-lg bg-surface-raised border border-stroke text-primary text-sm outline-none focus:border-accent"
-            />
-            <span className="text-muted text-sm shrink-0">to</span>
-            <input
-              type="number"
-              min={filters.minPrice ?? priceRange.min}
-              max={priceRange.max}
-              value={filters.maxPrice ?? priceRange.max}
-              onChange={(e) => setFilter('maxPrice', e.target.value || undefined)}
-              placeholder="Max"
-              className="w-full px-3 py-2 rounded-lg bg-surface-raised border border-stroke text-primary text-sm outline-none focus:border-accent"
-            />
-          </div>
+        <div className="flex items-stretch gap-2">
+          <PriceInput
+            label="Min"
+            value={filters.minPrice ?? ''}
+            onChange={(val) => setFilter('minPrice', val || undefined)}
+            min={priceRange.min}
+            max={filters.maxPrice ?? priceRange.max}
+            placeholder={String(priceRange.min)}
+          />
+          <span className="self-center text-white/40 text-xs font-bold tracking-widest uppercase">to</span>
+          <PriceInput
+            label="Max"
+            value={filters.maxPrice ?? ''}
+            onChange={(val) => setFilter('maxPrice', val || undefined)}
+            min={filters.minPrice ?? priceRange.min}
+            max={priceRange.max}
+            placeholder={String(priceRange.max)}
+          />
         </div>
       </FilterSection>
 
@@ -154,7 +153,7 @@ export function ProductFilters() {
               filters.inStock ? 'translate-x-4' : '',
             ].join(' ')} />
           </div>
-          <span className="text-sm text-secondary group-hover:text-primary transition-colors">
+          <span className="text-sm font-bold text-white group-hover:text-white transition-colors">
             In stock only
           </span>
         </label>
@@ -190,10 +189,10 @@ export function ProductFilters() {
         {isMobileOpen && (
           <div className="fixed inset-0 z-50 flex lg:hidden">
             <div className="absolute inset-0 bg-background/90" onClick={() => setMobileOpen(false)} />
-            <aside className="relative ml-auto w-80 max-w-[90vw] h-full bg-surface-raised border-l border-stroke overflow-y-auto animate-slide-in-right">
-              <div className="sticky top-0 bg-surface border-b border-stroke px-5 py-4 flex items-center justify-between">
-                <h2 className="font-semibold text-primary">Filters</h2>
-                <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-raised">
+            <aside className="relative ml-auto w-80 max-w-[90vw] h-full bg-black border-l border-white/10 overflow-y-auto animate-slide-in-right">
+              <div className="sticky top-0 bg-black border-b border-white/10 px-5 py-4 flex items-center justify-between">
+                <h2 className="font-bold text-white uppercase tracking-wider">Filters</h2>
+                <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -207,8 +206,8 @@ export function ProductFilters() {
 
       {/* Desktop sidebar */}
       <aside className="hidden lg:block w-60 shrink-0">
-        <div className="sticky top-24">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted mb-5">Filters</h2>
+        <div className="sticky top-24 bg-black rounded-2xl border border-white/10 px-5 py-5">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white mb-5">Filters</h2>
           <FilterContent />
         </div>
       </aside>
@@ -216,20 +215,52 @@ export function ProductFilters() {
   );
 }
 
+function PriceInput({
+  label, value, onChange, min, max, placeholder,
+}: {
+  label:       string;
+  value:       number | '';
+  onChange:    (val: string) => void;
+  min:         number;
+  max:         number;
+  placeholder: string;
+}) {
+  return (
+    <label className="flex-1 relative group">
+      <span className="absolute -top-2 left-3 px-1 text-[9px] font-bold uppercase tracking-widest text-white/50 bg-black z-10">
+        {label}
+      </span>
+      <div className="flex items-center rounded-lg border border-white/15 bg-white/[0.04] focus-within:border-accent focus-within:bg-white/[0.06] focus-within:shadow-[0_0_0_3px_rgba(0,122,255,0.18)] transition-colors">
+        <span className="pl-3 text-white/40 text-sm font-bold select-none">$</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-full bg-transparent px-2 py-2.5 text-white font-bold text-sm outline-none placeholder:text-white/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+      </div>
+    </label>
+  );
+}
+
 function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <div className="border-b border-stroke pb-5">
+    <div className="border-b border-white/10 pb-5">
       <button
         onClick={() => setIsOpen((v) => !v)}
         className="flex items-center justify-between w-full mb-3 group"
       >
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted group-hover:text-primary transition-colors">
+        <span className="text-xs font-bold uppercase tracking-widest text-white group-hover:text-white transition-colors">
           {title}
         </span>
         <svg
-          className={`w-3.5 h-3.5 text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 text-white/70 transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />

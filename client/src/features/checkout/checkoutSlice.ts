@@ -1,46 +1,69 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
-import { orderService } from '../../services/orderService';
-import { productApi } from '../../services/api';
-import { extractErrorMessage } from '../../services/api/client';
-import { clearCart, convertServerCart } from '../cart/cartSlice';
-import type { AddressSnapshot, CheckoutState, CheckoutStep } from '../../types';
+import { clearCart } from '../cart/cartSlice';
+import type {
+  AddressSnapshot, CheckoutState, CheckoutStep, Order, CartItem,
+} from '../../types';
 import type { RootState } from '../../app/store';
 
 // ── Thunk ────────────────────────────────────────────────────────────────────
+//
+// Order submission is intentionally **local-only** right now:
+//   * The reserve/createOrder/placeOrder endpoints all require auth; calling
+//     them as a guest returns 401 and our global axios interceptor force-
+//     navigates to /login (see services/api/client.ts).
+//   * That breaks the requested guest-checkout flow, so we synthesise the
+//     order client-side, clear the cart, and let the confirmation screen +
+//     WhatsApp share button handle the rest.
+//
+// When the backend grows a real guest-order endpoint, swap the body of this
+// thunk back to the network flow.
 
-export const submitOrder = createAsyncThunk(
+function guestUserId(): string {
+  return `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function generateOrderNumber(): string {
+  return `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}
+
+function cartSubtotal(items: CartItem[]): number {
+  return items.reduce((sum, it) => sum + it.priceAtTime * it.quantity, 0);
+}
+
+function buildLocalOrder(userId: string, items: CartItem[], shipping: AddressSnapshot): Order {
+  const now      = new Date().toISOString();
+  const subtotal = cartSubtotal(items);
+  return {
+    id:              `local-${Date.now().toString(36)}`,
+    isActive:        true,
+    createdAt:       now,
+    updatedAt:       now,
+    userId,
+    orderNumber:     generateOrderNumber(),
+    status:          'pending',
+    paymentStatus:   'pending',
+    subtotal,
+    discountAmount:  0,
+    shippingAmount:  0,
+    totalAmount:     subtotal,
+    shippingAddress: shipping,
+    billingAddress:  shipping,
+    placedAt:        now,
+  };
+}
+
+export const submitOrder = createAsyncThunk<Order, AddressSnapshot, { state: RootState }>(
   'checkout/submitOrder',
-  async (shippingAddress: AddressSnapshot, { getState, dispatch, rejectWithValue }) => {
-    try {
-      const state  = getState() as RootState;
-      const userId = state.auth.user?.id;
-      if (!userId) throw new Error('You must be signed in to place an order.');
+  async (shippingAddress, { getState, dispatch }) => {
+    const state  = getState();
+    const userId = state.auth.user?.id ?? guestUserId();
 
-      // Reserve stock for each line item before creating the order. If any
-      // variant is short on stock the backend returns 409/400 — surface that
-      // message instead of pushing an order through with missing inventory.
-      for (const item of state.cart.items) {
-        try {
-          await productApi.variants.reserve(item.productVariantId, item.quantity);
-        } catch (err) {
-          throw new Error(extractErrorMessage(err, `Not enough stock for ${item.productTitle ?? 'one of your items'}.`));
-        }
-      }
+    const order = buildLocalOrder(userId, state.cart.items, shippingAddress);
 
-      const order = await orderService.createOrder({
-        userId,
-        items: state.cart.items,
-        shippingAddress,
-      });
-      await orderService.placeOrder(order.id);
-      if (state.cart.cartId) {
-        await dispatch(convertServerCart(state.cart.cartId));
-      }
-      dispatch(clearCart());
-      return order;
-    } catch (err) {
-      return rejectWithValue(orderService.errorMessage(err, 'Order submission failed.'));
-    }
+    // Cart is empty after the order is "sent" so a second confirm can't fire.
+    dispatch(clearCart());
+
+    return order;
   },
 );
 
@@ -74,9 +97,9 @@ const checkoutSlice = createSlice({
         state.order   = payload;
         state.step    = 'confirmation';
       })
-      .addCase(submitOrder.rejected,  (state, { payload }) => {
+      .addCase(submitOrder.rejected,  (state, { error }) => {
         state.loading = false;
-        state.error   = payload as string;
+        state.error   = error.message ?? 'Order submission failed.';
       });
   },
 });

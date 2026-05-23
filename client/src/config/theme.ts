@@ -63,6 +63,19 @@ export const theme = {
     'transition-all duration-300',
   ].join(' '),
 
+  /**
+   * Elevated, border-less card — used by product cards and any other surface
+   * that should feel like it's floating off the page. Resting shadow gives
+   * depth; hover deepens the shadow and lifts the card slightly.
+   */
+  cardElevated: [
+    'bg-surface rounded-2xl',
+    'shadow-[0_4px_20px_rgba(0,0,0,0.45)]',
+    'hover:shadow-[0_18px_40px_rgba(0,0,0,0.65)]',
+    'hover:-translate-y-1',
+    'transition-all duration-300 ease-out',
+  ].join(' '),
+
   /** Form input */
   input: [
     'w-full px-4 py-3 rounded-xl',

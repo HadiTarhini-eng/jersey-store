@@ -138,11 +138,13 @@ export interface Product extends BusinessEntity {
   createdBy:         Guid;
 
   // ── Optional UI-only enrichments (populated by service layer or future endpoint) ──
-  images?:      string[];
-  variants?:    ProductVariant[];
-  rating?:      number;
-  reviewCount?: number;
-  inStock?:     boolean;
+  images?:        string[];
+  variants?:      ProductVariant[];
+  rating?:        number;
+  reviewCount?:   number;
+  inStock?:       boolean;
+  /** Compare-at price for "SALE" chip + struck-through display when set. */
+  originalPrice?: number;
 }
 
 export interface CreateProductPayload {
@@ -551,7 +553,7 @@ export type UpdateShippingMethodPayload = Partial<CreateShippingMethodPayload> &
 
 // ── UI content (CMS) ────────────────────────────────────────────────────────
 
-export type UiContentSlot = 'hero-slide' | 'offer-banner' | 'sport' | 'team' | 'kit-category';
+export type UiContentSlot = 'hero-slide' | 'offer-banner' | 'sport' | 'team' | 'kit-category' | 'offer-strip';
 
 export interface UiContentItem<TPayload extends Record<string, unknown> = Record<string, unknown>> extends BusinessEntity {
   slot:      UiContentSlot;

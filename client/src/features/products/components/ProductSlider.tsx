@@ -1,5 +1,5 @@
 import React from 'react';
-import { ProductSliderCard } from './ProductSliderCard';
+import { ProductCard } from './ProductCard';
 import type { Product } from '../../../types';
 
 interface ProductSliderProps {
@@ -51,7 +51,7 @@ export function ProductSlider({ products }: ProductSliderProps) {
             key={product.id}
             className="shrink-0 snap-start w-[calc(50%_-_8px)] md:w-[calc(33.33%_-_11px)] lg:w-[calc(25%_-_12px)]"
           >
-            <ProductSliderCard product={product} />
+            <ProductCard product={product} />
           </div>
         ))}
       </div>

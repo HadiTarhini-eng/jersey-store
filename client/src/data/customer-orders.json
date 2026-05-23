@@ -1,0 +1,160 @@
+[
+  {
+    "id": "cust-ord-001",
+    "orderNumber": "ORD-58213",
+    "items": [
+      {
+        "productId": "prod-001",
+        "name": "Real Madrid Home Jersey 2024/25",
+        "image": "https://images.unsplash.com/photo-1602992708529-c9fdb12905c9?auto=format&fit=crop&w=400&q=80",
+        "size": "M",
+        "quantity": 1,
+        "price": 129.99
+      }
+    ],
+    "subtotal": 129.99,
+    "shipping": 9.99,
+    "total": 139.98,
+    "status": "shipped",
+    "paymentStatus": "paid",
+    "shippingAddress": {
+      "fullName": "Alex Miller",
+      "phone": "+1 415 555 0184",
+      "addressLine1": "1842 Mission St",
+      "city": "San Francisco",
+      "state": "CA",
+      "country": "USA",
+      "postalCode": "94103"
+    },
+    "createdAt": "2026-05-12T13:14:00Z",
+    "estimatedDelivery": "2026-05-20T00:00:00Z"
+  },
+  {
+    "id": "cust-ord-002",
+    "orderNumber": "ORD-58198",
+    "items": [
+      {
+        "productId": "prod-001",
+        "name": "Real Madrid Home Jersey 2024/25",
+        "image": "https://images.unsplash.com/photo-1602992708529-c9fdb12905c9?auto=format&fit=crop&w=400&q=80",
+        "size": "L",
+        "quantity": 1,
+        "price": 129.99
+      },
+      {
+        "productId": "prod-006",
+        "name": "LA Lakers Classic Hoodie",
+        "image": "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=400&q=80",
+        "size": "M",
+        "quantity": 1,
+        "price": 79.99
+      }
+    ],
+    "subtotal": 209.98,
+    "shipping": 0,
+    "total": 209.98,
+    "status": "delivered",
+    "paymentStatus": "paid",
+    "shippingAddress": {
+      "fullName": "Alex Miller",
+      "phone": "+1 415 555 0184",
+      "addressLine1": "1842 Mission St",
+      "city": "San Francisco",
+      "state": "CA",
+      "country": "USA",
+      "postalCode": "94103"
+    },
+    "createdAt": "2026-04-28T16:42:00Z",
+    "estimatedDelivery": "2026-05-05T00:00:00Z"
+  },
+  {
+    "id": "cust-ord-003",
+    "orderNumber": "ORD-58180",
+    "items": [
+      {
+        "productId": "prod-004",
+        "name": "PSG x Jordan Limited Edition",
+        "image": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=400&q=80",
+        "size": "L",
+        "quantity": 1,
+        "price": 199.99
+      }
+    ],
+    "subtotal": 199.99,
+    "shipping": 9.99,
+    "total": 209.98,
+    "status": "processing",
+    "paymentStatus": "paid",
+    "shippingAddress": {
+      "fullName": "Alex Miller",
+      "phone": "+1 415 555 0184",
+      "addressLine1": "1842 Mission St",
+      "city": "San Francisco",
+      "state": "CA",
+      "country": "USA",
+      "postalCode": "94103"
+    },
+    "createdAt": "2026-05-16T09:11:00Z",
+    "estimatedDelivery": "2026-05-24T00:00:00Z"
+  },
+  {
+    "id": "cust-ord-004",
+    "orderNumber": "ORD-58145",
+    "items": [
+      {
+        "productId": "prod-005",
+        "name": "Ferrari F1 Team Polo",
+        "image": "https://images.unsplash.com/photo-1591195853828-11db59a44f6b?auto=format&fit=crop&w=400&q=80",
+        "size": "M",
+        "quantity": 2,
+        "price": 89.99
+      }
+    ],
+    "subtotal": 179.98,
+    "shipping": 9.99,
+    "total": 189.97,
+    "status": "delivered",
+    "paymentStatus": "paid",
+    "shippingAddress": {
+      "fullName": "Alex Miller",
+      "phone": "+1 415 555 0184",
+      "addressLine1": "1842 Mission St",
+      "city": "San Francisco",
+      "state": "CA",
+      "country": "USA",
+      "postalCode": "94103"
+    },
+    "createdAt": "2026-03-19T11:24:00Z",
+    "estimatedDelivery": "2026-03-26T00:00:00Z"
+  },
+  {
+    "id": "cust-ord-005",
+    "orderNumber": "ORD-58102",
+    "items": [
+      {
+        "productId": "prod-002",
+        "name": "FC Barcelona Away Jersey 2024/25",
+        "image": "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=400&q=80",
+        "size": "S",
+        "quantity": 1,
+        "price": 124.99
+      }
+    ],
+    "subtotal": 124.99,
+    "shipping": 9.99,
+    "total": 134.98,
+    "status": "cancelled",
+    "paymentStatus": "refunded",
+    "shippingAddress": {
+      "fullName": "Alex Miller",
+      "phone": "+1 415 555 0184",
+      "addressLine1": "1842 Mission St",
+      "city": "San Francisco",
+      "state": "CA",
+      "country": "USA",
+      "postalCode": "94103"
+    },
+    "createdAt": "2026-02-10T08:01:00Z",
+    "estimatedDelivery": "2026-02-18T00:00:00Z"
+  }
+]

@@ -5,6 +5,7 @@ import { useToast } from '../../../components/ui/Toast';
 import { StarRating } from '../../../components/ui/StarRating';
 import { ImageLightbox } from '../../../components/ui/ImageLightbox';
 import { useWishlist } from '../../wishlist/useWishlist';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { decodeProductTags } from '../lib/productMeta';
 import { formatPrice, discountPercent } from '../../../utils/formatters';
 import type { Attachment, Product, ProductVariant, SpecialOffer } from '../../../types';
@@ -63,10 +64,13 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
 
   const [quantity, setQuantity]         = useState(1);
   const [variantError, setVariantError] = useState(false);
+  /** Flips on briefly after Add-to-Cart so the button can flash blue → black. */
+  const [flashing, setFlashing] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
 
+  const { isAuthenticated } = useAuth();
   const { isWishlisted, toggle: toggleWishlist } = useWishlist(product.id);
 
   const selectedVariant = variants.find((v) => v.id === selectedVariantId);
@@ -92,6 +96,11 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
   const handleAddToCart = () => {
     if (!selectedVariant) {
       setVariantError(true);
+      toast.push({
+        variant: 'warning',
+        title:   'Pick a size',
+        message: 'Select a size before adding this item to your cart.',
+      });
       return;
     }
     const now = new Date().toISOString();
@@ -114,6 +123,9 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
       title:   'Added to cart',
       message: `${product.title} (${variantSize(selectedVariant, product.slug)}) × ${quantity}`,
     });
+    // Brief blue flash on the Add-to-Cart button as visual feedback.
+    setFlashing(true);
+    window.setTimeout(() => setFlashing(false), 450);
   };
 
   const stockLine =
@@ -165,6 +177,23 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
           <p className="text-secondary text-sm leading-relaxed">{description}</p>
         )}
 
+        {/* Specs — rendered as a plain always-expanded section, above sizes. */}
+        {specs.length > 0 && (
+          <section aria-labelledby="specs-heading" className="space-y-3">
+            <h2 id="specs-heading" className="text-xs font-bold uppercase tracking-widest text-muted">
+              Specifications
+            </h2>
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+              {specs.map((s) => (
+                <div key={s.id} className="contents">
+                  <dt className="text-muted uppercase tracking-widest text-[11px] self-center">{s.label}</dt>
+                  <dd className="text-secondary">{s.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
+
         {variants.length > 0 && (
           <VariantSelector
             variants={variants}
@@ -184,10 +213,11 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
           quantity={quantity}
           maxQty={maxQty}
           inStock={inStock}
+          flashing={flashing}
           onQuantityChange={setQuantity}
           onAddToCart={handleAddToCart}
-          isWishlisted={isWishlisted}
-          onToggleWishlist={toggleWishlist}
+          isWishlisted={isAuthenticated ? isWishlisted : undefined}
+          onToggleWishlist={isAuthenticated ? toggleWishlist : undefined}
         />
 
         <ShippingPreview />
@@ -197,19 +227,6 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
             <ul className="list-disc list-inside text-sm text-secondary space-y-1">
               {meta.features.map((f) => <li key={f}>{f}</li>)}
             </ul>
-          </DetailAccordion>
-        )}
-
-        {specs.length > 0 && (
-          <DetailAccordion title="Specifications">
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-              {specs.map((s) => (
-                <div key={s.id} className="contents">
-                  <dt className="text-muted uppercase tracking-widest text-[11px] self-center">{s.label}</dt>
-                  <dd className="text-secondary">{s.value}</dd>
-                </div>
-              ))}
-            </dl>
           </DetailAccordion>
         )}
 
@@ -397,7 +414,7 @@ function VariantSelector({
                 out
                   ? 'border-stroke text-muted opacity-40 cursor-not-allowed line-through'
                   : selected
-                  ? 'border-accent bg-accent/10 text-primary ring-2 ring-accent/40'
+                  ? 'border-accent bg-accent text-white shadow-lg shadow-accent/30'
                   : 'border-stroke text-secondary hover:border-white hover:text-white',
               ].join(' ')}
             >
@@ -411,15 +428,19 @@ function VariantSelector({
 }
 
 function BuyPanel({
-  quantity, maxQty, inStock, onQuantityChange, onAddToCart,
+  quantity, maxQty, inStock, flashing = false, onQuantityChange, onAddToCart,
   isWishlisted, onToggleWishlist,
 }: {
   quantity: number; maxQty: number; inStock: boolean;
+  /** When true, the Add-to-Cart button is briefly painted blue. */
+  flashing?: boolean;
   onQuantityChange: (n: number) => void;
   onAddToCart: () => void;
-  isWishlisted: boolean;
-  onToggleWishlist: () => void;
+  /** When undefined, the wishlist button is hidden (e.g. signed-out users). */
+  isWishlisted?: boolean;
+  onToggleWishlist?: () => void;
 }) {
+  const showWishlist = onToggleWishlist !== undefined;
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
       <div className="flex items-center border border-stroke rounded-xl overflow-hidden self-start sm:self-stretch">
@@ -449,33 +470,36 @@ function BuyPanel({
         className={[
           'flex-1 flex items-center justify-center gap-2',
           'px-5 py-3 rounded-xl',
-          'bg-black text-white font-bold text-sm tracking-wider uppercase',
-          'border-2 border-white',
-          'hover:bg-accent hover:border-accent',
-          'active:scale-[0.98] transition-colors duration-200',
-          'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-black disabled:hover:border-white',
+          'text-white font-bold text-sm tracking-wider uppercase',
+          'border-2',
+          'transition-colors duration-300 ease-out',
+          // Flash blue on click, settle back to black after ~450ms.
+          flashing ? 'bg-accent border-accent' : 'bg-black border-white',
+          'disabled:opacity-50 disabled:cursor-not-allowed',
           'focus-accent',
         ].join(' ')}
       >
         {inStock ? 'Add to Cart' : 'Out of Stock'}
       </button>
 
-      <button
-        type="button"
-        onClick={onToggleWishlist}
-        aria-pressed={isWishlisted}
-        aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-        className={[
-          'shrink-0 sm:w-12 sm:h-auto h-12 flex items-center justify-center rounded-xl border-2 transition-colors focus-accent',
-          isWishlisted
-            ? 'bg-accent/10 border-accent text-accent'
-            : 'border-stroke text-secondary hover:border-accent hover:text-accent',
-        ].join(' ')}
-      >
-        <svg className="w-5 h-5" fill={isWishlisted ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
-        </svg>
-      </button>
+      {showWishlist && (
+        <button
+          type="button"
+          onClick={onToggleWishlist}
+          aria-pressed={isWishlisted}
+          aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+          className={[
+            'shrink-0 sm:w-12 sm:h-auto h-12 flex items-center justify-center rounded-xl border-2 transition-colors focus-accent',
+            isWishlisted
+              ? 'bg-accent/10 border-accent text-accent'
+              : 'border-stroke text-secondary hover:border-accent hover:text-accent',
+          ].join(' ')}
+        >
+          <svg className="w-5 h-5" fill={isWishlisted ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

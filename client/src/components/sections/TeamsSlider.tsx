@@ -1,19 +1,96 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from '../../config/theme';
 import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import type { Team } from '../../types';
 
 /**
- * Commercial-style sliding marquee of team crests. No names, no labels —
- * the badges speak for themselves. Hover pauses the scroll (via the
- * `.marquee-track:hover` rule in index.css) so users can click a crest.
+ * Sliding strip of team crests. Auto-scrolls indefinitely (rAF-driven so it
+ * cooperates with native horizontal scroll), yet the user can also drag /
+ * swipe to scrub through teams. Auto-scroll briefly pauses while the user
+ * interacts, then resumes from wherever they left off.
  */
 export function TeamsSlider() {
   const { items: teams } = useUiContentSlot<Omit<Team, 'id'>>('team', { activeOnly: true });
-  // Duplicate the array so the marquee can loop seamlessly without a snap.
-  const looped = [...teams, ...teams];
-  const scrollDuration = Math.max(20, teams.length * 3);
+  // Triple the array so wherever scrollLeft sits, badges still flow on both sides.
+  const looped = useMemo(() => [...teams, ...teams, ...teams], [teams]);
+
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  /** Auto-scroll runs unless the user is actively interacting. */
+  const userInteractingRef = useRef(false);
+  const resumeTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el || teams.length === 0) return;
+
+    let rafId  = 0;
+    let lastTs = performance.now();
+    const PX_PER_SEC = 35;
+
+    // Park scroll in the middle copy so we have room to wrap forwards and backwards.
+    const setSegment = () => {
+      const segment = el.scrollWidth / 3;
+      if (segment > 0 && el.scrollLeft < segment * 0.5) {
+        el.scrollLeft = segment;
+      }
+    };
+    setSegment();
+
+    const tick = (ts: number) => {
+      const dt = (ts - lastTs) / 1000;
+      lastTs = ts;
+      if (!userInteractingRef.current) {
+        el.scrollLeft += PX_PER_SEC * dt;
+      }
+      // Wrap when we drift past the second copy.
+      const segment = el.scrollWidth / 3;
+      if (segment > 0) {
+        if (el.scrollLeft >= segment * 2) el.scrollLeft -= segment;
+        else if (el.scrollLeft <= segment * 0.5) el.scrollLeft += segment;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    };
+  }, [teams.length]);
+
+  const pauseAndResume = () => {
+    userInteractingRef.current = true;
+    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    resumeTimerRef.current = setTimeout(() => {
+      userInteractingRef.current = false;
+    }, 800);
+  };
+
+  // Pointer drag-to-scrub
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ x: number; scrollLeft: number } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    userInteractingRef.current = true;
+    dragStartRef.current = { x: e.clientX, scrollLeft: el.scrollLeft };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = trackRef.current;
+    if (!el || !dragStartRef.current) return;
+    el.scrollLeft = dragStartRef.current.scrollLeft - (e.clientX - dragStartRef.current.x);
+  };
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = trackRef.current;
+    if (el && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    setIsDragging(false);
+    dragStartRef.current = null;
+    pauseAndResume();
+  };
 
   return (
     <section className="py-6 md:py-8 w-full">
@@ -22,7 +99,6 @@ export function TeamsSlider() {
         <p className={theme.sectionSubtitle}>Every crest tells its own story</p>
       </div>
 
-      {/* Marquee track — edges fade out so badges enter/exit gracefully */}
       <div
         className="w-full overflow-hidden relative"
         style={{
@@ -33,11 +109,22 @@ export function TeamsSlider() {
         }}
       >
         <div
-          className="marquee-track items-center gap-6 md:gap-10 py-2 will-change-transform"
-          style={{ animationDuration: `${scrollDuration}s`, animationPlayState: 'running' }}
+          ref={trackRef}
+          onWheel={pauseAndResume}
+          onTouchStart={pauseAndResume}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          className={[
+            'flex items-center gap-6 md:gap-10 py-2 overflow-x-auto hide-scrollbar',
+            'will-change-scroll',
+            isDragging ? 'cursor-grabbing select-none' : 'cursor-grab',
+          ].join(' ')}
+          style={{ scrollSnapType: 'none' }}
         >
           {looped.map((team, idx) => (
-            <TeamBadge key={`${team.id}-${idx}`} team={team} />
+            <TeamBadge key={`${team.id}-${idx}`} team={team} draggable={isDragging} />
           ))}
         </div>
       </div>
@@ -45,19 +132,22 @@ export function TeamsSlider() {
   );
 }
 
-function TeamBadge({ team }: { team: Team }) {
+function TeamBadge({ team, draggable }: { team: Team; draggable: boolean }) {
   const sources = useMemo(() => getBadgeSources(team.logo), [team.logo]);
   const [sourceIndex, setSourceIndex] = useState(0);
   const hasImage = sourceIndex < sources.length;
 
-  const handleImageError = () => {
-    setSourceIndex((current) => current + 1);
-  };
+  const handleImageError = () => setSourceIndex((c) => c + 1);
+
+  // While dragging, swallow the click so the user doesn't get yanked to a team page.
+  const onClick = (e: React.MouseEvent) => { if (draggable) e.preventDefault(); };
 
   return (
     <Link
       to={`/shop?team=${team.slug}`}
       aria-label={team.name}
+      onClick={onClick}
+      onDragStart={(e) => e.preventDefault()}
       className="shrink-0 group"
     >
       <div
@@ -76,7 +166,7 @@ function TeamBadge({ team }: { team: Team }) {
             loading="lazy"
             draggable={false}
             referrerPolicy="no-referrer"
-            className="w-11 h-11 md:w-14 md:h-14 object-contain drop-shadow"
+            className="w-11 h-11 md:w-14 md:h-14 object-contain drop-shadow pointer-events-none"
             onError={handleImageError}
           />
         ) : (
@@ -100,12 +190,11 @@ function getBadgeSources(logo: string) {
 }
 
 function toOriginalWikimediaAsset(url: string) {
-  if(url == null || url === undefined) return null;
-  
+  if (url == null || url === undefined) return null;
+
   const match = url.match(
     /^https:\/\/upload\.wikimedia\.org\/wikipedia\/([^/]+)\/thumb\/(.+?)\/\d+px-[^/]+$/,
   );
-  
   if (!match) return null;
 
   const [, bucket, assetPath] = match;
