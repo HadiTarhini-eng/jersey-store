@@ -1,5 +1,10 @@
 import { BaseEntity, type BusinessEntity, type BusinessEntityPayload } from './base.js'
 
+export interface SortOptionConfig {
+  value: string
+  label: string
+}
+
 export interface SiteConfigEntity extends BusinessEntity {
   slug: string
   name: string
@@ -11,6 +16,14 @@ export interface SiteConfigEntity extends BusinessEntity {
   currency: string
   freeShippingThreshold: number
   socialLinks: Record<string, string>
+  heroDesignYourOwnLabel?: string | null
+  heroDesignYourOwnHref?: string | null
+  filterMinPrice: number
+  filterMaxPrice: number
+  sortOptions: SortOptionConfig[]
+  cartEmptyMessage?: string | null
+  cartEmptyCtaLabel?: string | null
+  cartEmptyCtaHref?: string | null
 }
 
 export type SiteConfigPayload = BusinessEntityPayload & Omit<SiteConfigEntity, keyof BusinessEntity>
@@ -26,6 +39,14 @@ export class SiteConfig extends BaseEntity implements SiteConfigEntity {
   currency: string
   freeShippingThreshold: number
   socialLinks: Record<string, string>
+  heroDesignYourOwnLabel?: string | null
+  heroDesignYourOwnHref?: string | null
+  filterMinPrice: number
+  filterMaxPrice: number
+  sortOptions: SortOptionConfig[]
+  cartEmptyMessage?: string | null
+  cartEmptyCtaLabel?: string | null
+  cartEmptyCtaHref?: string | null
 
   constructor(payload: SiteConfigPayload) {
     super(payload)
@@ -39,6 +60,14 @@ export class SiteConfig extends BaseEntity implements SiteConfigEntity {
     this.currency = payload.currency
     this.freeShippingThreshold = payload.freeShippingThreshold ?? 0
     this.socialLinks = payload.socialLinks ?? {}
+    this.heroDesignYourOwnLabel = payload.heroDesignYourOwnLabel ?? null
+    this.heroDesignYourOwnHref = payload.heroDesignYourOwnHref ?? null
+    this.filterMinPrice = payload.filterMinPrice ?? 0
+    this.filterMaxPrice = payload.filterMaxPrice ?? 1000
+    this.sortOptions = payload.sortOptions ?? []
+    this.cartEmptyMessage = payload.cartEmptyMessage ?? null
+    this.cartEmptyCtaLabel = payload.cartEmptyCtaLabel ?? null
+    this.cartEmptyCtaHref = payload.cartEmptyCtaHref ?? null
   }
 }
 

@@ -5,6 +5,11 @@ const IdParams = Type.Object({ id: Type.String() })
 
 // ── Site config ──────────────────────────────────────────────────────────────
 
+const SortOption = Type.Object({
+  value: Type.String({ minLength: 1 }),
+  label: Type.String({ minLength: 1 }),
+})
+
 const UpdateSiteConfigBody = Type.Partial(Type.Object({
   name: Type.String({ minLength: 1 }),
   tagline: Type.Union([Type.String(), Type.Null()]),
@@ -14,6 +19,14 @@ const UpdateSiteConfigBody = Type.Partial(Type.Object({
   currency: Type.String({ minLength: 1, maxLength: 8 }),
   freeShippingThreshold: Type.Number({ minimum: 0 }),
   socialLinks: Type.Record(Type.String(), Type.String()),
+  heroDesignYourOwnLabel: Type.Union([Type.String(), Type.Null()]),
+  heroDesignYourOwnHref: Type.Union([Type.String(), Type.Null()]),
+  filterMinPrice: Type.Number({ minimum: 0 }),
+  filterMaxPrice: Type.Number({ minimum: 0 }),
+  sortOptions: Type.Array(SortOption),
+  cartEmptyMessage: Type.Union([Type.String(), Type.Null()]),
+  cartEmptyCtaLabel: Type.Union([Type.String(), Type.Null()]),
+  cartEmptyCtaHref: Type.Union([Type.String(), Type.Null()]),
 }))
 export type UpdateSiteConfigBodyType = Static<typeof UpdateSiteConfigBody>
 

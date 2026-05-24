@@ -1,15 +1,21 @@
 /**
- * Customer-facing order history service.
+ * Customer-facing order history service. Backed by the real /orders API:
+ *   - list(userId)            → GET /users/:userId/orders + items per order
+ *   - findById(id)            → GET /orders/:id            + items for that order
  *
- * ⚠️ FRONT-END ONLY for now. Reads from src/data/customer-orders.json so
- * the UI can be built and demo'd before the backend exposes a customer-
- * facing orders endpoint. When the backend lands (e.g. GET /orders/me,
- * GET /orders/:id), swap the body of these functions to call the API
- * — the return types are already in their final shape.
+ * Maps the backend `Order` + `OrderItem` shapes into the flatter
+ * `CustomerOrder` shape the storefront's Orders / Order Detail pages
+ * already consume.
  */
 
-import customerOrdersSeed from '../data/customer-orders.json';
-import type { AddressSnapshot, OrderStatus, PaymentStatus } from '../types';
+import { orderApi } from './api';
+import type {
+  AddressSnapshot,
+  Order,
+  OrderItem,
+  OrderStatus,
+  PaymentStatus,
+} from '../types';
 
 export interface CustomerOrderItem {
   productId: string;
@@ -34,37 +40,75 @@ export interface CustomerOrder {
   estimatedDelivery?: string;
 }
 
-const STORAGE_KEY = 'js_customer_orders';
-
 /**
- * Read the in-memory copy of orders. On first call clones the JSON seed
- * into localStorage so updates (status changes from the admin side, for
- * example) can survive a reload. Returns a fresh array each call.
+ * Address snapshots are stored in the orders table as opaque JSON. Older
+ * rows use Stripe-ish `line1` keys; newer ones use the storefront's
+ * `addressLine1`. Normalize so the UI only has to think about one shape.
  */
-function readOrders(): CustomerOrder[] {
+function normalizeAddress(raw: any): AddressSnapshot {
+  return {
+    fullName:     raw?.fullName     ?? '',
+    phone:        raw?.phone        ?? '',
+    addressLine1: raw?.addressLine1 ?? raw?.line1 ?? '',
+    addressLine2: raw?.addressLine2 ?? raw?.line2 ?? null,
+    city:         raw?.city         ?? '',
+    state:        raw?.state        ?? null,
+    country:      raw?.country      ?? '',
+    postalCode:   raw?.postalCode   ?? null,
+  };
+}
+
+function toCustomerItem(item: OrderItem): CustomerOrderItem {
+  const snapshot = (item.variantSnapshot ?? {}) as Record<string, unknown>;
+  return {
+    productId: item.productVariantId,
+    name:      item.productTitleSnapshot,
+    image:     (snapshot.image as string | undefined) ?? '',
+    size:      (snapshot.size  as string | undefined) ?? '',
+    quantity:  item.quantity,
+    price:     item.unitPrice,
+  };
+}
+
+async function toCustomerOrder(order: Order): Promise<CustomerOrder> {
+  let items: OrderItem[] = [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as CustomerOrder[];
-    const seed = customerOrdersSeed as CustomerOrder[];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-    return [...seed];
+    items = await orderApi.items(order.id);
   } catch {
-    return customerOrdersSeed as CustomerOrder[];
+    items = [];
   }
+  return {
+    id:              order.id,
+    orderNumber:     order.orderNumber,
+    items:           items.map(toCustomerItem),
+    subtotal:        order.subtotal,
+    shipping:        order.shippingAmount,
+    total:           order.totalAmount,
+    status:          order.status,
+    paymentStatus:   order.paymentStatus,
+    shippingAddress: normalizeAddress(order.shippingAddress),
+    createdAt:       (order.placedAt ?? order.createdAt) as string,
+  };
 }
 
 export const customerOrderService = {
-  /** All orders for the current user, newest first. TODO: swap to GET /orders/me. */
-  list: async (): Promise<CustomerOrder[]> => {
-    const orders = readOrders();
-    return [...orders].sort(
+  /** All orders for the given user, newest first. */
+  list: async (userId: string): Promise<CustomerOrder[]> => {
+    if (!userId) return [];
+    const orders = await orderApi.forUser(userId);
+    const mapped = await Promise.all(orders.map(toCustomerOrder));
+    return mapped.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   },
 
-  /** Single order by id. TODO: swap to GET /orders/:id (scoped to current user). */
+  /** Single order by id. */
   findById: async (id: string): Promise<CustomerOrder | null> => {
-    const orders = readOrders();
-    return orders.find((o) => o.id === id) ?? null;
+    try {
+      const order = await orderApi.byId(id);
+      return await toCustomerOrder(order);
+    } catch {
+      return null;
+    }
   },
 };

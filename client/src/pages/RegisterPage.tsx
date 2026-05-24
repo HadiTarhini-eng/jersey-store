@@ -1,9 +1,8 @@
 import { RegisterForm } from '../features/auth/components/RegisterForm';
-import siteConfig from '../data/site-config.json';
-import type { SiteConfig } from '../types';
+import { useSiteConfig } from '../contexts/SiteConfigContext';
 
 export function RegisterPage() {
-  const { name, tagline } = siteConfig as SiteConfig;
+  const { name, tagline } = useSiteConfig();
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">

@@ -5,17 +5,17 @@ import { CartItem } from './CartItem';
 import { CartSummary } from './CartSummary';
 import { useIsMobile } from '../../../hooks/useMediaQuery';
 import { formatPrice } from '../../../utils/formatters';
-import uiConfig from '../../../data/ui-config.json';
-import siteConfig from '../../../data/site-config.json';
-import type { SiteConfig } from '../../../types';
-
-const FREE_SHIPPING_THRESHOLD = (siteConfig as SiteConfig).freeShippingThreshold;
+import { useSiteConfig } from '../../../contexts/SiteConfigContext';
 
 export function CartDrawer() {
   const { items, isOpen, close, totalItems, subtotal } = useCart();
   const isMobile = useIsMobile();
+  const siteConfig = useSiteConfig();
 
-  const { emptyMessage, emptyCtaLabel, emptyCtaHref } = uiConfig.cart;
+  const freeShippingThreshold = siteConfig.freeShippingThreshold;
+  const emptyMessage  = siteConfig.cartEmptyMessage  ?? 'Your cart is empty';
+  const emptyCtaLabel = siteConfig.cartEmptyCtaLabel ?? 'Start Shopping';
+  const emptyCtaHref  = siteConfig.cartEmptyCtaHref  ?? '/shop';
 
   // Close on Escape
   useEffect(() => {
@@ -34,12 +34,15 @@ export function CartDrawer() {
 
   if (!isOpen) return null;
 
-  const isFullPage = isMobile && uiConfig.cart.fullPageOnMobile;
+  // Mobile drawer takes the full viewport — design decision, not a tunable.
+  const isFullPage = isMobile;
 
   // Free shipping progress
-  const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
-  const freeShippingReached = subtotal >= FREE_SHIPPING_THRESHOLD;
-  const progressPct = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
+  const remaining = freeShippingThreshold - subtotal;
+  const freeShippingReached = subtotal >= freeShippingThreshold;
+  const progressPct = freeShippingThreshold > 0
+    ? Math.min(100, (subtotal / freeShippingThreshold) * 100)
+    : 100;
 
   return (
     <div className="fixed inset-0 z-50 flex">

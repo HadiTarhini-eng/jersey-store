@@ -1,12 +1,10 @@
 import { Link } from 'react-router-dom';
-import type { FooterColumn, SiteConfig } from '../../types';
+import { useSiteConfig } from '../../contexts/SiteConfigContext';
+import { useFooterColumns } from '../../hooks/useFooterColumns';
 
-interface FooterProps {
-  siteConfig: SiteConfig;
-  columns: FooterColumn[];
-}
-
-export function Footer({ siteConfig, columns }: FooterProps) {
+export function Footer() {
+  const siteConfig = useSiteConfig();
+  const { columns } = useFooterColumns();
   const year = new Date().getFullYear();
 
   return (

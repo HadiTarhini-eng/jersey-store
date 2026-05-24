@@ -4,22 +4,26 @@ import { customerOrderService, type CustomerOrder } from '../services/customerOr
 import { formatPrice, formatDate } from '../utils/formatters';
 import { theme } from '../config/theme';
 import { OrderStatusBadge } from '../features/orders/OrderStatusBadge';
+import { useAuth } from '../features/auth/hooks/useAuth';
 
 export function OrdersPage() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user?.id) return;
     let cancelled = false;
+    setLoading(true);
     (async () => {
-      const next = await customerOrderService.list();
+      const next = await customerOrderService.list(user.id);
       if (!cancelled) {
         setOrders(next);
         setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
   return (
     <main className={`${theme.pageContainer} py-8 lg:py-12 space-y-6`}>

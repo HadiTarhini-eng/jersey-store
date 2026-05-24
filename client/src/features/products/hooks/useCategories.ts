@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { categoryApi } from '../../../services/api';
-import categoriesFallback from '../../../data/categories.json';
-import type { Category, UiCategory } from '../../../types';
+import type { Category } from '../../../types';
 
 /**
  * Lightweight, UI-friendly category record used by the storefront's category
@@ -32,22 +31,10 @@ function fromBackend(c: Category): StoreCategory {
   };
 }
 
-function fromLegacy(c: UiCategory): StoreCategory {
-  return {
-    id:          c.id,
-    slug:        c.slug,
-    name:        c.name,
-    description: c.description,
-    image:       c.image,
-    color:       c.color,
-    colorDark:   c.colorDark,
-  };
-}
-
 /**
- * Fetches categories from the backend (`categoryApi.list()`); falls back to
- * the bundled `categories.json` if the backend is unavailable so the UI
- * never goes blank during dev.
+ * Fetches categories from the backend (`categoryApi.list()`). Surfaces
+ * `error` on failure — callers can choose to render an empty state or
+ * a retry prompt.
  */
 export function useCategories() {
   const [categories, setCategories] = useState<StoreCategory[]>([]);
@@ -66,7 +53,6 @@ export function useCategories() {
       } catch (err: any) {
         if (cancelled) return;
         setError(err?.message ?? 'Failed to load categories');
-        setCategories((categoriesFallback as UiCategory[]).map(fromLegacy));
       } finally {
         if (!cancelled) setLoading(false);
       }

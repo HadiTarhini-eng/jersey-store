@@ -2,26 +2,26 @@ import { useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { useFilters } from '../hooks/useFilters';
 import { useCategories } from '../hooks/useCategories';
+import { useUiContentSlot } from '../../../hooks/useUiContentSlot';
+import { useSiteConfig } from '../../../contexts/SiteConfigContext';
 import type { Sport, Team } from '../../../types';
-import sportsData     from '../../../data/sports.json';
-import teamsData      from '../../../data/teams.json';
-import uiConfig       from '../../../data/ui-config.json';
 
 /** Sidebar filter panel — collapses to a modal trigger on mobile. */
 export function ProductFilters() {
   const { filters, sort, setFilter, clearFilters, setSort, activeFilterCount } = useFilters();
   const [isMobileOpen, setMobileOpen] = useState(false);
 
-  const sports = sportsData as Sport[];
-  const teams  = teamsData  as Team[];
-  const { categories } = useCategories();
+  const { items: sports } = useUiContentSlot<Omit<Sport, 'id'>>('sport', { activeOnly: true });
+  const { items: teams }  = useUiContentSlot<Omit<Team, 'id'>>('team',  { activeOnly: true });
+  const { categories }    = useCategories();
 
   // Only show teams for the selected sport
   const visibleTeams = filters.sport
     ? teams.filter((t) => t.sport === filters.sport)
     : teams;
 
-  const { priceRange, sortOptions } = uiConfig.filters;
+  const { filterMinPrice, filterMaxPrice, sortOptions } = useSiteConfig();
+  const priceRange = { min: filterMinPrice, max: filterMaxPrice };
   const optionClass = 'w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-white transition-colors';
   const activeOptionClass = 'bg-accent text-black font-bold shadow-lg shadow-accent/30';
   const idleOptionClass = 'hover:bg-white/10';

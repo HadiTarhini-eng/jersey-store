@@ -9,11 +9,9 @@ import { SportsCarousel } from '../components/sections/SportsCarousel';
 import { TeamsSlider } from '../components/sections/TeamsSlider';
 import { KitCategories } from '../components/sections/KitCategories';
 import { useUiContentSlot } from '../hooks/useUiContentSlot';
-import uiConfig from '../data/ui-config.json';
-import type { HeroSlide, FeaturedSection, Product } from '../types';
-
-const featuredSections = uiConfig.featuredSections as FeaturedSection[];
-const designYourOwn = uiConfig.hero.designYourOwn;
+import { useFeaturedSections } from '../hooks/useFeaturedSections';
+import { useSiteConfig } from '../contexts/SiteConfigContext';
+import type { HeroSlide, Product } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HeroSection — drives per-slide art direction: accent color, content
@@ -152,7 +150,14 @@ function HeroSection({ slide, slides, currentSlide, onSelectSlide, designYourOwn
 }
 
 export function HomePage() {
-  const { items: slides } = useUiContentSlot<Omit<HeroSlide, 'id'>>('hero-slide', { activeOnly: true });
+  const { items: slides }      = useUiContentSlot<Omit<HeroSlide, 'id'>>('hero-slide', { activeOnly: true });
+  const { sections: featuredSections } = useFeaturedSections();
+  const siteConfig             = useSiteConfig();
+
+  const designYourOwn = {
+    label: siteConfig.heroDesignYourOwnLabel ?? 'Design Your Own',
+    href:  siteConfig.heroDesignYourOwnHref  ?? '/custom',
+  };
 
   const [currentSlide, setCurrentSlide] = React.useState(0);
   const [featuredMap, setFeaturedMap]   = React.useState<Record<string, Product[]>>({});
@@ -172,6 +177,7 @@ export function HomePage() {
   }, [slides.length]);
 
   React.useEffect(() => {
+    if (featuredSections.length === 0) return;
     (async () => {
       const results = await Promise.all(
         featuredSections.map(async (section) => {
@@ -185,7 +191,7 @@ export function HomePage() {
       setFeaturedMap(Object.fromEntries(results));
       setLoading(false);
     })();
-  }, []);
+  }, [featuredSections]);
 
   const slide = slides[safeIndex];
 

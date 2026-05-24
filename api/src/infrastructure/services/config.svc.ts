@@ -33,6 +33,9 @@ export class SiteConfigService implements ISiteConfigService {
       currency: 'USD',
       freeShippingThreshold: 0,
       socialLinks: {},
+      filterMinPrice: 0,
+      filterMaxPrice: 1000,
+      sortOptions: [],
     })
     return this.repository.create(seeded)
   }
@@ -42,6 +45,8 @@ export class SiteConfigService implements ISiteConfigService {
     if (data.name !== undefined) assertRequiredString(data.name, 'name')
     if (data.currency !== undefined) assertRequiredString(data.currency, 'currency', 8)
     if (data.freeShippingThreshold !== undefined) assertNonNegativeNumber(data.freeShippingThreshold, 'freeShippingThreshold')
+    if (data.filterMinPrice !== undefined) assertNonNegativeNumber(data.filterMinPrice, 'filterMinPrice')
+    if (data.filterMaxPrice !== undefined) assertNonNegativeNumber(data.filterMaxPrice, 'filterMaxPrice')
     return this.repository.update(existing.id, data)
   }
 

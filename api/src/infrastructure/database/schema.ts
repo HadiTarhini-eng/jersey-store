@@ -260,6 +260,18 @@ export const siteConfig = pgTable('site_config', {
   currency: varchar('currency', { length: 8 }).notNull().default('USD'),
   freeShippingThreshold: numeric('free_shipping_threshold', { precision: 12, scale: 2 }).notNull().default('0'),
   socialLinks: jsonb('social_links').$type<Record<string, string>>().notNull().default({}),
+  // Hero CTA ("Design Your Own") — single CTA shown on every hero slide.
+  heroDesignYourOwnLabel: varchar('hero_design_your_own_label', { length: 80 }),
+  heroDesignYourOwnHref: varchar('hero_design_your_own_href', { length: 255 }),
+  // Storefront filter envelope: client uses these to bound the price slider
+  // and render the sort dropdown. Both renderable without an extra round-trip.
+  filterMinPrice: numeric('filter_min_price', { precision: 12, scale: 2 }).notNull().default('0'),
+  filterMaxPrice: numeric('filter_max_price', { precision: 12, scale: 2 }).notNull().default('1000'),
+  sortOptions: jsonb('sort_options').$type<{ value: string; label: string }[]>().notNull().default([]),
+  // Empty-cart copy: drives both the drawer and the full-page cart on mobile.
+  cartEmptyMessage: varchar('cart_empty_message', { length: 255 }),
+  cartEmptyCtaLabel: varchar('cart_empty_cta_label', { length: 80 }),
+  cartEmptyCtaHref: varchar('cart_empty_cta_href', { length: 255 }),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

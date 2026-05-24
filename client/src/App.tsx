@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { ScrollToTop } from './components/common/ScrollToTop';
 import { PageSpinner } from './components/ui/Spinner';
 import { ToastProvider } from './components/ui/Toast';
+import { SiteConfigProvider } from './contexts/SiteConfigContext';
 import { ROUTES } from './config/routes';
 import { useAppDispatch, useAppSelector } from './app/hooks';
 import { fetchCurrentUser } from './features/auth/authSlice';
@@ -136,9 +137,11 @@ function StorefrontLayout() {
 export default function App() {
   return (
     <ToastProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <SiteConfigProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </SiteConfigProvider>
     </ToastProvider>
   );
 }

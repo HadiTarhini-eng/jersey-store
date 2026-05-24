@@ -2,13 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useCart } from '../../features/cart/hooks/useCart';
 import { useAuth } from '../../features/auth/hooks/useAuth';
+import { useSiteConfig } from '../../contexts/SiteConfigContext';
+import { useNavLinks } from '../../hooks/useNavLinks';
 import { MobileNav } from './MobileNav';
-import type { NavLink as NavLinkType, SiteConfig } from '../../types';
-
-interface HeaderProps {
-  siteConfig: SiteConfig;
-  navLinks: NavLinkType[];
-}
 
 /** Reusable cart button — same markup on mobile and desktop, different placement. */
 function CartButton({ totalItems, openCart }: { totalItems: number; openCart: () => void }) {
@@ -45,7 +41,10 @@ function Logo() {
   );
 }
 
-export function Header({ siteConfig, navLinks }: HeaderProps) {
+export function Header() {
+  const siteConfig = useSiteConfig();
+  const { links: navLinks } = useNavLinks();
+
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown]       = useState<string | null>(null);
   const [accountOpen, setAccountOpen]         = useState(false);

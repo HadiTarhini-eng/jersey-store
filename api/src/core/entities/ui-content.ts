@@ -3,9 +3,13 @@ import { BaseEntity, type BusinessEntity, type BusinessEntityPayload } from './b
 export type UiContentSlot =
   | 'hero-slide'
   | 'offer-banner'
+  | 'offer-strip'
   | 'sport'
   | 'team'
   | 'kit-category'
+  | 'nav-link'
+  | 'footer-column'
+  | 'featured-section'
 
 export interface UiContentEntity extends BusinessEntity {
   slot: UiContentSlot

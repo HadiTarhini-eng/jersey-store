@@ -1,82 +1,15 @@
 /**
  * Domain wrapper around productApi.
  *
- * Backend-first: lists/details come from /products. When that fails (offline
- * or backend not running), the service falls back to the legacy JSON dataset
- * in src/data/products.json so the UI keeps rendering during dev.
- *
- * The JSON dataset still uses the old front-end shape (name/price/variants[size,stock]/…),
- * so it's adapted into the new backend-shaped `Product` via `adaptLegacyProduct`.
+ * Backend-only: lists/details come from `/products`. Errors propagate to
+ * the caller — there is no JSON fallback. Client-side filtering still
+ * applies for fields the backend search doesn't natively support
+ * (sport, team — both stored as product tags).
  */
 import { productApi, extractErrorMessage, extractErrorStatus } from './api';
-import localProducts from '../data/products.json';
 import type { Product, ProductFilters, ProductSearchQuery, SortOption } from '../types';
 
-// ── Legacy JSON adapter ──────────────────────────────────────────────────────
-
-interface LegacyProduct {
-  id: string;
-  name: string;
-  slug: string;
-  sport: string;
-  team: string;
-  category: string;
-  price: number;
-  originalPrice?: number;
-  currency: string;
-  images: string[];
-  description: string;
-  features: string[];
-  variants: { size: string; stock: number }[];
-  tags: string[];
-  badge?: string;
-  inStock: boolean;
-  rating: number;
-  reviewCount: number;
-  createdAt: string;
-}
-
-/** Project a legacy JSON record into the new backend-shaped Product. */
-function adaptLegacyProduct(p: LegacyProduct): Product {
-  return {
-    id:               p.id,
-    categoryId:       p.category,           // JSON `category` is reused as categoryId
-    title:            p.name,
-    slug:             p.slug,
-    shortDescription: p.description,
-    fullDescription:  p.description,
-    tags:             [...p.tags, p.sport, p.team].filter(Boolean),
-    brand:            null,
-    basePrice:        p.price,
-    status:           'active',
-    featured:         false,
-    createdBy:        'seed',
-    isActive:         true,
-    createdAt:        p.createdAt,
-    updatedAt:        p.createdAt,
-    // ── UI enrichments ──
-    images:           p.images,
-    rating:           p.rating,
-    reviewCount:      p.reviewCount,
-    inStock:          p.inStock,
-    originalPrice:    p.originalPrice,
-    variants:         p.variants.map((v, i) => ({
-      id:            `${p.id}-v${i}`,
-      productId:     p.id,
-      sku:           `${p.slug}-${v.size}`,
-      priceOverride: null,
-      stockQuantity: v.stock,
-      imageId:       null,
-      isActive:      v.stock > 0,
-      createdAt:     p.createdAt,
-      updatedAt:     p.createdAt,
-    })),
-  };
-}
-
-const legacyDataset: Product[] = (localProducts as LegacyProduct[]).map(adaptLegacyProduct);
-
-// ── Client-side filter/sort (used for legacy fallback & post-filtering) ──────
+// ── Client-side filter/sort ──────────────────────────────────────────────────
 
 function applyClientFilters(items: Product[], filters: ProductFilters, sort: SortOption): Product[] {
   let result = [...items];
@@ -94,7 +27,7 @@ function applyClientFilters(items: Product[], filters: ProductFilters, sort: Sor
   if (filters.inStock)    result = result.filter((p) => p.inStock !== false);
   if (filters.minPrice !== undefined) result = result.filter((p) => p.basePrice >= filters.minPrice!);
   if (filters.maxPrice !== undefined) result = result.filter((p) => p.basePrice <= filters.maxPrice!);
-  // Legacy JSON-only filters — work against tags, since backend has no sport/team concept.
+  // Backend has no sport/team concept — both are matched against tags.
   if (filters.sport) result = result.filter((p) => p.tags.includes(filters.sport!));
   if (filters.team)  result = result.filter((p) => p.tags.includes(filters.team!));
 
@@ -134,7 +67,7 @@ export interface PagedProducts {
 export const productService = {
   /**
    * Lists products from the backend; client-side paginates and applies sort.
-   * Falls back to the local JSON dataset if the backend call fails.
+   * Throws on network/backend failure — callers should surface an error UI.
    */
   getProducts: async (
     filters: ProductFilters = {},
@@ -142,13 +75,7 @@ export const productService = {
     page                    = 1,
     limit                   = 12,
   ): Promise<PagedProducts> => {
-    let items: Product[];
-    try {
-      items = await productApi.search(toSearchQuery(filters));
-      console.log('Fetched products from backend:', items);
-    } catch {
-      items = legacyDataset;
-    }
+    const items    = await productApi.search(toSearchQuery(filters));
     const filtered = applyClientFilters(items, filters, sort);
     const start    = (page - 1) * limit;
     return {
@@ -164,8 +91,6 @@ export const productService = {
     try {
       return await productApi.bySlug(slug);
     } catch (err) {
-      const match = legacyDataset.find((p) => p.slug === slug);
-      if (match) return match;
       const wrapped = new Error(extractErrorMessage(err, `Product not found: ${slug}`)) as Error & { status?: number };
       wrapped.status = extractErrorStatus(err);
       throw wrapped;
@@ -176,18 +101,14 @@ export const productService = {
     try {
       return await productApi.byId(id);
     } catch (err) {
-      const match = legacyDataset.find((p) => p.id === id);
-      if (match) return match;
       throw new Error(extractErrorMessage(err, `Product not found: ${id}`));
     }
   },
 
   /**
-   * "Featured" historically required `featured: true`, but most of our seed
-   * data (and legacy JSON adapter) leaves that flag false, which caused the
-   * homepage's New Arrivals row to silently disappear. We now ask for newest
-   * products that match the supplied filters and ignore the featured flag,
-   * which gives a sensible feed in both backend and offline-fallback modes.
+   * "Featured" historically required `featured: true`, but most seed data
+   * leaves that flag false. We ask for newest products matching the supplied
+   * filters instead, which gives a sensible feed.
    */
   getFeatured: async (filters: Partial<ProductFilters> = {}, limit = 4): Promise<Product[]> => {
     const { data } = await productService.getProducts(filters, 'newest', 1, limit);
@@ -195,8 +116,8 @@ export const productService = {
   },
 
   /**
-   * Fetches variants for a product (real backend) and merges them onto the
-   * given Product. Useful on the product-detail page.
+   * Fetches variants for a product and merges them onto the given Product.
+   * Useful on the product-detail page.
    */
   withVariants: async (product: Product): Promise<Product> => {
     if (product.variants && product.variants.length > 0) return product;

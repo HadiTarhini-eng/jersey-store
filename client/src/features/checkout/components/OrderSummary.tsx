@@ -1,11 +1,10 @@
 import { useCart } from '../../cart/hooks/useCart';
 import { formatPrice } from '../../../utils/formatters';
-import siteConfig from '../../../data/site-config.json';
-import type { SiteConfig } from '../../../types';
+import { useSiteConfig } from '../../../contexts/SiteConfigContext';
 
 export function OrderSummary() {
   const { items, subtotal } = useCart();
-  const { freeShippingThreshold, currency } = siteConfig as SiteConfig;
+  const { freeShippingThreshold, currency } = useSiteConfig();
 
   const shipping = subtotal >= freeShippingThreshold ? 0 : 9.99;
   const total    = subtotal + shipping;

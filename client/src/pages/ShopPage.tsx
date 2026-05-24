@@ -4,12 +4,12 @@ import { ProductSearch }  from '../features/products/components/ProductSearch';
 import { Select }         from '../components/ui/Select';
 import { useProducts }    from '../features/products/hooks/useProducts';
 import { useFilters }     from '../features/products/hooks/useFilters';
-import uiConfig from '../data/ui-config.json';
+import { useSiteConfig }  from '../contexts/SiteConfigContext';
 
 export function ShopPage() {
   const { filters, sort, setSort } = useFilters();
   const { products, loading, error } = useProducts(filters, sort);
-  const sortOptions = uiConfig.filters.sortOptions;
+  const { sortOptions } = useSiteConfig();
 
   const SortSelect = () => (
     <Select

@@ -502,30 +502,49 @@ export interface OfferBanner {
  * BusinessEntity fields are populated; when read from the legacy
  * `site-config.json` fallback they are absent — both shapes are valid.
  */
+export interface SortOptionConfig {
+  value: string;
+  label: string;
+}
+
 export interface SiteConfig extends Partial<BusinessEntity> {
-  slug?:                 string;
-  name:                  string;
-  tagline?:              string | null;
-  description?:          string | null;
-  logoUrl?:              string | null;
-  email?:                string | null;
-  phone?:                string | null;
-  currency:              string;
-  freeShippingThreshold: number;
-  socialLinks:           Record<string, string>;
-  /** Legacy fallback: simple logo URL when read from JSON. */
-  logo?: string | null;
+  slug?:                   string;
+  name:                    string;
+  tagline?:                string | null;
+  description?:            string | null;
+  logoUrl?:                string | null;
+  email?:                  string | null;
+  phone?:                  string | null;
+  currency:                string;
+  freeShippingThreshold:   number;
+  socialLinks:             Record<string, string>;
+  heroDesignYourOwnLabel?: string | null;
+  heroDesignYourOwnHref?:  string | null;
+  filterMinPrice:          number;
+  filterMaxPrice:          number;
+  sortOptions:             SortOptionConfig[];
+  cartEmptyMessage?:       string | null;
+  cartEmptyCtaLabel?:      string | null;
+  cartEmptyCtaHref?:       string | null;
 }
 
 export interface UpdateSiteConfigPayload {
-  name?:                  string;
-  tagline?:               string | null;
-  description?:           string | null;
-  email?:                 string | null;
-  phone?:                 string | null;
-  currency?:              string;
-  freeShippingThreshold?: number;
-  socialLinks?:           Record<string, string>;
+  name?:                   string;
+  tagline?:                string | null;
+  description?:            string | null;
+  email?:                  string | null;
+  phone?:                  string | null;
+  currency?:               string;
+  freeShippingThreshold?:  number;
+  socialLinks?:            Record<string, string>;
+  heroDesignYourOwnLabel?: string | null;
+  heroDesignYourOwnHref?:  string | null;
+  filterMinPrice?:         number;
+  filterMaxPrice?:         number;
+  sortOptions?:            SortOptionConfig[];
+  cartEmptyMessage?:       string | null;
+  cartEmptyCtaLabel?:      string | null;
+  cartEmptyCtaHref?:       string | null;
 }
 
 // ── Shipping ────────────────────────────────────────────────────────────────
@@ -553,7 +572,16 @@ export type UpdateShippingMethodPayload = Partial<CreateShippingMethodPayload> &
 
 // ── UI content (CMS) ────────────────────────────────────────────────────────
 
-export type UiContentSlot = 'hero-slide' | 'offer-banner' | 'sport' | 'team' | 'kit-category' | 'offer-strip';
+export type UiContentSlot =
+  | 'hero-slide'
+  | 'offer-banner'
+  | 'offer-strip'
+  | 'sport'
+  | 'team'
+  | 'kit-category'
+  | 'nav-link'
+  | 'footer-column'
+  | 'featured-section';
 
 export interface UiContentItem<TPayload extends Record<string, unknown> = Record<string, unknown>> extends BusinessEntity {
   slot:      UiContentSlot;
@@ -632,7 +660,7 @@ export interface AdminOrder {
   createdAt:    ISODate;
 }
 
-/** Legacy product shape stored in `src/data/products.json` — also the admin source of truth. */
+/** Flat product shape the admin UI works with — bridged to/from the backend's normalized model. */
 export interface AdminProduct {
   id:             string;
   name:           string;

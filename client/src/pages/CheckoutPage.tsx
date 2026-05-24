@@ -8,7 +8,7 @@ import { useToast } from '../components/ui/Toast';
 import { submitOrder, setStep, resetCheckout } from '../features/checkout/checkoutSlice';
 import { formatDate, formatPrice } from '../utils/formatters';
 import { ROUTES } from '../config/routes';
-import siteConfig from '../data/site-config.json';
+import { useSiteConfig } from '../contexts/SiteConfigContext';
 
 /**
  * Strip everything except digits from a phone string — required by wa.me URLs.
@@ -147,8 +147,9 @@ interface ConfirmationViewProps {
 }
 
 function ConfirmationView({ order, onContinueShopping }: ConfirmationViewProps) {
-  const waNumber = phoneToWaNumber(siteConfig.phone);
-  const waUrl    = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(buildWhatsAppMessage(order))}` : null;
+  const siteConfig = useSiteConfig();
+  const waNumber = phoneToWaNumber(siteConfig.phone ?? undefined);
+  const waUrl    = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(buildWhatsAppMessage(order, siteConfig.name))}` : null;
 
   return (
     <div className="max-w-xl mx-auto text-center space-y-6 py-10">
@@ -225,9 +226,9 @@ function WhatsAppIcon() {
   );
 }
 
-function buildWhatsAppMessage(order: import('../types').Order): string {
+function buildWhatsAppMessage(order: import('../types').Order, siteName: string): string {
   const lines: string[] = [];
-  lines.push(`Hi ${siteConfig.name}, I just placed order *${order.orderNumber || order.id}*.`);
+  lines.push(`Hi ${siteName}, I just placed order *${order.orderNumber || order.id}*.`);
   lines.push('');
   lines.push(`Subtotal: ${formatPrice(order.subtotal ?? 0)}`);
   if (order.shippingAmount) lines.push(`Shipping: ${formatPrice(order.shippingAmount)}`);
