@@ -23,5 +23,4 @@ dist-ssr
 *.sln
 *.sw?
 
-client/public/seed_images/*
-client
+clientpublic/seed_images/*.jpg
