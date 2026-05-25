@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { CartDrawer } from '../../features/cart/components/CartDrawer';
+import { FloatingWhatsApp } from '../ui/FloatingWhatsApp';
 
 interface LayoutProps {
   children: ReactNode;
@@ -26,6 +27,9 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Cart drawer — rendered here so it overlays all pages */}
       <CartDrawer />
+
+      {/* Floating WhatsApp chat — bottom-right on every public page */}
+      <FloatingWhatsApp />
     </div>
   );
 }

@@ -5,7 +5,8 @@ import { Modal } from '../../components/ui/Modal';
 import { ImageUpload } from '../components/ImageUpload';
 import { useToast } from '../../components/ui/Toast';
 import { extractErrorMessage } from '../../services/api/client';
-import type { HeroSlide, OfferBanner } from '../../types';
+import { formatPrice } from '../../utils/formatters';
+import type { CouponPayload, HeroSlide, OfferBanner } from '../../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hero-slide themes
@@ -77,6 +78,7 @@ export function AdminOffers() {
       <HeroSlidesSection />
       <OfferBannersSection />
       <OfferStripSection />
+      <CouponsSection />
     </div>
   );
 }
@@ -948,6 +950,199 @@ function OfferStripSection() {
         isOpen={!!pendingDelete}
         title="Delete strip item"
         message={pendingDelete ? `Remove this message? "${pendingDelete.text}"` : ''}
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={onDelete}
+      />
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coupons & gift cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface CouponRowDraft {
+  code:          string;
+  discountType:  'percentage' | 'fixed';
+  discountValue: string;
+  description:   string;
+}
+
+const emptyDraft: CouponRowDraft = { code: '', discountType: 'percentage', discountValue: '', description: '' };
+
+function CouponsSection() {
+  const hook = useUiContentSlot<CouponPayload>('coupon');
+  const items = hook.items;
+  const [editing, setEditing] = useState<{ id: string | null; draft: CouponRowDraft } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; code: string } | null>(null);
+  const { promise } = useToast();
+
+  const onSave = async () => {
+    if (!editing) return;
+    const code  = editing.draft.code.trim().toUpperCase();
+    const value = Number(editing.draft.discountValue);
+    if (!code || !Number.isFinite(value) || value <= 0) return;
+    const payload: CouponPayload = {
+      code,
+      discountType:  editing.draft.discountType,
+      discountValue: value,
+      description:   editing.draft.description.trim() || undefined,
+    };
+    try {
+      if (editing.id) {
+        await promise(hook.update(editing.id, payload), {
+          success: `${code} saved`,
+          error:   (err) => extractErrorMessage(err, 'Could not save coupon'),
+        });
+      } else {
+        await promise(hook.add(payload), {
+          success: `${code} created`,
+          error:   (err) => extractErrorMessage(err, 'Could not create coupon'),
+        });
+      }
+      setEditing(null);
+    } catch { /* toast already shown */ }
+  };
+
+  const onDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(hook.remove(target.id), {
+      success: `${target.code} deleted`,
+      error:   (err) => extractErrorMessage(err, 'Could not delete coupon'),
+    }).catch(() => undefined);
+  };
+
+  return (
+    <section className="space-y-5">
+      <SectionHeader
+        title="Coupons / Gift cards"
+        subtitle={`${items.length} code${items.length !== 1 ? 's' : ''} — customers redeem these on the checkout review step.`}
+        action={
+          <button
+            type="button"
+            onClick={() => setEditing({ id: null, draft: { ...emptyDraft } })}
+            className={addButtonClass}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+            </svg>
+            Add Coupon
+          </button>
+        }
+      />
+
+      <div className="space-y-2">
+        {items.length === 0 && (
+          <div className="px-4 py-6 rounded-xl border border-dashed border-stroke text-center text-sm text-muted">
+            No coupons yet. Customers can&apos;t redeem anything until you add one.
+          </div>
+        )}
+        {items.map((c) => {
+          const valueLabel = c.discountType === 'percentage'
+            ? `${c.discountValue}% off`
+            : `${formatPrice(c.discountValue)} off`;
+          return (
+            <div
+              key={c.id}
+              className={['flex items-center gap-3 px-4 py-3 rounded-xl border border-stroke bg-surface', !c.isActive && 'opacity-60'].filter(Boolean).join(' ')}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="font-mono font-bold text-primary tracking-wider">{c.code}</p>
+                <p className="text-xs text-secondary mt-0.5">
+                  <span className="text-ok font-semibold">{valueLabel}</span>
+                  {c.description && <span className="text-muted"> · {c.description}</span>}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setEditing({
+                    id: c.id,
+                    draft: {
+                      code:          c.code,
+                      discountType:  c.discountType,
+                      discountValue: String(c.discountValue),
+                      description:   c.description ?? '',
+                    },
+                  })
+                }
+                className="px-3 py-1.5 rounded-lg bg-black text-white text-xs font-bold uppercase tracking-wider border-2 border-power hover:bg-black transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingDelete({ id: c.id, code: c.code })}
+                aria-label="Delete"
+                className="p-2 rounded-lg text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                </svg>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <Modal isOpen={editing !== null} onClose={() => setEditing(null)} title={editing?.id ? 'Edit coupon' : 'New coupon'} maxWidth="max-w-lg">
+        {editing && (
+          <div className="space-y-4">
+            <EditorField label="Code" hint="Customer types this on checkout — letters/numbers, auto-uppercased" required>
+              <input
+                value={editing.draft.code}
+                onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, code: e.target.value.toUpperCase() } })}
+                placeholder="WELCOME10"
+                className={editorInput + ' font-mono tracking-wider uppercase'}
+              />
+            </EditorField>
+            <div className="grid grid-cols-2 gap-3">
+              <EditorField label="Discount type" required>
+                <select
+                  value={editing.draft.discountType}
+                  onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, discountType: e.target.value as CouponPayload['discountType'] } })}
+                  className={editorInput}
+                >
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="fixed">Fixed amount</option>
+                </select>
+              </EditorField>
+              <EditorField
+                label={editing.draft.discountType === 'percentage' ? 'Discount %' : 'Discount amount'}
+                required
+              >
+                <input
+                  type="number"
+                  min="0"
+                  step={editing.draft.discountType === 'percentage' ? '1' : '0.01'}
+                  value={editing.draft.discountValue}
+                  onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, discountValue: e.target.value } })}
+                  placeholder={editing.draft.discountType === 'percentage' ? '10' : '15.00'}
+                  className={editorInput}
+                />
+              </EditorField>
+            </div>
+            <EditorField label="Description (optional)" hint="Shown to admins only — won't appear to customers">
+              <input
+                value={editing.draft.description}
+                onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, description: e.target.value } })}
+                placeholder="Welcome offer for newsletter subscribers"
+                className={editorInput}
+              />
+            </EditorField>
+          </div>
+        )}
+        <EditorFooter onCancel={() => setEditing(null)} onSave={onSave} />
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        title="Delete coupon"
+        message={pendingDelete ? `Remove coupon "${pendingDelete.code}"? Customers who try to use it will get an invalid-code error.` : ''}
         confirmLabel="Delete"
         destructive
         onCancel={() => setPendingDelete(null)}

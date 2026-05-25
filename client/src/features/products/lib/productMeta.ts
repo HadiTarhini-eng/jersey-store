@@ -6,7 +6,7 @@
  * storefront detail page agree on the wire format.
  */
 
-const META_KEYS = ['sport', 'team', 'category', 'badge', 'currency', 'originalPrice', 'feature'] as const;
+const META_KEYS = ['sport', 'team', 'category', 'badge', 'currency', 'originalPrice', 'feature', 'printable'] as const;
 export type ProductMetaKey = (typeof META_KEYS)[number];
 
 const META_PREFIX_PATTERN = new RegExp(`^(${META_KEYS.join('|')}):`, 'i');
@@ -24,6 +24,8 @@ export interface ProductMeta {
   currency:      string;
   originalPrice: number | undefined;
   features:      string[];
+  /** Allows customer to enter a custom name + number on the detail page. */
+  printable:     boolean;
   /** User-facing tags only — encoded meta entries are stripped. */
   tags:          string[];
 }
@@ -36,8 +38,9 @@ export function decodeProductTags(tags: readonly string[] | null | undefined): P
     badge:    undefined,
     currency: 'USD',
     originalPrice: undefined,
-    features: [],
-    tags:     [],
+    features:  [],
+    printable: false,
+    tags:      [],
   };
   if (!tags) return out;
 
@@ -60,6 +63,7 @@ export function decodeProductTags(tags: readonly string[] | null | undefined): P
         break;
       }
       case 'feature':       out.features.push(v); break;
+      case 'printable':     out.printable = v === 'true' || v === '1'; break;
     }
   }
   return out;
@@ -73,6 +77,7 @@ interface EncodableMeta {
   currency?:      string;
   originalPrice?: number | null;
   features?:      readonly string[];
+  printable?:     boolean;
   tags?:          readonly string[];
 }
 
@@ -87,6 +92,7 @@ export function encodeProductTags(p: EncodableMeta): string[] {
     next.push(`originalPrice:${p.originalPrice}`);
   }
   for (const f of p.features ?? []) next.push(`feature:${f}`);
+  if (p.printable) next.push('printable:true');
   for (const t of p.tags ?? [])     next.push(t);
   return next;
 }

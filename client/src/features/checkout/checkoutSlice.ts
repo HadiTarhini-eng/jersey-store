@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import { clearCart } from '../cart/cartSlice';
 import type {
-  AddressSnapshot, CheckoutState, CheckoutStep, Order, CartItem,
+  AddressSnapshot, AppliedCoupon, CheckoutState, CheckoutStep, Order, CartItem,
 } from '../../types';
 import type { RootState } from '../../app/store';
 
@@ -30,9 +30,16 @@ function cartSubtotal(items: CartItem[]): number {
   return items.reduce((sum, it) => sum + it.priceAtTime * it.quantity, 0);
 }
 
-function buildLocalOrder(userId: string, items: CartItem[], shipping: AddressSnapshot): Order {
-  const now      = new Date().toISOString();
-  const subtotal = cartSubtotal(items);
+function buildLocalOrder(
+  userId:   string,
+  items:    CartItem[],
+  shipping: AddressSnapshot,
+  coupon:   AppliedCoupon | null,
+): Order {
+  const now            = new Date().toISOString();
+  const subtotal       = cartSubtotal(items);
+  const discountAmount = coupon ? Math.min(subtotal, coupon.amount) : 0;
+  const totalAmount    = Math.max(0, subtotal - discountAmount);
   return {
     id:              `local-${Date.now().toString(36)}`,
     isActive:        true,
@@ -43,12 +50,14 @@ function buildLocalOrder(userId: string, items: CartItem[], shipping: AddressSna
     status:          'pending',
     paymentStatus:   'pending',
     subtotal,
-    discountAmount:  0,
+    discountAmount,
     shippingAmount:  0,
-    totalAmount:     subtotal,
+    totalAmount,
     shippingAddress: shipping,
     billingAddress:  shipping,
     placedAt:        now,
+    itemsSnapshot:   items,
+    couponCode:      coupon?.code,
   };
 }
 
@@ -58,7 +67,7 @@ export const submitOrder = createAsyncThunk<Order, AddressSnapshot, { state: Roo
     const state  = getState();
     const userId = state.auth.user?.id ?? guestUserId();
 
-    const order = buildLocalOrder(userId, state.cart.items, shippingAddress);
+    const order = buildLocalOrder(userId, state.cart.items, shippingAddress, state.checkout.coupon);
 
     // Cart is empty after the order is "sent" so a second confirm can't fire.
     dispatch(clearCart());
@@ -75,6 +84,7 @@ const initialState: CheckoutState = {
   loading:         false,
   error:           null,
   order:           null,
+  coupon:          null,
 };
 
 const checkoutSlice = createSlice({
@@ -86,6 +96,8 @@ const checkoutSlice = createSlice({
       state.shippingAddress = action.payload;
       state.step            = 'review';
     },
+    applyCoupon:        (state, action: PayloadAction<AppliedCoupon>) => { state.coupon = action.payload; },
+    removeCoupon:       (state) => { state.coupon = null; },
     resetCheckout:      () => initialState,
     clearCheckoutError: (state) => { state.error = null; },
   },
@@ -104,5 +116,7 @@ const checkoutSlice = createSlice({
   },
 });
 
-export const { setStep, setShippingAddress, resetCheckout, clearCheckoutError } = checkoutSlice.actions;
+export const {
+  setStep, setShippingAddress, applyCoupon, removeCoupon, resetCheckout, clearCheckoutError,
+} = checkoutSlice.actions;
 export default checkoutSlice.reducer;

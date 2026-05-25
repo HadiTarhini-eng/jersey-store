@@ -69,6 +69,9 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
+  /** Optional printing fields — gated behind the `printable` meta flag. */
+  const [customName,   setCustomName]   = useState('');
+  const [customNumber, setCustomNumber] = useState('');
 
   const { isAuthenticated } = useAuth();
   const { isWishlisted, toggle: toggleWishlist } = useWishlist(product.id);
@@ -104,6 +107,8 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
       return;
     }
     const now = new Date().toISOString();
+    const trimmedName   = meta.printable ? customName.trim()   : '';
+    const trimmedNumber = meta.printable ? customNumber.trim() : '';
     add({
       id:               `local-${selectedVariant.id}`,
       cartId:           'local',
@@ -117,6 +122,8 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
       image:            galleryImages[0]?.src,
       variantLabel:     variantSize(selectedVariant, product.slug),
       maxStock:         selectedVariant.stockQuantity,
+      customName:       trimmedName   || undefined,
+      customNumber:     trimmedNumber || undefined,
     });
     toast.push({
       variant: 'success',
@@ -177,6 +184,18 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
           <p className="text-secondary text-sm leading-relaxed">{description}</p>
         )}
 
+        {/* Features — directly under the description, above the size picker. */}
+        {meta.features.length > 0 && (
+          <section aria-labelledby="features-heading" className="space-y-3">
+            <h2 id="features-heading" className="text-xs font-bold uppercase tracking-widest text-muted">
+              Features
+            </h2>
+            <ul className="list-disc list-inside text-sm text-secondary space-y-1">
+              {meta.features.map((f) => <li key={f}>{f}</li>)}
+            </ul>
+          </section>
+        )}
+
         {/* Specs — rendered as a plain always-expanded section, above sizes. */}
         {specs.length > 0 && (
           <section aria-labelledby="specs-heading" className="space-y-3">
@@ -209,6 +228,43 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
           />
         )}
 
+        {meta.printable && (
+          <section aria-labelledby="print-heading" className="space-y-3 p-4 rounded-xl border border-stroke bg-surface-raised/40">
+            <div>
+              <h2 id="print-heading" className="text-xs font-bold uppercase tracking-widest text-muted">
+                Customise your jersey
+              </h2>
+              <p className="text-[11px] text-muted mt-1">Optional — leave blank for a standard kit.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+              <label className="block">
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-1">Name on back</span>
+                <input
+                  type="text"
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value.slice(0, 14))}
+                  placeholder="e.g. RONALDO"
+                  maxLength={14}
+                  className="w-full px-3 py-2.5 rounded-lg bg-black/40 border border-stroke text-primary font-bold tracking-wider uppercase placeholder:text-muted/60 focus:border-accent outline-none"
+                />
+              </label>
+              <label className="block sm:w-24">
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-1">Number</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={customNumber}
+                  onChange={(e) => setCustomNumber(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  placeholder="10"
+                  maxLength={2}
+                  className="w-full px-3 py-2.5 rounded-lg bg-black/40 border border-stroke text-primary font-bold text-center tracking-wider placeholder:text-muted/60 focus:border-accent outline-none"
+                />
+              </label>
+            </div>
+          </section>
+        )}
+
         <BuyPanel
           quantity={quantity}
           maxQty={maxQty}
@@ -221,14 +277,6 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
         />
 
         <ShippingPreview />
-
-        {meta.features.length > 0 && (
-          <DetailAccordion title="Features" defaultOpen>
-            <ul className="list-disc list-inside text-sm text-secondary space-y-1">
-              {meta.features.map((f) => <li key={f}>{f}</li>)}
-            </ul>
-          </DetailAccordion>
-        )}
 
         {meta.tags.length > 0 && <TagChips tags={meta.tags} />}
       </div>
@@ -347,13 +395,18 @@ function BrandKicker({ brand, team, sport }: { brand?: string; team?: string; sp
 function PriceBlock({
   price, originalPrice, currency,
 }: { price: number; originalPrice?: number; currency: string }) {
+  const onSale = originalPrice !== undefined && originalPrice > price;
   return (
     <div className="flex items-baseline gap-3 flex-wrap">
-      <span className="text-3xl font-bold text-primary">{formatPrice(price, currency)}</span>
-      {originalPrice !== undefined && (
+      <span className={`text-3xl font-bold ${onSale ? 'text-power' : 'text-primary'}`}>
+        {formatPrice(price, currency)}
+      </span>
+      {onSale && (
         <>
-          <span className="text-lg text-muted line-through">{formatPrice(originalPrice, currency)}</span>
-          <span className="text-sm font-bold text-accent">{discountPercent(originalPrice, price)}</span>
+          <span className="text-lg text-muted line-through">{formatPrice(originalPrice!, currency)}</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-widest bg-power/15 text-power border border-power/40">
+            {discountPercent(originalPrice!, price)}
+          </span>
         </>
       )}
     </div>
@@ -509,8 +562,8 @@ function ShippingPreview() {
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
       {[
         { icon: '🚚', label: 'Free shipping', detail: 'On orders over $75' },
-        { icon: '↩️', label: '30-day returns', detail: 'Unworn & in original packaging' },
-        { icon: '🔒', label: 'Secure checkout', detail: 'TLS-encrypted payments' },
+        { icon: '↩️', label: '7-day returns', detail: 'Unworn & in original packaging' },
+        { icon: '🔒', label: 'Premium Quality', detail: 'Authentic.' },
       ].map((row) => (
         <div key={row.label} className="flex items-start gap-2 p-3 rounded-xl bg-surface-raised border border-stroke">
           <span className="text-base leading-none" aria-hidden="true">{row.icon}</span>
@@ -585,31 +638,6 @@ function SizeGuideModal({ onClose }: { onClose: () => void }) {
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function DetailAccordion({
-  title, defaultOpen = false, children,
-}: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border-t border-stroke pt-3">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between py-2 text-sm font-semibold text-primary uppercase tracking-widest"
-      >
-        <span>{title}</span>
-        <svg
-          className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {open && <div className="pt-2 pb-3">{children}</div>}
     </div>
   );
 }

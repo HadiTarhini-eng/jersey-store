@@ -12,30 +12,47 @@ import type { Team } from '../../types';
  */
 export function TeamsSlider() {
   const { items: teams } = useUiContentSlot<Omit<Team, 'id'>>('team', { activeOnly: true });
-  // Triple the array so wherever scrollLeft sits, badges still flow on both sides.
-  const looped = useMemo(() => [...teams, ...teams, ...teams], [teams]);
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   /** Auto-scroll runs unless the user is actively interacting. */
   const userInteractingRef = useRef(false);
   const resumeTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /**
+   * `needsLoop` becomes true only when the single-copy width is wider than
+   * the viewport — i.e. there's something to actually scroll. Otherwise we
+   * render the teams just once and skip the marquee duplication entirely so
+   * the user doesn't see ghost copies of each crest.
+   */
+  const [needsLoop, setNeedsLoop] = useState(false);
+
+  // Measure: does one copy of the badges overflow its container?
   useEffect(() => {
     const el = trackRef.current;
-    if (!el || teams.length === 0) return;
+    if (!el || teams.length === 0) { setNeedsLoop(false); return; }
+
+    const measure = () => {
+      // When we duplicated the list, scrollWidth covers both halves. Detect
+      // overflow against half of scrollWidth (or full width if we haven't
+      // duplicated yet).
+      const singleWidth = needsLoop ? el.scrollWidth / 2 : el.scrollWidth;
+      setNeedsLoop(singleWidth > el.clientWidth + 1);
+    };
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [teams.length, needsLoop]);
+
+  // Auto-scroll loop — only runs when duplication is in effect.
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el || !needsLoop) return;
 
     let rafId  = 0;
     let lastTs = performance.now();
     const PX_PER_SEC = 35;
-
-    // Park scroll in the middle copy so we have room to wrap forwards and backwards.
-    const setSegment = () => {
-      const segment = el.scrollWidth / 3;
-      if (segment > 0 && el.scrollLeft < segment * 0.5) {
-        el.scrollLeft = segment;
-      }
-    };
-    setSegment();
 
     const tick = (ts: number) => {
       const dt = (ts - lastTs) / 1000;
@@ -43,11 +60,11 @@ export function TeamsSlider() {
       if (!userInteractingRef.current) {
         el.scrollLeft += PX_PER_SEC * dt;
       }
-      // Wrap when we drift past the second copy.
-      const segment = el.scrollWidth / 3;
-      if (segment > 0) {
-        if (el.scrollLeft >= segment * 2) el.scrollLeft -= segment;
-        else if (el.scrollLeft <= segment * 0.5) el.scrollLeft += segment;
+      // Wrap at half-width — the classic seamless marquee trick.
+      const half = el.scrollWidth / 2;
+      if (half > 0) {
+        if (el.scrollLeft >= half) el.scrollLeft -= half;
+        else if (el.scrollLeft < 0) el.scrollLeft += half;
       }
       rafId = requestAnimationFrame(tick);
     };
@@ -57,7 +74,12 @@ export function TeamsSlider() {
       cancelAnimationFrame(rafId);
       if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
     };
-  }, [teams.length]);
+  }, [needsLoop]);
+
+  const displayTeams = useMemo(
+    () => (needsLoop ? [...teams, ...teams] : teams),
+    [teams, needsLoop],
+  );
 
   const pauseAndResume = () => {
     userInteractingRef.current = true;
@@ -123,7 +145,7 @@ export function TeamsSlider() {
           ].join(' ')}
           style={{ scrollSnapType: 'none' }}
         >
-          {looped.map((team, idx) => (
+          {displayTeams.map((team, idx) => (
             <TeamBadge key={`${team.id}-${idx}`} team={team} draggable={isDragging} />
           ))}
         </div>

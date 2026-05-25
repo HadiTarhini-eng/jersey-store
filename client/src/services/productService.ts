@@ -7,7 +7,47 @@
  * (sport, team — both stored as product tags).
  */
 import { productApi, extractErrorMessage, extractErrorStatus } from './api';
+import { decodeProductTags } from '../features/products/lib/productMeta';
 import type { Product, ProductFilters, ProductSearchQuery, SortOption } from '../types';
+
+/**
+ * Projects tag-encoded meta (originalPrice, badge, …) onto the Product so
+ * downstream components don't have to re-decode it. Critical for the SALE
+ * chip + struck-through price — `Product.originalPrice` is absent on backend
+ * payloads and lives in the tags as `originalPrice:N`.
+ */
+function decorateFromTags(p: Product): Product {
+  const meta = decodeProductTags(p.tags ?? []);
+  return {
+    ...p,
+    originalPrice: p.originalPrice ?? meta.originalPrice,
+  };
+}
+
+/**
+ * The `/products` search endpoint returns products without their gallery —
+ * images live behind a separate `/products/:id/images` call. We hydrate
+ * `images` here so every storefront consumer (cards, sliders, detail page)
+ * gets a fresh `images: string[]` populated from the latest attachments,
+ * preferring compressed URLs when available.
+ */
+async function hydrateImages(products: Product[]): Promise<Product[]> {
+  return Promise.all(
+    products.map(async (p) => {
+      if (p.images && p.images.length > 0) return p;
+      try {
+        const attachments = await productApi.images.list(p.id);
+        const urls = attachments
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((a) => a.compressedFileUrl ?? a.fileUrl);
+        return urls.length > 0 ? { ...p, images: urls } : p;
+      } catch {
+        return p;
+      }
+    }),
+  );
+}
 
 // ── Client-side filter/sort ──────────────────────────────────────────────────
 
@@ -75,11 +115,14 @@ export const productService = {
     page                    = 1,
     limit                   = 12,
   ): Promise<PagedProducts> => {
-    const items    = await productApi.search(toSearchQuery(filters));
+    const items    = (await productApi.search(toSearchQuery(filters))).map(decorateFromTags);
     const filtered = applyClientFilters(items, filters, sort);
     const start    = (page - 1) * limit;
+    const page0    = filtered.slice(start, start + limit);
+    // Hydrate only the current page's products — keeps the cost bounded.
+    const data     = await hydrateImages(page0);
     return {
-      data:       filtered.slice(start, start + limit),
+      data,
       total:      filtered.length,
       page,
       limit,
@@ -89,7 +132,7 @@ export const productService = {
 
   getProductBySlug: async (slug: string): Promise<Product> => {
     try {
-      return await productApi.bySlug(slug);
+      return decorateFromTags(await productApi.bySlug(slug));
     } catch (err) {
       const wrapped = new Error(extractErrorMessage(err, `Product not found: ${slug}`)) as Error & { status?: number };
       wrapped.status = extractErrorStatus(err);
@@ -99,7 +142,7 @@ export const productService = {
 
   getProductById: async (id: string): Promise<Product> => {
     try {
-      return await productApi.byId(id);
+      return decorateFromTags(await productApi.byId(id));
     } catch (err) {
       throw new Error(extractErrorMessage(err, `Product not found: ${id}`));
     }

@@ -354,6 +354,7 @@ interface FormState {
   gallery:        GalleryEntry[];
   badge:          string;
   variants:       { size: string; stock: number }[];
+  printable:      boolean;
 }
 
 function slugify(s: string) {
@@ -368,6 +369,7 @@ function fromProduct(p: AdminProductRow | null): FormState {
       description: '', features: '', tags: '',
       gallery: [], badge: '',
       variants: defaultSizes.map((size) => ({ size, stock: 0 })),
+      printable: false,
     };
   }
   return {
@@ -388,6 +390,7 @@ function fromProduct(p: AdminProductRow | null): FormState {
       const existing = p.variants.find((v) => v.size === size);
       return { size, stock: existing?.stock ?? 0 };
     }),
+    printable:     p.printable ?? false,
   };
 }
 
@@ -482,6 +485,7 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
       reviewCount:   initial?.reviewCount ?? 0,
       createdAt:     initial?.createdAt ?? new Date().toISOString(),
       categoryId:    form.categoryId,
+      printable:     form.printable,
       newImageFiles,
       removedImageIds,
     };
@@ -529,6 +533,21 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
                 />
               </FormField>
             </div>
+
+            <label className="flex items-start gap-3 p-3 rounded-xl border border-stroke bg-surface cursor-pointer hover:border-accent/40 transition-colors">
+              <input
+                type="checkbox"
+                checked={form.printable}
+                onChange={(e) => set('printable', e.target.checked)}
+                className="mt-0.5 w-4 h-4"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-primary">Allow custom name &amp; number</p>
+                <p className="text-xs text-muted mt-0.5">
+                  Adds optional Name + Number inputs on the product detail page so customers can personalise the jersey.
+                </p>
+              </div>
+            </label>
 
             <FormField label="Description">
               <textarea

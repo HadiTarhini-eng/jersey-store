@@ -6,21 +6,38 @@ import type { UiContentItem, UiContentSlot } from '../types';
 type AnyPayload = Record<string, unknown>;
 
 /**
+ * Each UI-content slot stores its primary image under a slot-specific
+ * payload field name (teams use `logo`, everyone else uses `image`). The
+ * inline `imageUrl` column always carries the freshly uploaded URL after
+ * `setImage`, so flatten projects it onto BOTH the canonical `image` field
+ * AND the slot's native field so consumers can keep their existing prop
+ * names (e.g. `team.logo`).
+ */
+const SLOT_IMAGE_FIELD: Partial<Record<UiContentSlot, string>> = {
+  team: 'logo',
+};
+
+/**
  * Flatten a UiContentItem<T> into the legacy "flat" shape consumers expect
  * (e.g. Sport / Team / UiCategory / HeroSlide / OfferBanner) — id and sortOrder
  * live at the top level, `image` resolves to a URL string. We prefer the
  * inline `imageUrl` column (uploaded via setImage) and fall back to a
  * payload-embedded `image` URL (seed/static data).
  */
-function flatten<T extends AnyPayload>(item: UiContentItem<T>): T & { id: string; sortOrder: number; isActive: boolean } {
+function flatten<T extends AnyPayload>(item: UiContentItem<T>, slot: UiContentSlot): T & { id: string; sortOrder: number; isActive: boolean } {
   const payload = item.payload ?? ({} as T);
-  const resolvedImage = item.imageUrl ?? (payload as AnyPayload).image;
+  const slotField = SLOT_IMAGE_FIELD[slot];
+  const resolvedImage =
+    item.imageUrl
+    ?? (slotField ? (payload as AnyPayload)[slotField] : undefined)
+    ?? (payload as AnyPayload).image;
   return {
     ...payload,
     id: item.id,
     sortOrder: item.sortOrder,
     isActive: item.isActive,
     ...(resolvedImage ? { image: resolvedImage } : {}),
+    ...(resolvedImage && slotField ? { [slotField]: resolvedImage } : {}),
   } as T & { id: string; sortOrder: number; isActive: boolean };
 }
 
@@ -110,7 +127,7 @@ export function useUiContentSlot<T extends AnyPayload>(slot: UiContentSlot, opti
   }, []);
 
   return {
-    items: raw.map(flatten<T>),
+    items: raw.map((item) => flatten<T>(item, slot)),
     raw,
     loading,
     error,

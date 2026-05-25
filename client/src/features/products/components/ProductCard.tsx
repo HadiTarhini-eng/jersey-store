@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { formatPrice } from '../../../utils/formatters';
+import { formatPrice, discountPercent } from '../../../utils/formatters';
 import { productPath } from '../../../config/routes';
 import { theme } from '../../../config/theme';
 import { ProductChip, pickProductChip } from './ProductChip';
@@ -30,6 +30,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const rating       = product.rating ?? 0;
   const reviewCount  = product.reviewCount ?? 0;
   const chipKind     = pickProductChip(product);
+  const onSale       = typeof product.originalPrice === 'number' && product.originalPrice > product.basePrice;
 
   return (
     <Link
@@ -68,18 +69,23 @@ export function ProductCard({ product }: ProductCardProps) {
         </h3>
 
         <div className="flex items-center justify-between gap-2 pt-0.5">
-          <div className="flex items-baseline gap-2">
-            <span className="text-base font-bold text-primary">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className={`text-base font-bold ${onSale ? 'text-power' : 'text-primary'}`}>
               {formatPrice(product.basePrice)}
             </span>
-            {product.originalPrice && product.originalPrice > product.basePrice && (
-              <span className="text-xs text-muted line-through tabular-nums">
-                {formatPrice(product.originalPrice)}
-              </span>
+            {onSale && (
+              <>
+                <span className="text-xs text-muted line-through tabular-nums">
+                  {formatPrice(product.originalPrice!)}
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-power/15 text-power border border-power/30">
+                  {discountPercent(product.originalPrice!, product.basePrice)}
+                </span>
+              </>
             )}
           </div>
           {reviewCount > 0 && (
-            <span className="flex items-center gap-1 text-xs text-muted">
+            <span className="flex items-center gap-1 text-xs text-muted shrink-0">
               <StarIcon filled />
               {rating.toFixed(1)}
               <span className="text-muted/70">({reviewCount})</span>

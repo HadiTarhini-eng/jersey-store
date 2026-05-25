@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from '../../config/theme';
-import { useCategories, type StoreCategory } from '../../features/products/hooks/useCategories';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
+import type { UiCategory } from '../../types';
 
 /**
  * Vibrant palette used when an admin-managed category hasn't supplied its own
@@ -17,7 +18,7 @@ const VIBRANT_PALETTE = [
   { color: '#ffd60a', dark: '#7a6500' }, // yellow
 ];
 
-function paletteFor(index: number, cat: StoreCategory) {
+function paletteFor(index: number, cat: UiCategory) {
   const fallback = VIBRANT_PALETTE[index % VIBRANT_PALETTE.length];
   return {
     color: cat.color ?? fallback.color,
@@ -26,7 +27,7 @@ function paletteFor(index: number, cat: StoreCategory) {
 }
 
 export function KitCategories() {
-  const { categories } = useCategories();
+  const { items: categories } = useUiContentSlot<Omit<UiCategory, 'id'>>('kit-category', { activeOnly: true });
 
   if (categories.length === 0) return null;
 
@@ -53,7 +54,7 @@ export function KitCategories() {
 
 // ── Desktop accordion ────────────────────────────────────────────────────────
 
-function DesktopAccordion({ categories }: { categories: StoreCategory[] }) {
+function DesktopAccordion({ categories }: { categories: UiCategory[] }) {
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
 
   return (
@@ -66,7 +67,7 @@ function DesktopAccordion({ categories }: { categories: StoreCategory[] }) {
         return (
           <Link
             key={cat.id}
-            to={`/shop?categoryId=${cat.id}`}
+            to={`/shop?categoryId=${cat.productCategoryId ?? cat.id}`}
             onMouseEnter={() => setHoveredId(cat.id)}
             onMouseLeave={() => setHoveredId(null)}
             className="relative overflow-hidden rounded-2xl group cursor-pointer"
@@ -159,10 +160,10 @@ function DesktopAccordion({ categories }: { categories: StoreCategory[] }) {
 
 // ── Mobile tile ──────────────────────────────────────────────────────────────
 
-function MobileTile({ category, palette }: { category: StoreCategory; palette: { color: string; dark: string } }) {
+function MobileTile({ category, palette }: { category: UiCategory; palette: { color: string; dark: string } }) {
   return (
     <Link
-      to={`/shop?categoryId=${category.id}`}
+      to={`/shop?categoryId=${category.productCategoryId ?? category.id}`}
       className="relative block h-32 rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
       style={{ boxShadow: `0 10px 30px -10px ${palette.color}60` }}
     >

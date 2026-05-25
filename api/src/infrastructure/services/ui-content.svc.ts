@@ -11,7 +11,18 @@ import { ValidationError } from './errors.js'
 import { deleteInlineImage, uploadInlineImage } from './image.svc.js'
 import { assertGuid } from './validators.js'
 
-const SLOTS: readonly UiContentSlot[] = ['hero-slide', 'offer-banner', 'sport', 'team', 'kit-category']
+const SLOTS: readonly UiContentSlot[] = [
+  'hero-slide',
+  'offer-banner',
+  'offer-strip',
+  'sport',
+  'team',
+  'kit-category',
+  'nav-link',
+  'footer-column',
+  'featured-section',
+  'coupon',
+]
 
 function assertSlot(slot: string): asserts slot is UiContentSlot {
   if (!SLOTS.includes(slot as UiContentSlot)) throw new ValidationError(`Unknown ui-content slot: ${slot}`)

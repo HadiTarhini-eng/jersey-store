@@ -1,13 +1,16 @@
 import { useCart } from '../../cart/hooks/useCart';
 import { formatPrice } from '../../../utils/formatters';
 import { useSiteConfig } from '../../../contexts/SiteConfigContext';
+import { useAppSelector } from '../../../app/hooks';
 
 export function OrderSummary() {
   const { items, subtotal } = useCart();
   const { freeShippingThreshold, currency } = useSiteConfig();
+  const coupon = useAppSelector((s) => s.checkout.coupon);
 
-  const shipping = subtotal >= freeShippingThreshold ? 0 : 9.99;
-  const total    = subtotal + shipping;
+  const shipping       = subtotal >= freeShippingThreshold ? 0 : 9.99;
+  const discountAmount = coupon ? Math.min(subtotal, coupon.amount) : 0;
+  const total          = Math.max(0, subtotal - discountAmount) + shipping;
 
   return (
     <div className="bg-surface rounded-2xl border border-stroke p-5 space-y-4">
@@ -47,6 +50,15 @@ export function OrderSummary() {
           <span>Subtotal</span>
           <span>{formatPrice(subtotal, currency)}</span>
         </div>
+        {coupon && discountAmount > 0 && (
+          <div className="flex justify-between text-sm text-ok">
+            <span>
+              Discount
+              <span className="text-muted ml-2 font-mono text-xs">({coupon.code})</span>
+            </span>
+            <span>−{formatPrice(discountAmount, currency)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-sm text-secondary">
           <span>Shipping</span>
           <span className={shipping === 0 ? 'text-ok' : ''}>

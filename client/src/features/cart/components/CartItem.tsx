@@ -51,6 +51,15 @@ export function CartItem({ item }: CartItemProps) {
           </p>
         )}
 
+        {(item.customName || item.customNumber) && (
+          <p className="text-[11px] text-muted mt-0.5 font-semibold uppercase tracking-wider">
+            Custom:{' '}
+            <span className="text-primary">
+              {item.customName ?? ''}{item.customName && item.customNumber ? ' · ' : ''}{item.customNumber ? `#${item.customNumber}` : ''}
+            </span>
+          </p>
+        )}
+
         <div className="flex items-center justify-between mt-2.5">
           <span className="text-sm font-bold text-primary">
             {formatPrice(item.priceAtTime * item.quantity)}

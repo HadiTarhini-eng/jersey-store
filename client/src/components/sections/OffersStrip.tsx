@@ -26,7 +26,7 @@ export function OffersStrip() {
         <div className="flex items-center h-full">
           <div
             className="marquee-track"
-            style={{ animationDuration: '24s', animationPlayState: 'running' }}
+            style={{ animationDuration: '60s', animationPlayState: 'running' }}
           >
             {looped.map((item, idx) => (
               <span key={`${item.id}-${idx}`} className="flex items-center shrink-0">

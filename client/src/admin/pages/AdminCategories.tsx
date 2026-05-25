@@ -5,7 +5,8 @@ import { ImageUpload } from '../components/ImageUpload';
 import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import { extractErrorMessage } from '../../services/api/client';
-import type { Sport, Team, UiCategory } from '../../types';
+import { categoryApi } from '../../services/api';
+import type { Category, Sport, Team, UiCategory } from '../../types';
 
 type Tab = 'sports' | 'teams' | 'kit';
 
@@ -629,8 +630,19 @@ function KitTab() {
   const { items } = hook;
   const [editing, setEditing] = useState<UiCategory | null>(null);
   const [pendingDelete, setPendingDelete] = useState<UiCategory | null>(null);
+  const [productCategories, setProductCategories] = useState<Category[]>([]);
   const { push, promise } = useToast();
   const move = useMove(items, hook, 'category');
+
+  // Backend product categories — the editor binds each kit tile to one of
+  // these so /shop links actually filter products. Loaded once per tab mount.
+  useEffect(() => {
+    let cancelled = false;
+    categoryApi.list({ isActive: true })
+      .then((cats) => { if (!cancelled) setProductCategories(cats); })
+      .catch(() => { /* leave empty if the API is down */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const newCategory = (): UiCategory => ({
     id:          '',
@@ -704,7 +716,11 @@ function KitTab() {
               </div>
             </div>
             <div className="p-3">
-              <p className="text-[10px] uppercase tracking-widest text-muted mb-2">/shop?categoryId={cat.slug}</p>
+              <p className="text-[10px] uppercase tracking-widest text-muted mb-2 truncate">
+                {cat.productCategoryId
+                  ? `Links to product category: ${productCategories.find((c) => c.id === cat.productCategoryId)?.name ?? cat.productCategoryId}`
+                  : 'Unlinked — tile won\'t filter products'}
+              </p>
               <CardChrome
                 isActive={cat.isActive}
                 isFirst={idx === 0}
@@ -720,7 +736,12 @@ function KitTab() {
         )}
       />
 
-      <KitEditor category={editing} onCancel={() => setEditing(null)} onSave={onSave} />
+      <KitEditor
+        category={editing}
+        productCategories={productCategories}
+        onCancel={() => setEditing(null)}
+        onSave={onSave}
+      />
 
       <ConfirmModal
         isOpen={!!pendingDelete}
@@ -735,7 +756,14 @@ function KitTab() {
   );
 }
 
-function KitEditor({ category, onCancel, onSave }: { category: UiCategory | null; onCancel: () => void; onSave: (c: UiCategory, file: File | null) => void }) {
+function KitEditor({
+  category, productCategories, onCancel, onSave,
+}: {
+  category: UiCategory | null;
+  productCategories: Category[];
+  onCancel: () => void;
+  onSave: (c: UiCategory, file: File | null) => void;
+}) {
   const [form, setForm] = useState<UiCategory | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof UiCategory, string>>>({});
@@ -775,6 +803,21 @@ function KitEditor({ category, onCancel, onSave }: { category: UiCategory | null
         </FormField>
         <FormField label="Slug" error={errors.slug} required>
           <input value={form.slug} onChange={(e) => set('slug', e.target.value)} className={errors.slug ? inputErrorClass : inputClass} placeholder="hoodies" />
+        </FormField>
+        <FormField
+          label="Linked product category"
+          hint="Pick the backend category this tile filters by on the shop page"
+        >
+          <select
+            value={form.productCategoryId ?? ''}
+            onChange={(e) => set('productCategoryId', e.target.value || undefined)}
+            className={inputClass}
+          >
+            <option value="">— None (tile won't filter products) —</option>
+            {productCategories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         </FormField>
         <FormField label="Description">
           <textarea

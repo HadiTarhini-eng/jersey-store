@@ -260,6 +260,9 @@ export interface CartItem extends BusinessEntity {
   image?:        string;
   variantLabel?: string; // e.g. "Size: L" — derived from VariantAttributeValue
   maxStock?:     number;
+  /** Customer-provided printing options — only set for `printable` products. */
+  customName?:   string;
+  customNumber?: string;
 }
 
 export interface CreateCartPayload {
@@ -304,6 +307,10 @@ export interface Order extends BusinessEntity {
   shippingAddress: AddressSnapshot;
   billingAddress:  AddressSnapshot;
   placedAt?:       ISODate | null;
+  /** UI-only snapshot of the cart items at submission — used by the WhatsApp confirmation message. */
+  itemsSnapshot?:  CartItem[];
+  /** Code of the coupon applied to this order, if any. UI-only mirror of `discountAmount`. */
+  couponCode?:     string;
 }
 
 export interface OrderItem extends BusinessEntity {
@@ -441,6 +448,13 @@ export interface UiCategory {
   color?:     string;
   colorDark?: string;
   image?:     string;
+  /**
+   * Backend product-category id this tile points to. When set, clicking the
+   * tile filters /shop by this id so products tagged with that backend
+   * category actually surface. When unset, the tile links to its own ui-row
+   * id (a no-op for product filtering).
+   */
+  productCategoryId?: string;
 }
 
 // ── UI / Config ──────────────────────────────────────────────────────────────
@@ -581,7 +595,31 @@ export type UiContentSlot =
   | 'kit-category'
   | 'nav-link'
   | 'footer-column'
-  | 'featured-section';
+  | 'featured-section'
+  | 'coupon';
+
+/**
+ * Shape stored under the `coupon` ui-content slot. The index signature is
+ * required so the payload satisfies `useUiContentSlot`'s generic constraint
+ * (`Record<string, unknown>`).
+ */
+export interface CouponPayload {
+  code:          string;
+  /** 'percentage' subtracts `discountValue`% from subtotal; 'fixed' subtracts a flat currency amount. */
+  discountType:  'percentage' | 'fixed';
+  discountValue: number;
+  description?:  string;
+  [key: string]: unknown;
+}
+
+/** A coupon that has been validated and applied to the current checkout. */
+export interface AppliedCoupon {
+  code:          string;
+  discountType:  'percentage' | 'fixed';
+  discountValue: number;
+  /** Resolved discount amount in the cart's currency, computed at apply time. */
+  amount:        number;
+}
 
 export interface UiContentItem<TPayload extends Record<string, unknown> = Record<string, unknown>> extends BusinessEntity {
   slot:      UiContentSlot;
@@ -681,6 +719,8 @@ export interface AdminProduct {
   rating:         number;
   reviewCount:    number;
   createdAt:      ISODate;
+  /** When true, the detail page exposes custom name/number inputs. */
+  printable?:     boolean;
 }
 
 export interface AdminCustomer {
@@ -755,4 +795,6 @@ export interface CheckoutState {
   loading:         boolean;
   error:           string | null;
   order:           Order | null;
+  /** Coupon currently applied to the in-progress checkout, if any. */
+  coupon:          AppliedCoupon | null;
 }

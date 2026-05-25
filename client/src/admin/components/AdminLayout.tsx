@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { to: '/admin/products',     label: 'Products',    icon: 'products'              },
   { to: '/admin/products/new', label: 'Add Product', icon: 'add'                   },
   { to: '/admin/offers',       label: 'Offers',      icon: 'offers'                },
+  { to: '/admin/discounts',    label: 'Discounts',   icon: 'discounts'             },
   { to: '/admin/categories',   label: 'Categories',  icon: 'categories'            },
   { to: '/admin/settings',     label: 'Settings',    icon: 'categories'            },
 ];
@@ -27,6 +28,7 @@ const icons: Record<string, ReactNode> = {
   products:   <path d="M20 7L12 3 4 7l8 4 8-4zM4 7v10l8 4 8-4V7M12 11v10" strokeLinecap="round" strokeLinejoin="round" />,
   add:        <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />,
   offers:     <path d="M20 12l-8 8-8-8 8-8 8 8zM12 8v4l3 2" strokeLinecap="round" strokeLinejoin="round" />,
+  discounts:  <path d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" strokeLinecap="round" strokeLinejoin="round" />,
   categories: <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" strokeLinecap="round" strokeLinejoin="round" />,
 };
 
@@ -162,6 +164,7 @@ function PageTitle({ pathname }: { pathname: string }) {
     { match: (p) => p === '/admin/products/new',             label: 'Add Product' },
     { match: (p) => p.startsWith('/admin/products/'),        label: 'Edit Product' },
     { match: (p) => p === '/admin/offers',                   label: 'Offers' },
+    { match: (p) => p === '/admin/discounts',                label: 'Discounts' },
     { match: (p) => p === '/admin/categories',               label: 'Categories' },
     { match: (p) => p === '/admin/settings',                 label: 'Settings'   },
   ];

@@ -31,6 +31,7 @@ function productToAdmin(product: Product, variants: ProductVariant[], images: st
     features:      meta.features,
     tags:          meta.tags,
     badge:         meta.badge,
+    printable:     meta.printable,
     variants:      variants.map((v) => ({ size: variantSize(v, product.slug), stock: v.stockQuantity })),
     inStock:       variants.some((v) => v.stockQuantity > 0),
     rating:        0,

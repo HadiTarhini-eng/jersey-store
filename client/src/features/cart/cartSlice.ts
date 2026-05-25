@@ -44,21 +44,33 @@ export const hydrateAuthenticatedCart = createAsyncThunk(
       if (guestItems.length > 0) {
         const existingByVariant = new Map(existingItems.map((item) => [item.productVariantId, item]));
 
+        // Migrate each guest item individually — a single failure must not
+        // abort the whole merge (and prevent the localStorage cleanup that
+        // follows). Failed items stay in localStorage long enough to retry on
+        // the next hydrate; succeeded ones land on the server cart.
         for (const guestItem of guestItems) {
           const match = existingByVariant.get(guestItem.productVariantId);
-          if (match) {
-            await cartApi.updateItem(match.id, match.quantity + guestItem.quantity);
-          } else {
-            await cartApi.addItem(cart.id, {
-              productVariantId: guestItem.productVariantId,
-              quantity: guestItem.quantity,
-              priceAtTime: guestItem.priceAtTime,
-            });
+          try {
+            if (match) {
+              await cartApi.updateItem(match.id, match.quantity + guestItem.quantity);
+            } else {
+              await cartApi.addItem(cart.id, {
+                productVariantId: guestItem.productVariantId,
+                quantity: guestItem.quantity,
+                priceAtTime: guestItem.priceAtTime,
+              });
+            }
+          } catch (err) {
+            // Swallow per-item failures so the rest of the merge proceeds.
+            console.warn('Cart merge failed for variant', guestItem.productVariantId, err);
           }
         }
-
-        clearStoredCart(null);
       }
+
+      // Always clear the guest cart once the user is authenticated. The merge
+      // above is best-effort; whether or not it had items, localStorage must
+      // not keep ghost-rendering them in the storefront after login.
+      clearStoredCart(null);
 
       const items = await cartApi.listItems(cart.id);
       return { cartId: cart.id, items } satisfies ServerCartPayload;

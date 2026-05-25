@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../app/hooks';
 import { CheckoutForm } from '../features/checkout/components/CheckoutForm';
 import { OrderSummary } from '../features/checkout/components/OrderSummary';
+import { CouponField } from '../features/checkout/components/CouponField';
 import { Button } from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
 import { submitOrder, setStep, resetCheckout } from '../features/checkout/checkoutSlice';
@@ -74,58 +75,52 @@ export function CheckoutPage() {
 
       {/* ── Shipping step ─────────────────────────────────────── */}
       {step === 'shipping' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          <div className="lg:col-span-2">
-            <CheckoutForm />
-          </div>
-          <div className="sticky top-24">
-            <OrderSummary />
-          </div>
+        <div className="max-w-2xl mx-auto">
+          <CheckoutForm />
         </div>
       )}
 
       {/* ── Review step ───────────────────────────────────────── */}
       {step === 'review' && shippingAddress && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-surface rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.45)]">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="font-semibold text-primary">Shipping to</h2>
-                <button
-                  type="button"
-                  onClick={() => dispatch(setStep('shipping'))}
-                  className="text-xs font-bold uppercase tracking-wider text-accent hover:text-accent-light transition-colors"
-                >
-                  Edit
-                </button>
-              </div>
-              <div className="text-sm text-secondary space-y-0.5">
-                <p className="text-primary font-medium">{shippingAddress.fullName}</p>
-                <p>{shippingAddress.addressLine1}</p>
-                {shippingAddress.addressLine2 && <p>{shippingAddress.addressLine2}</p>}
-                <p>
-                  {shippingAddress.city}
-                  {shippingAddress.state ? `, ${shippingAddress.state}` : ''}
-                  {shippingAddress.postalCode ? ` ${shippingAddress.postalCode}` : ''}
-                </p>
-                <p>{shippingAddress.country}</p>
-                <p className="mt-1">{shippingAddress.phone}</p>
-              </div>
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="bg-surface rounded-2xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.45)]">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="font-semibold text-primary">Shipping to</h2>
+              <button
+                type="button"
+                onClick={() => dispatch(setStep('shipping'))}
+                className="text-xs font-bold uppercase tracking-wider text-accent hover:text-accent-light transition-colors"
+              >
+                Edit
+              </button>
             </div>
+            <div className="text-sm text-secondary space-y-0.5">
+              <p className="text-primary font-medium">{shippingAddress.fullName}</p>
+              <p>{shippingAddress.addressLine1}</p>
+              {shippingAddress.addressLine2 && <p>{shippingAddress.addressLine2}</p>}
+              <p>
+                {shippingAddress.city}
+                {shippingAddress.state ? `, ${shippingAddress.state}` : ''}
+                {shippingAddress.postalCode ? ` ${shippingAddress.postalCode}` : ''}
+              </p>
+              <p>{shippingAddress.country}</p>
+              <p className="mt-1">{shippingAddress.phone}</p>
+            </div>
+          </div>
 
-            <Button
-              variant="primary"
-              size="lg"
-              fullWidth
-              loading={loading}
-              onClick={() => dispatch(submitOrder(shippingAddress))}
-            >
-              Confirm Order
-            </Button>
-          </div>
-          <div className="sticky top-24">
-            <OrderSummary />
-          </div>
+          <CouponField />
+
+          <OrderSummary />
+
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            loading={loading}
+            onClick={() => dispatch(submitOrder(shippingAddress))}
+          >
+            Confirm Order
+          </Button>
         </div>
       )}
 
@@ -230,7 +225,32 @@ function buildWhatsAppMessage(order: import('../types').Order, siteName: string)
   const lines: string[] = [];
   lines.push(`Hi ${siteName}, I just placed order *${order.orderNumber || order.id}*.`);
   lines.push('');
+
+  // Per-item lines — include custom printing details when present so the shop
+  // knows exactly what to fulfil.
+  const items = order.itemsSnapshot ?? [];
+  if (items.length > 0) {
+    lines.push('*Items*');
+    for (const it of items) {
+      const title  = it.productTitle ?? 'Item';
+      const size   = it.variantLabel ? ` (${it.variantLabel})` : '';
+      lines.push(`• ${title}${size} × ${it.quantity}`);
+      if (it.customName || it.customNumber) {
+        const bits = [
+          it.customName ? `Name: ${it.customName}` : null,
+          it.customNumber ? `Number: ${it.customNumber}` : null,
+        ].filter(Boolean).join(' · ');
+        lines.push(`   ↳ ${bits}`);
+      }
+    }
+    lines.push('');
+  }
+
   lines.push(`Subtotal: ${formatPrice(order.subtotal ?? 0)}`);
+  if (order.discountAmount && order.discountAmount > 0) {
+    const couponLabel = order.couponCode ? ` (${order.couponCode})` : '';
+    lines.push(`Discount${couponLabel}: −${formatPrice(order.discountAmount)}`);
+  }
   if (order.shippingAmount) lines.push(`Shipping: ${formatPrice(order.shippingAmount)}`);
   lines.push(`*Total: ${formatPrice(order.totalAmount ?? order.subtotal ?? 0)}*`);
   lines.push('');

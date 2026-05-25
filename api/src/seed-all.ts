@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { inArray } from 'drizzle-orm'
 import { db, connection } from './infrastructure/database/db.js'
 import { HashPassword } from './utils/hash.js'
 import {
@@ -857,6 +858,25 @@ try {
     .onConflictDoNothing()
 
   // ─── UI content: hero, strip, banners, sports, teams, kit categories ──────
+  //
+  // None of these slots has a unique constraint on (slot, payload) and every
+  // insert generates a fresh UUID, so naive reseeding duplicates every row.
+  // We wipe all rows in the slots we own before reinserting to make this
+  // section fully idempotent. Caveat: any admin-added rows in these slots
+  // will be removed on reseed — reconcile production data before re-running.
+  console.log('Seeding ui-content: wiping seeded slots...')
+  await db.delete(uiContent).where(inArray(uiContent.slot, [
+    'hero-slide',
+    'offer-strip',
+    'offer-banner',
+    'sport',
+    'team',
+    'kit-category',
+    'nav-link',
+    'footer-column',
+    'featured-section',
+  ]))
+
   console.log('Seeding ui-content: hero slides (3 — incl. World Cup 2026)...')
   await db
     .insert(uiContent)
@@ -1102,7 +1122,6 @@ try {
         payload: { title: 'New Arrivals', subtitle: "Fresh drops from the world's top clubs", limit: 8 },
       },
     ])
-    .onConflictDoNothing()
 
   console.log(`Seeding complete — ${CATALOG.length} products, ${allVariants.length} variants.`)
 } catch (err) {
