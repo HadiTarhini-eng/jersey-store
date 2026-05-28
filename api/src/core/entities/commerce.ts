@@ -25,15 +25,22 @@ export interface CartItemEntity extends BusinessEntity {
   productVariantId: Guid
   quantity: number
   priceAtTime: number
+  /** Customer-supplied printing fields — only valid when the product has `printable=true`. */
+  customName?: string | null
+  customNumber?: string | null
 }
 
 export interface OrderEntity extends BusinessEntity {
-  userId: Guid
+  /** Nullable for guest checkout; when null, the buyer is identified by guestEmail + shipping address. */
+  userId: Guid | null
+  guestEmail?: string | null
   orderNumber: string
   status: OrderStatus
   paymentStatus: PaymentStatus
   subtotal: number
   discountAmount: number
+  /** Coupon code denormalized from the ui-content coupon slot at submit time. */
+  couponCode?: string | null
   shippingAmount: number
   totalAmount: number
   shippingAddress: AddressSnapshot
@@ -49,6 +56,9 @@ export interface OrderItemEntity extends BusinessEntity {
   quantity: number
   unitPrice: number
   totalPrice: number
+  /** Snapshotted printing fields — copied from the cart item at order time. */
+  customName?: string | null
+  customNumber?: string | null
 }
 
 export interface ReviewEntity extends BusinessEntity {
@@ -98,6 +108,8 @@ export class CartItem extends BaseEntity implements CartItemEntity {
   productVariantId: Guid
   quantity: number
   priceAtTime: number
+  customName?: string | null
+  customNumber?: string | null
 
   constructor(payload: CartItemPayload) {
     super(payload)
@@ -105,6 +117,8 @@ export class CartItem extends BaseEntity implements CartItemEntity {
     this.productVariantId = payload.productVariantId
     this.quantity = payload.quantity
     this.priceAtTime = payload.priceAtTime
+    this.customName = payload.customName ?? null
+    this.customNumber = payload.customNumber ?? null
   }
 
   updateQuantity(quantity: number): void {
@@ -115,12 +129,14 @@ export class CartItem extends BaseEntity implements CartItemEntity {
 }
 
 export class Order extends BaseEntity implements OrderEntity {
-  userId: Guid
+  userId: Guid | null
+  guestEmail?: string | null
   orderNumber: string
   status: OrderStatus
   paymentStatus: PaymentStatus
   subtotal: number
   discountAmount: number
+  couponCode?: string | null
   shippingAmount: number
   totalAmount: number
   shippingAddress: AddressSnapshot
@@ -129,12 +145,14 @@ export class Order extends BaseEntity implements OrderEntity {
 
   constructor(payload: OrderPayload) {
     super(payload)
-    this.userId = payload.userId
+    this.userId = payload.userId ?? null
+    this.guestEmail = payload.guestEmail ?? null
     this.orderNumber = payload.orderNumber
     this.status = payload.status ?? 'pending'
     this.paymentStatus = payload.paymentStatus ?? 'pending'
     this.subtotal = payload.subtotal
     this.discountAmount = payload.discountAmount ?? 0
+    this.couponCode = payload.couponCode ?? null
     this.shippingAmount = payload.shippingAmount ?? 0
     this.totalAmount = payload.totalAmount ?? this.calculateTotal()
     this.shippingAddress = payload.shippingAddress
@@ -171,6 +189,8 @@ export class OrderItem extends BaseEntity implements OrderItemEntity {
   quantity: number
   unitPrice: number
   totalPrice: number
+  customName?: string | null
+  customNumber?: string | null
 
   constructor(payload: OrderItemPayload) {
     super(payload)
@@ -181,6 +201,8 @@ export class OrderItem extends BaseEntity implements OrderItemEntity {
     this.quantity = payload.quantity
     this.unitPrice = payload.unitPrice
     this.totalPrice = payload.totalPrice ?? payload.quantity * payload.unitPrice
+    this.customName = payload.customName ?? null
+    this.customNumber = payload.customNumber ?? null
   }
 }
 

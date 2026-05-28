@@ -15,6 +15,13 @@
       "when": 1779560226378,
       "tag": "20260523181706_bouncy_agent_zero",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779922800000,
+      "tag": "20260527120000_storefront_commerce_extensions",
+      "breakpoints": true
     }
   ]
 }

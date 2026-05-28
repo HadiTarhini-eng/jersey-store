@@ -11,16 +11,18 @@ import { decodeProductTags } from '../features/products/lib/productMeta';
 import type { Product, ProductFilters, ProductSearchQuery, SortOption } from '../types';
 
 /**
- * Projects tag-encoded meta (originalPrice, badge, …) onto the Product so
- * downstream components don't have to re-decode it. Critical for the SALE
- * chip + struck-through price — `Product.originalPrice` is absent on backend
- * payloads and lives in the tags as `originalPrice:N`.
+ * Projects compare-at price + tag-encoded meta onto the Product so downstream
+ * components don't have to re-decode it. `compareAtPrice` is the canonical
+ * column; we mirror it onto the legacy `originalPrice` enrichment for the
+ * many components that already read that field. Falls back to the legacy
+ * tag-encoded `originalPrice:` for rows that pre-date the column.
  */
 function decorateFromTags(p: Product): Product {
   const meta = decodeProductTags(p.tags ?? []);
+  const compareAt = p.compareAtPrice ?? meta.originalPrice;
   return {
     ...p,
-    originalPrice: p.originalPrice ?? meta.originalPrice,
+    originalPrice: p.originalPrice ?? (compareAt ?? undefined),
   };
 }
 

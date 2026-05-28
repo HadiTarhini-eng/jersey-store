@@ -16,6 +16,11 @@ function variantSize(variant: ProductVariant, slug: string): string {
 
 function productToAdmin(product: Product, variants: ProductVariant[], images: string[]): AdminProduct {
   const meta = decodeProductTags(product.tags ?? []);
+  // Prefer real columns; fall back to legacy tag-encoded values for rows that
+  // haven't been re-saved since the column landed (productMeta no longer emits
+  // these tags but they may still be in the DB).
+  const compareAtPrice = product.compareAtPrice ?? meta.originalPrice;
+  const printable = product.printable ?? meta.printable ?? false;
   return {
     id:            product.id,
     name:          product.title,
@@ -24,14 +29,14 @@ function productToAdmin(product: Product, variants: ProductVariant[], images: st
     team:          meta.team,
     category:      meta.category,
     price:         product.basePrice,
-    originalPrice: meta.originalPrice,
+    originalPrice: compareAtPrice ?? undefined,
     currency:      meta.currency,
     images,
     description:   product.fullDescription ?? product.shortDescription ?? '',
     features:      meta.features,
     tags:          meta.tags,
     badge:         meta.badge,
-    printable:     meta.printable,
+    printable,
     variants:      variants.map((v) => ({ size: variantSize(v, product.slug), stock: v.stockQuantity })),
     inStock:       variants.some((v) => v.stockQuantity > 0),
     rating:        0,
@@ -49,6 +54,9 @@ function adminToProductPayload(admin: AdminProduct, categoryId: string, createdB
     fullDescription:  admin.description,
     tags:             encodeProductTags(admin),
     basePrice:        admin.price,
+    // First-class columns now — pass through directly instead of tag-encoding.
+    compareAtPrice:   admin.originalPrice ?? null,
+    printable:        admin.printable ?? false,
     status:           'active',
     featured:         false,
     createdBy,

@@ -1,7 +1,7 @@
 import { http, toFormData, UPLOAD_CONFIG } from './client';
 import { endpoints } from './endpoints';
 import type {
-  AssignAttributePayload, Attachment, CreateAttributeOptionPayload,
+  AssignAttributePayload, Attachment, BulkPricingItem, CreateAttributeOptionPayload,
   CreateProductPayload, CreateSpecificationPayload, CreateVariantPayload,
   Product, ProductAssignedAttribute, ProductAttribute, ProductAttributeOption,
   ProductSearchQuery, ProductSpecification, ProductVariant,
@@ -28,6 +28,12 @@ export const productApi = {
   archive:   (id: string)                                  => http.post<Product>(endpoints.products.archive(id)),
   setFeatured:(id: string, featured: boolean)              => http.patch<Product>(endpoints.products.featured(id), { featured }),
   setPrice:  (id: string, basePrice: number)               => http.patch<Product>(endpoints.products.price(id), { basePrice }),
+  /**
+   * Atomic bulk pricing update — server-side transaction over many products
+   * at once. Replaces the N-parallel-PATCH pattern in the admin discount
+   * workbench so the entire batch succeeds or fails together.
+   */
+  bulkPricing: (items: BulkPricingItem[])                  => http.post<Product[]>(endpoints.products.bulkPricing(), { items }),
   delete:    (id: string)                                  => http.delete<void>(endpoints.products.delete(id)),
   images: {
     /**

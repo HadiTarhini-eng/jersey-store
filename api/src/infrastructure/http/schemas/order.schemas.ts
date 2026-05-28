@@ -34,6 +34,8 @@ const OrderItemBody = Type.Object({
   quantity: Type.Integer({ minimum: 1 }),
   unitPrice: Type.Number({ minimum: 0 }),
   totalPrice: Type.Optional(Type.Number({ minimum: 0 })),
+  customName: Type.Optional(Type.Union([Type.String({ maxLength: 40 }), Type.Null()])),
+  customNumber: Type.Optional(Type.Union([Type.String({ maxLength: 8 }), Type.Null()])),
   isActive: Type.Optional(Type.Boolean()),
 })
 
@@ -45,6 +47,7 @@ const OrderBody = Type.Object({
   paymentStatus: Type.Optional(PaymentStatusEnum),
   subtotal: Type.Number({ minimum: 0 }),
   discountAmount: Type.Optional(Type.Number({ minimum: 0 })),
+  couponCode: Type.Optional(Type.Union([Type.String({ maxLength: 80 }), Type.Null()])),
   shippingAmount: Type.Optional(Type.Number({ minimum: 0 })),
   totalAmount: Type.Optional(Type.Number({ minimum: 0 })),
   shippingAddress: AddressSchema,
@@ -57,6 +60,26 @@ const CreateOrderBody = Type.Object({
   items: Type.Array(OrderItemBody, { minItems: 1 }),
 })
 export type CreateOrderBodyType = Static<typeof CreateOrderBody>
+
+// Guest checkout body. `userId` is omitted (auth-less endpoint), buyer is
+// identified by guestEmail + shipping address. Server recomputes subtotal /
+// discount / total from the items + optional coupon code — no totals trusted
+// from the client.
+const GuestOrderItemBody = Type.Object({
+  productVariantId: Type.String(),
+  quantity: Type.Integer({ minimum: 1 }),
+  customName: Type.Optional(Type.Union([Type.String({ maxLength: 40 }), Type.Null()])),
+  customNumber: Type.Optional(Type.Union([Type.String({ maxLength: 8 }), Type.Null()])),
+})
+
+const CreateGuestOrderBody = Type.Object({
+  guestEmail: Type.Optional(Type.Union([Type.String({ maxLength: 320 }), Type.Null()])),
+  couponCode: Type.Optional(Type.Union([Type.String({ maxLength: 80 }), Type.Null()])),
+  shippingAddress: AddressSchema,
+  billingAddress: Type.Optional(AddressSchema),
+  items: Type.Array(GuestOrderItemBody, { minItems: 1 }),
+})
+export type CreateGuestOrderBodyType = Static<typeof CreateGuestOrderBody>
 
 const UpdateStatusBody = Type.Object({ status: OrderStatusEnum })
 export type UpdateStatusBodyType = Static<typeof UpdateStatusBody>
@@ -71,6 +94,7 @@ const UpdateAddressesBody = Type.Object({
 export type UpdateAddressesBodyType = Static<typeof UpdateAddressesBody>
 
 export const createOrderSchema: FastifySchema = { tags: ['Orders'], body: CreateOrderBody }
+export const createGuestOrderSchema: FastifySchema = { tags: ['Orders'], body: CreateGuestOrderBody, description: 'Anonymous checkout. Server recomputes subtotal / discount / total from items + coupon — no totals trusted from the client.' }
 export const getOrderSchema: FastifySchema = { tags: ['Orders'], params: IdParams }
 export const getOrderByNumberSchema: FastifySchema = { tags: ['Orders'], params: OrderNumberParams }
 export const listUserOrdersSchema: FastifySchema = { tags: ['Orders'], params: UserIdParams }

@@ -15,6 +15,7 @@ import { AttachmentService } from "../../services/attachment.svc.js"
 import { CategoryService, CategoryTypeService } from "../../services/catalog.svc.js"
 import { CartService, OrderService, ReviewService } from "../../services/commerce.svc.js"
 import { ShippingMethodService, SiteConfigService } from "../../services/config.svc.js"
+import { CouponService } from "../../services/coupon.svc.js"
 import { ServiceError } from "../../services/errors.js"
 import { SpecialOfferService } from "../../services/offer.svc.js"
 import { ProductAttributeService, ProductService, ProductVariantService } from "../../services/product.svc.js"
@@ -141,6 +142,7 @@ export const createServer = async (): Promise<FastifyInstance> => {
     const attachmentService = new AttachmentService(attachmentRepository, server.storage)
     registerSensitiveFieldStripping(server)
     const userService = new UserService(userRepository, server.storage)
+    const couponService = new CouponService(uiContentRepository)
     const storeServices = {
         attachmentService,
         categoryTypeService: new CategoryTypeService(categoryTypeRepository),
@@ -153,13 +155,14 @@ export const createServer = async (): Promise<FastifyInstance> => {
             productSpecificationRepository,
         ),
         productVariantService: new ProductVariantService(productVariantRepository, variantAttributeValueRepository, server.storage),
-        cartService: new CartService(cartRepository, cartItemRepository),
-        orderService: new OrderService(orderRepository, orderItemRepository),
+        cartService: new CartService(cartRepository, cartItemRepository, productVariantRepository, productRepository),
+        orderService: new OrderService(orderRepository, orderItemRepository, productVariantRepository, productRepository, couponService),
         reviewService: new ReviewService(reviewRepository),
         specialOfferService: new SpecialOfferService(specialOfferRepository, offerProductRepository, server.storage),
         siteConfigService: new SiteConfigService(siteConfigRepository, server.storage),
         shippingMethodService: new ShippingMethodService(shippingMethodRepository),
         uiContentService: new UiContentService(uiContentRepository, server.storage),
+        couponService,
         analyticsService: new AnalyticsService(analyticsDailyRepository),
         adminService: new AdminService(),
     }

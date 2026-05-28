@@ -1,11 +1,14 @@
 import { http } from './client';
 import { endpoints } from './endpoints';
 import type {
-  AddressSnapshot, CreateOrderPayload, Order, OrderItem, OrderStatus, PaymentStatus,
+  AddressSnapshot, CreateGuestOrderPayload, CreateOrderPayload, GuestOrderResponse,
+  Order, OrderItem, OrderStatus, PaymentStatus,
 } from '../../types';
 
 export const orderApi = {
   create:        (body: CreateOrderPayload)        => http.post<Order>(endpoints.orders.create(), body),
+  /** Anonymous one-shot checkout. Server resolves prices + totals. */
+  createGuest:   (body: CreateGuestOrderPayload)   => http.post<GuestOrderResponse>(endpoints.orders.guest(), body),
   byId:          (id: string)                      => http.get<Order>(endpoints.orders.byId(id)),
   byNumber:      (orderNumber: string)             => http.get<Order>(endpoints.orders.byNumber(orderNumber)),
   forUser:       (userId: string)                  => http.get<Order[]>(endpoints.orders.forUser(userId)),

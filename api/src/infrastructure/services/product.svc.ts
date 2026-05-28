@@ -11,6 +11,7 @@ import {
 } from '../../core/entities/product.js'
 import { type IAttachmentService } from '../../core/services/attachment.svc.js'
 import {
+  type BulkPricingItem,
   type CreateProductInput,
   type CreateVariantInput,
   type IProductAttributeService,
@@ -165,6 +166,27 @@ export class ProductService implements IProductService {
     assertGuid(id)
     assertNonNegativeNumber(basePrice, 'basePrice')
     return this.productRepository.update(id, { basePrice } as Partial<Product>)
+  }
+
+  // Applies pricing updates to many products in one call. Validates the entire
+  // batch up front so a bad row aborts everything before any write — gives the
+  // admin discount workbench atomic "apply to N" semantics.
+  async bulkUpdatePricing(items: BulkPricingItem[]): Promise<Product[]> {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new ValidationError('items must be a non-empty array')
+    }
+    for (const item of items) {
+      assertGuid(item.productId, 'productId')
+      assertNonNegativeNumber(item.basePrice, 'basePrice')
+      if (item.compareAtPrice !== undefined && item.compareAtPrice !== null) {
+        assertNonNegativeNumber(item.compareAtPrice, 'compareAtPrice')
+      }
+    }
+    return Promise.all(items.map((item) => {
+      const patch: Partial<Product> = { basePrice: item.basePrice }
+      if (item.compareAtPrice !== undefined) patch.compareAtPrice = item.compareAtPrice
+      return this.productRepository.update(item.productId, patch)
+    }))
   }
 
   async deleteProduct(id: Guid): Promise<void> {

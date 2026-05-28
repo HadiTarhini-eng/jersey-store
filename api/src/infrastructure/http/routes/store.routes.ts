@@ -5,6 +5,7 @@ import { type IAttachmentService } from '../../../core/services/attachment.svc.j
 import { type ICategoryService, type ICategoryTypeService } from '../../../core/services/catalog.svc.js'
 import { type ICartService, type IOrderService, type IReviewService } from '../../../core/services/commerce.svc.js'
 import { type IShippingMethodService, type ISiteConfigService } from '../../../core/services/config.svc.js'
+import { type ICouponService } from '../../../core/services/coupon.svc.js'
 import { type ISpecialOfferService } from '../../../core/services/offer.svc.js'
 import { type IProductAttributeService, type IProductService, type IProductVariantService } from '../../../core/services/product.svc.js'
 import { type IUiContentService } from '../../../core/services/ui-content.svc.js'
@@ -14,6 +15,7 @@ import { attachmentRoutes } from './store/attachment.routes.js'
 import { cartRoutes } from './store/cart.routes.js'
 import { categoryRoutes } from './store/category.routes.js'
 import { configRoutes } from './store/config.routes.js'
+import { couponRoutes } from './store/coupon.routes.js'
 import { offerRoutes } from './store/offer.routes.js'
 import { orderRoutes } from './store/order.routes.js'
 import { productRoutes } from './store/product.routes.js'
@@ -34,6 +36,7 @@ export interface StoreRouteServices {
   siteConfigService: ISiteConfigService
   shippingMethodService: IShippingMethodService
   uiContentService: IUiContentService
+  couponService: ICouponService
   analyticsService: IAnalyticsService
   adminService: IAdminService
 }
@@ -48,6 +51,7 @@ export const storeRoutes = (services: StoreRouteServices): RouteOptions[] => [
   ...offerRoutes(services.specialOfferService),
   ...configRoutes(services.siteConfigService, services.shippingMethodService),
   ...uiContentRoutes(services.uiContentService),
+  ...couponRoutes(services.couponService),
   ...analyticsRoutes(services.analyticsService),
   ...adminRoutes(services.adminService),
 ]

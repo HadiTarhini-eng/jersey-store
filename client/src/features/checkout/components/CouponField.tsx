@@ -1,66 +1,51 @@
 import { useState } from 'react';
-import { useUiContentSlot } from '../../../hooks/useUiContentSlot';
 import { useToast } from '../../../components/ui/Toast';
 import { useAppDispatch, useAppSelector } from '../../../app/hooks';
 import { useCart } from '../../cart/hooks/useCart';
 import { applyCoupon, removeCoupon } from '../checkoutSlice';
 import { formatPrice } from '../../../utils/formatters';
-import type { CouponPayload } from '../../../types';
-
-/**
- * Compute the discount amount in the cart's currency for the given coupon
- * against the given subtotal. Percentage discounts are capped at 100%; fixed
- * discounts are capped at the subtotal so the total never goes negative.
- */
-function computeDiscount(coupon: CouponPayload, subtotal: number): number {
-  if (coupon.discountType === 'percentage') {
-    const pct = Math.min(100, Math.max(0, coupon.discountValue));
-    return Math.round(subtotal * pct) / 100;
-  }
-  return Math.min(subtotal, Math.max(0, coupon.discountValue));
-}
+import { couponApi, extractErrorMessage, extractErrorStatus } from '../../../services/api';
 
 export function CouponField() {
   const dispatch = useAppDispatch();
   const toast    = useToast();
   const { subtotal } = useCart();
   const applied = useAppSelector((s) => s.checkout.coupon);
-  const { items: coupons, loading } = useUiContentSlot<CouponPayload>('coupon', { activeOnly: true });
   const [draft, setDraft] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const onApply = () => {
+  const onApply = async () => {
     const code = draft.trim().toUpperCase();
     if (!code) return;
-    const match = coupons.find((c) => (c.code ?? '').toUpperCase() === code);
-    if (!match) {
+    setSubmitting(true);
+    try {
+      const resolved = await couponApi.validate(code, subtotal);
+      dispatch(applyCoupon({
+        code:          resolved.code,
+        discountType:  resolved.discountType,
+        discountValue: resolved.discountValue,
+        amount:        resolved.amount,
+      }));
       toast.push({
-        variant: 'error',
-        title:   'Coupon not recognised',
-        message: `"${code}" isn't valid or has expired.`,
+        variant: 'success',
+        title:   'Coupon applied',
+        message: `${formatPrice(resolved.amount)} off — code ${resolved.code}.`,
       });
-      return;
+      setDraft('');
+    } catch (err) {
+      // 404 → unknown code; 400 → zero discount; anything else → bubble the message.
+      const status  = extractErrorStatus(err);
+      const message = extractErrorMessage(err, 'Could not apply coupon.');
+      if (status === 404) {
+        toast.push({ variant: 'error', title: 'Coupon not recognised', message: `"${code}" isn't valid or has expired.` });
+      } else if (status === 400) {
+        toast.push({ variant: 'warning', title: 'No discount applied', message });
+      } else {
+        toast.push({ variant: 'error', title: 'Coupon error', message });
+      }
+    } finally {
+      setSubmitting(false);
     }
-    const amount = computeDiscount(match as CouponPayload, subtotal);
-    if (amount <= 0) {
-      toast.push({
-        variant: 'warning',
-        title:   'No discount applied',
-        message: 'This coupon resolves to zero off — check the configuration.',
-      });
-      return;
-    }
-    dispatch(applyCoupon({
-      code:          match.code,
-      discountType:  match.discountType,
-      discountValue: match.discountValue,
-      amount,
-    }));
-    toast.push({
-      variant: 'success',
-      title:   'Coupon applied',
-      message: `${formatPrice(amount)} off — code ${match.code}.`,
-    });
-    setDraft('');
   };
 
   const onRemove = () => {
@@ -113,7 +98,7 @@ export function CouponField() {
           <button
             type="button"
             onClick={onApply}
-            disabled={!draft.trim() || loading}
+            disabled={!draft.trim() || submitting}
             className="px-4 py-2.5 rounded-xl bg-accent text-white font-bold text-sm uppercase tracking-wider hover:bg-accent-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Apply

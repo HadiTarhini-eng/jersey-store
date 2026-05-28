@@ -9,7 +9,11 @@ type JwtUser = { id: string; email: string; role: 'Admin' | 'User' }
 
 export const jwtUser = (request: FastifyRequest): JwtUser => request.user as JwtUser
 
-export const assertOwner = (request: FastifyRequest, resourceUserId: string): void => {
+export const assertOwner = (request: FastifyRequest, resourceUserId: string | null | undefined): void => {
   const { id, role } = jwtUser(request)
-  if (role !== 'Admin' && id !== resourceUserId) throw new ServiceError('Forbidden', 403)
+  // Guest-owned resources (userId === null) are never accessible through
+  // auth-required endpoints — only Admins can inspect them, and only when
+  // an explicit admin-scoped route routes here.
+  if (role === 'Admin') return
+  if (!resourceUserId || id !== resourceUserId) throw new ServiceError('Forbidden', 403)
 }

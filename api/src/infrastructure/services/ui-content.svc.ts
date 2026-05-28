@@ -7,6 +7,7 @@ import {
 } from '../../core/services/ui-content.svc.js'
 import { type ImageFile, type IStorageService } from '../../core/services/storage.svc.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
+import { isCouponPayload } from './coupon.svc.js'
 import { ValidationError } from './errors.js'
 import { deleteInlineImage, uploadInlineImage } from './image.svc.js'
 import { assertGuid } from './validators.js'
@@ -28,6 +29,18 @@ function assertSlot(slot: string): asserts slot is UiContentSlot {
   if (!SLOTS.includes(slot as UiContentSlot)) throw new ValidationError(`Unknown ui-content slot: ${slot}`)
 }
 
+/**
+ * Per-slot payload guard. Most slots are free-form UI content; the coupon slot
+ * is load-bearing (the storefront/cart compute discounts against it) so we
+ * lock its shape at write time. Skipped when `payload` is omitted in a PATCH.
+ */
+function assertSlotPayload(slot: UiContentSlot, payload: Record<string, unknown> | undefined): void {
+  if (payload === undefined) return
+  if (slot === 'coupon' && !isCouponPayload(payload)) {
+    throw new ValidationError('coupon payload must include { code, discountType: "percentage"|"fixed", discountValue: number >= 0 }')
+  }
+}
+
 export class UiContentService implements IUiContentService {
   constructor(
     private readonly repository: EntityRepository<UiContent>,
@@ -37,6 +50,7 @@ export class UiContentService implements IUiContentService {
   async create(input: CreateUiContentInput): Promise<UiContent> {
     assertGuid(input.uploadedBy, 'uploadedBy')
     assertSlot(input.slot)
+    assertSlotPayload(input.slot, input.payload ?? {})
 
     let imageUrl: string | null = null
     if (input.image) {
@@ -69,6 +83,10 @@ export class UiContentService implements IUiContentService {
 
   async update(id: Guid, data: UpdateUiContentInput): Promise<UiContent> {
     assertGuid(id)
+    if (data.payload !== undefined) {
+      const existing = await this.repository.require(id, 'UI content')
+      assertSlotPayload(existing.slot, data.payload)
+    }
     return this.repository.update(id, data as Partial<UiContent>)
   }
 

@@ -16,6 +16,9 @@ const CartItemBody = Type.Object({
   productVariantId: Type.String(),
   quantity: Type.Integer({ minimum: 1 }),
   priceAtTime: Type.Number({ minimum: 0 }),
+  // Printing fields — only valid on `printable=true` products (enforced server-side).
+  customName: Type.Optional(Type.Union([Type.String({ maxLength: 40 }), Type.Null()])),
+  customNumber: Type.Optional(Type.Union([Type.String({ maxLength: 8 }), Type.Null()])),
   isActive: Type.Optional(Type.Boolean()),
 })
 export type CartItemBodyType = Static<typeof CartItemBody>

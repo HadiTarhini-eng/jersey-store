@@ -15,6 +15,7 @@ export { cartApi }       from './cartApi';
 export { orderApi }      from './orderApi';
 export { reviewApi }     from './reviewApi';
 export { offerApi }      from './offerApi';
+export { couponApi }     from './couponApi';
 export { attachmentApi } from './attachmentApi';
 export { siteConfigApi } from './siteConfigApi';
 export { shippingApi }   from './shippingApi';

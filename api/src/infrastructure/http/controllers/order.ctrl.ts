@@ -4,7 +4,7 @@ import type { IOrderService } from '../../../core/services/commerce.svc.js'
 import { NotFoundError } from '../../services/errors.js'
 import { assertOwner, sendCreated, sendOk } from '../routes/route-utils.js'
 import type {
-  CreateOrderBodyType, UpdateAddressesBodyType, UpdatePaymentBodyType, UpdateStatusBodyType,
+  CreateGuestOrderBodyType, CreateOrderBodyType, UpdateAddressesBodyType, UpdatePaymentBodyType, UpdateStatusBodyType,
 } from '../schemas/order.schemas.js'
 
 type IdParams = { id: string }
@@ -18,6 +18,19 @@ export const createOrder = (service: IOrderService) =>
     const order = new Order(body.order as any)
     const items = body.items.map((item) => new OrderItem({ ...item, orderId: order.id } as any))
     sendCreated(reply, await service.createOrder(order, items))
+  }
+
+export const createGuestOrder = (service: IOrderService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const body = request.body as CreateGuestOrderBodyType
+    const result = await service.createGuestOrder({
+      guestEmail: body.guestEmail ?? null,
+      couponCode: body.couponCode ?? null,
+      shippingAddress: body.shippingAddress,
+      billingAddress: body.billingAddress,
+      items: body.items,
+    })
+    sendCreated(reply, result)
   }
 
 export const getOrderById = (service: IOrderService) =>

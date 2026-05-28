@@ -1,0 +1,10 @@
+import type { FastifyReply, FastifyRequest } from 'fastify'
+import type { ICouponService } from '../../../core/services/coupon.svc.js'
+import { sendOk } from '../routes/route-utils.js'
+import type { ValidateCouponBodyType } from '../schemas/coupon.schemas.js'
+
+export const validateCoupon = (service: ICouponService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const { code, subtotal } = request.body as ValidateCouponBodyType
+    sendOk(reply, await service.validate(code, subtotal))
+  }

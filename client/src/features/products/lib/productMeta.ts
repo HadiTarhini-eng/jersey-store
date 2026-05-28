@@ -1,9 +1,14 @@
 /**
- * UI-only product fields (sport, team, badge, currency, originalPrice, features,
- * display-category) don't live in the backend Product entity. Instead they piggy-
- * back on `Product.tags[]` as `key:value` strings — reversible without schema
- * changes. This module owns that encoding so both the admin form and the
- * storefront detail page agree on the wire format.
+ * UI-only product fields (sport, team, badge, currency, features, display-category)
+ * don't live in the backend Product entity. Instead they piggy-back on
+ * `Product.tags[]` as `key:value` strings — reversible without schema changes.
+ * This module owns that encoding so both the admin form and the storefront
+ * detail page agree on the wire format.
+ *
+ * **Legacy keys**: `originalPrice:` and `printable:` were once encoded here too.
+ * The backend now exposes them as first-class columns (`compareAtPrice` and
+ * `printable`). Decode keeps reading the legacy tags as a fallback for rows
+ * that haven't been re-saved yet; encode no longer emits them.
  */
 
 const META_KEYS = ['sport', 'team', 'category', 'badge', 'currency', 'originalPrice', 'feature', 'printable'] as const;
@@ -88,11 +93,9 @@ export function encodeProductTags(p: EncodableMeta): string[] {
   if (p.category) next.push(`category:${p.category}`);
   if (p.badge)    next.push(`badge:${p.badge}`);
   if (p.currency) next.push(`currency:${p.currency}`);
-  if (p.originalPrice !== undefined && p.originalPrice !== null) {
-    next.push(`originalPrice:${p.originalPrice}`);
-  }
+  // originalPrice and printable now live as real columns on `products` and are
+  // no longer emitted here — keeping them would shadow the canonical values.
   for (const f of p.features ?? []) next.push(`feature:${f}`);
-  if (p.printable) next.push('printable:true');
   for (const t of p.tags ?? [])     next.push(t);
   return next;
 }

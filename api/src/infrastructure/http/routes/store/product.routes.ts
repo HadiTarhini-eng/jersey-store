@@ -18,6 +18,7 @@ export const productRoutes = (
   { method: 'POST',   url: '/products/:id/archive',                  roles: ['Admin'],  schema: s.archiveProductSchema,          handler: ctrl.archiveProduct(productService) },
   { method: 'PATCH',  url: '/products/:id/featured',                 roles: ['Admin'],  schema: s.setFeaturedSchema,             handler: ctrl.setFeatured(productService) },
   { method: 'PATCH',  url: '/products/:id/price',                    roles: ['Admin'],  schema: s.updateBasePriceSchema,         handler: ctrl.updateBasePrice(productService) },
+  { method: 'POST',   url: '/products/bulk-pricing',                 roles: ['Admin'],  schema: s.bulkPricingSchema,             handler: ctrl.bulkUpdatePricing(productService) },
   { method: 'DELETE', url: '/products/:id',                          roles: ['Admin'],  schema: s.deleteProductSchema,           handler: ctrl.deleteProduct(productService) },
 
   // Product Images (gallery management — single canonical path).

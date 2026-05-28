@@ -22,18 +22,24 @@ export const endpoints = {
 
   // ── Products ────────────────────────────────────────────────────────────────
   products: {
-    create:    ()                  => '/products',
-    search:    ()                  => '/products',
-    byId:      (id: string)        => `/products/${id}`,
-    bySlug:    (slug: string)      => `/products/slug/${slug}`,
-    update:    (id: string)        => `/products/${id}`,
-    publish:   (id: string)        => `/products/${id}/publish`,
-    archive:   (id: string)        => `/products/${id}/archive`,
-    featured:  (id: string)        => `/products/${id}/featured`,
-    price:     (id: string)        => `/products/${id}/price`,
-    delete:    (id: string)        => `/products/${id}`,
-    images:    (productId: string) => `/products/${productId}/images`,
-    imageById: (id: string)        => `/products/images/${id}`,
+    create:      ()                  => '/products',
+    search:      ()                  => '/products',
+    byId:        (id: string)        => `/products/${id}`,
+    bySlug:      (slug: string)      => `/products/slug/${slug}`,
+    update:      (id: string)        => `/products/${id}`,
+    publish:     (id: string)        => `/products/${id}/publish`,
+    archive:     (id: string)        => `/products/${id}/archive`,
+    featured:    (id: string)        => `/products/${id}/featured`,
+    price:       (id: string)        => `/products/${id}/price`,
+    bulkPricing: ()                  => '/products/bulk-pricing',
+    delete:      (id: string)        => `/products/${id}`,
+    images:      (productId: string) => `/products/${productId}/images`,
+    imageById:   (id: string)        => `/products/images/${id}`,
+  },
+
+  // ── Coupons ─────────────────────────────────────────────────────────────────
+  coupons: {
+    validate: () => '/coupons/validate',
   },
 
   // ── Product Attributes ──────────────────────────────────────────────────────
@@ -104,6 +110,7 @@ export const endpoints = {
   // ── Orders ──────────────────────────────────────────────────────────────────
   orders: {
     create:        ()                      => '/orders',
+    guest:         ()                      => '/orders/guest',
     byId:          (id: string)            => `/orders/${id}`,
     byNumber:      (n: string)             => `/orders/number/${n}`,
     forUser:       (userId: string)        => `/users/${userId}/orders`,

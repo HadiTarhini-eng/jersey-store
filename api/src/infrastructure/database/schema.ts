@@ -82,6 +82,11 @@ export const products = pgTable('products', {
   tagsJson: jsonb('tags_json').$type<string[]>(),
   brand: varchar('brand', { length: 120 }),
   basePrice: numeric('base_price', { precision: 12, scale: 2 }).notNull(),
+  // Compare-at price (MSRP). When set and > basePrice, the product is on sale and
+  // the storefront renders this value struck-through next to basePrice.
+  compareAtPrice: numeric('compare_at_price', { precision: 12, scale: 2 }),
+  // Gates the custom name/number print inputs on the product detail page.
+  printable: boolean('printable').notNull().default(false),
   status: varchar('status', { length: 50 }).notNull().default('draft'),
   featured: boolean('featured').notNull().default(false),
   searchVector: text('search_vector'),
@@ -172,6 +177,10 @@ export const cartItems = pgTable('cart_items', {
   productVariantId: ref('product_variant_id').notNull(),
   quantity: integer('quantity').notNull(),
   priceAtTime: numeric('price_at_time', { precision: 12, scale: 2 }).notNull(),
+  // Optional printing fields — only populated when the parent product has
+  // `printable=true`. Service-side validation rejects them otherwise.
+  customName: varchar('custom_name', { length: 40 }),
+  customNumber: varchar('custom_number', { length: 8 }),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -179,12 +188,19 @@ export const cartItems = pgTable('cart_items', {
 
 export const orders = pgTable('orders', {
   id: id(),
-  userId: ref('user_id').notNull(),
+  // Nullable to support guest checkout — when null, the buyer is identified by
+  // `guestEmail` + the shipping address contact fields.
+  userId: ref('user_id'),
+  guestEmail: varchar('guest_email', { length: 320 }),
   orderNumber: varchar('order_number', { length: 80 }).notNull().unique(),
   status: varchar('status', { length: 50 }).notNull().default('pending'),
   paymentStatus: varchar('payment_status', { length: 50 }).notNull().default('pending'),
   subtotal: numeric('subtotal', { precision: 12, scale: 2 }).notNull(),
   discountAmount: numeric('discount_amount', { precision: 12, scale: 2 }).notNull().default('0'),
+  // Code of the coupon applied to this order (denormalized from the ui_content
+  // coupon slot at submit time). Optional. Stored alongside discountAmount so
+  // fulfillment / receipts have the redemption history without joins.
+  couponCode: varchar('coupon_code', { length: 80 }),
   shippingAmount: numeric('shipping_amount', { precision: 12, scale: 2 }).notNull().default('0'),
   totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
   shippingAddress: jsonb('shipping_address').$type<Record<string, unknown>>().notNull(),
@@ -204,6 +220,9 @@ export const orderItems = pgTable('order_items', {
   quantity: integer('quantity').notNull(),
   unitPrice: numeric('unit_price', { precision: 12, scale: 2 }).notNull(),
   totalPrice: numeric('total_price', { precision: 12, scale: 2 }).notNull(),
+  // Snapshotted printing fields — copied from the cart item at order time.
+  customName: varchar('custom_name', { length: 40 }),
+  customNumber: varchar('custom_number', { length: 8 }),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

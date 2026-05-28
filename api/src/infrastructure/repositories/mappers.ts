@@ -40,7 +40,12 @@ export const mappers = {
     toRow: row<Category>,
   },
   product: {
-    toDomain: (data: any): Product => new Product({ ...data, basePrice: Number(data.basePrice), tags: data.tagsJson ?? data.tags ?? [] }),
+    toDomain: (data: any): Product => new Product({
+      ...data,
+      basePrice: Number(data.basePrice),
+      compareAtPrice: numberOrNull(data.compareAtPrice),
+      tags: data.tagsJson ?? data.tags ?? [],
+    }),
     toRow: (entity: Partial<Product>) => {
       const output = row<Product>(entity)
       if (entity.tags !== undefined) {

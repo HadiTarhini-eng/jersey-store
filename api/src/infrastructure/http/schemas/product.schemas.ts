@@ -18,6 +18,8 @@ const ProductBody = Type.Object({
   tags: Type.Optional(Type.Array(Type.String())),
   brand: Type.Optional(Type.String()),
   basePrice: Type.Number({ minimum: 0 }),
+  compareAtPrice: Type.Optional(Type.Union([Type.Number({ minimum: 0 }), Type.Null()])),
+  printable: Type.Optional(Type.Boolean()),
   status: Type.Union([Type.Literal('draft'), Type.Literal('active'), Type.Literal('archived')]),
   featured: Type.Optional(Type.Boolean()),
   createdBy: Type.String(),
@@ -28,6 +30,21 @@ export type ProductBodyType = Static<typeof ProductBody>
 
 const UpdateProductBody = Type.Partial(ProductBody)
 export type UpdateProductBodyType = Static<typeof UpdateProductBody>
+
+// Bulk pricing: one transactional payload that updates basePrice (and optionally
+// compareAtPrice) across many products at once. Used by the admin discount
+// workbench so an N-product apply is a single round-trip + atomic.
+const BulkPricingBody = Type.Object({
+  items: Type.Array(
+    Type.Object({
+      productId: Type.String(),
+      basePrice: Type.Number({ minimum: 0 }),
+      compareAtPrice: Type.Optional(Type.Union([Type.Number({ minimum: 0 }), Type.Null()])),
+    }),
+    { minItems: 1 },
+  ),
+})
+export type BulkPricingBodyType = Static<typeof BulkPricingBody>
 
 const ProductMultipartBody = Type.Object({
   data: Type.Unsafe<unknown>({ type: 'string', description: 'JSON string of product fields (categoryId, title, slug, basePrice, status, ...)' }),
@@ -161,6 +178,7 @@ export const publishProductSchema: FastifySchema = { tags: ['Products'], params:
 export const archiveProductSchema: FastifySchema = { tags: ['Products'], params: IdParams }
 export const setFeaturedSchema: FastifySchema = { tags: ['Products'], params: IdParams, body: SetFeaturedBody }
 export const updateBasePriceSchema: FastifySchema = { tags: ['Products'], params: IdParams, body: SetPriceBody }
+export const bulkPricingSchema: FastifySchema = { tags: ['Products'], body: BulkPricingBody, description: 'Bulk update basePrice (and optionally compareAtPrice) across many products in a single transaction.' }
 export const deleteProductSchema: FastifySchema = { tags: ['Products'], params: IdParams }
 
 export const addProductImageSchema: FastifySchema = { tags: ['Products'], consumes: ['multipart/form-data'], params: ProductIdParams, description: 'Multipart: `file` (image) + optional `sortOrder` (string integer).' }

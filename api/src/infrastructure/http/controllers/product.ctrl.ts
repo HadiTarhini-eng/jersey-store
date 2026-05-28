@@ -16,7 +16,7 @@ import { ValidationError } from '../../services/errors.js'
 import { jwtUser, sendCreated, sendDeleted, sendOk } from '../routes/route-utils.js'
 import { readFilePart } from '../utils/readFilePart.js'
 import type {
-  AssignAttributeBodyType, CreateAttributeOptionBodyType, CreateSpecificationBodyType,
+  AssignAttributeBodyType, BulkPricingBodyType, CreateAttributeOptionBodyType, CreateSpecificationBodyType,
   ProductAttributeBodyType, ProductSearchQueryType,
   ReserveBodyType, SetFeaturedBodyType, SetPriceBodyType, SetVariantAttributesBodyType,
   StockBodyType, UpdateAssignedAttributeBodyType, UpdateProductAttributeBodyType,
@@ -133,6 +133,12 @@ export const updateBasePrice = (service: IProductService) =>
     const { id } = request.params as IdParams
     const { basePrice } = request.body as SetPriceBodyType
     sendOk(reply, await service.updateBasePrice(id, basePrice))
+  }
+
+export const bulkUpdatePricing = (service: IProductService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const { items } = request.body as BulkPricingBodyType
+    sendOk(reply, await service.bulkUpdatePricing(items))
   }
 
 export const deleteProduct = (service: IProductService) =>

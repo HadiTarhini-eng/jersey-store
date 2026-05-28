@@ -5,6 +5,7 @@ import * as s from '../../schemas/order.schemas.js'
 
 export const orderRoutes = (service: IOrderService): RouteOptions[] => [
   { method: 'POST',  url: '/orders',                       roles: ['User', 'Admin'], schema: s.createOrderSchema,          handler: ctrl.createOrder(service) },
+  { method: 'POST',  url: '/orders/guest',                 protected: false,         schema: s.createGuestOrderSchema,     handler: ctrl.createGuestOrder(service) },
   { method: 'GET',   url: '/orders/:id',                   roles: ['User', 'Admin'], schema: s.getOrderSchema,             handler: ctrl.getOrderById(service) },
   { method: 'GET',   url: '/orders/number/:orderNumber',   roles: ['User', 'Admin'], schema: s.getOrderByNumberSchema,     handler: ctrl.getOrderByNumber(service) },
   { method: 'GET',   url: '/users/:userId/orders',         roles: ['User', 'Admin'], schema: s.listUserOrdersSchema,       handler: ctrl.listUserOrders(service) },

@@ -132,6 +132,10 @@ export interface Product extends BusinessEntity {
   tags:              string[];
   brand?:            string | null;
   basePrice:         number;
+  /** MSRP/compare-at price. When set and > basePrice the product is on sale. */
+  compareAtPrice?:   number | null;
+  /** Gates the custom name/number print inputs on the storefront detail page. */
+  printable?:        boolean;
   status:            ProductStatus;
   featured:          boolean;
   searchVector?:     string | null;
@@ -143,7 +147,10 @@ export interface Product extends BusinessEntity {
   rating?:        number;
   reviewCount?:   number;
   inStock?:       boolean;
-  /** Compare-at price for "SALE" chip + struck-through display when set. */
+  /**
+   * @deprecated Mirror of `compareAtPrice` kept for back-compat with components
+   * that already read this enrichment. Source of truth is `compareAtPrice`.
+   */
   originalPrice?: number;
 }
 
@@ -156,12 +163,22 @@ export interface CreateProductPayload {
   tags?:             string[];
   brand?:            string;
   basePrice:         number;
+  compareAtPrice?:   number | null;
+  printable?:        boolean;
   status:            ProductStatus;
   featured?:         boolean;
   createdBy:         Guid;
   searchVector?:     string;
 }
 export type UpdateProductPayload = Partial<CreateProductPayload>;
+
+/** Body for POST /products/bulk-pricing — one transactional batch update. */
+export interface BulkPricingItem {
+  productId:       Guid;
+  basePrice:       number;
+  /** Omit to leave the column untouched; null to explicitly clear it. */
+  compareAtPrice?: number | null;
+}
 
 export interface ProductSearchQuery {
   query?:      string;
@@ -260,9 +277,9 @@ export interface CartItem extends BusinessEntity {
   image?:        string;
   variantLabel?: string; // e.g. "Size: L" — derived from VariantAttributeValue
   maxStock?:     number;
-  /** Customer-provided printing options — only set for `printable` products. */
-  customName?:   string;
-  customNumber?: string;
+  /** Customer-provided printing options — persisted on `cart_items` for `printable` products. */
+  customName?:   string | null;
+  customNumber?: string | null;
 }
 
 export interface CreateCartPayload {
@@ -274,6 +291,9 @@ export interface AddCartItemPayload {
   productVariantId: Guid;
   quantity:         number;
   priceAtTime:      number;
+  /** Printing fields — only honored on `printable=true` products (server-enforced). */
+  customName?:      string | null;
+  customNumber?:    string | null;
 }
 
 // ── Orders ───────────────────────────────────────────────────────────────────
@@ -296,12 +316,16 @@ export interface AddressSnapshot {
 }
 
 export interface Order extends BusinessEntity {
-  userId:          Guid;
+  /** Nullable for guest orders — buyer is identified via guestEmail + shipping address. */
+  userId:          Guid | null;
+  guestEmail?:     string | null;
   orderNumber:     string;
   status:          OrderStatus;
   paymentStatus:   PaymentStatus;
   subtotal:        number;
   discountAmount:  number;
+  /** Coupon code applied to this order, persisted on the orders row. */
+  couponCode?:     string | null;
   shippingAmount:  number;
   totalAmount:     number;
   shippingAddress: AddressSnapshot;
@@ -309,8 +333,6 @@ export interface Order extends BusinessEntity {
   placedAt?:       ISODate | null;
   /** UI-only snapshot of the cart items at submission — used by the WhatsApp confirmation message. */
   itemsSnapshot?:  CartItem[];
-  /** Code of the coupon applied to this order, if any. UI-only mirror of `discountAmount`. */
-  couponCode?:     string;
 }
 
 export interface OrderItem extends BusinessEntity {
@@ -321,6 +343,36 @@ export interface OrderItem extends BusinessEntity {
   quantity:             number;
   unitPrice:            number;
   totalPrice:           number;
+  customName?:          string | null;
+  customNumber?:        string | null;
+}
+
+/** Body for POST /orders/guest. Server resolves prices + recomputes totals. */
+export interface CreateGuestOrderPayload {
+  guestEmail?:     string | null;
+  couponCode?:     string | null;
+  shippingAddress: AddressSnapshot;
+  billingAddress?: AddressSnapshot;
+  items: {
+    productVariantId: Guid;
+    quantity:         number;
+    customName?:      string | null;
+    customNumber?:    string | null;
+  }[];
+}
+
+/** Response shape for /orders/guest. */
+export interface GuestOrderResponse {
+  order: Order;
+  items: OrderItem[];
+}
+
+/** Response shape for /coupons/validate. */
+export interface ResolvedCouponResponse {
+  code:          string;
+  discountType:  'percentage' | 'fixed';
+  discountValue: number;
+  amount:        number;
 }
 
 export interface CreateOrderItemPayload {

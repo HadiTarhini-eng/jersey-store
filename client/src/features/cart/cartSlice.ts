@@ -58,6 +58,8 @@ export const hydrateAuthenticatedCart = createAsyncThunk(
                 productVariantId: guestItem.productVariantId,
                 quantity: guestItem.quantity,
                 priceAtTime: guestItem.priceAtTime,
+                customName: guestItem.customName ?? null,
+                customNumber: guestItem.customNumber ?? null,
               });
             }
           } catch (err) {
@@ -88,6 +90,8 @@ export const syncAddItem = createAsyncThunk(
         productVariantId: item.productVariantId,
         quantity: item.quantity,
         priceAtTime: item.priceAtTime,
+        customName: item.customName ?? null,
+        customNumber: item.customNumber ?? null,
       });
       return {
         item: {
@@ -220,6 +224,8 @@ const cartSlice = createSlice({
             image: item.image,
             variantLabel: item.variantLabel,
             maxStock: item.maxStock,
+            customName: item.customName,
+            customNumber: item.customNumber,
           });
         }
       })

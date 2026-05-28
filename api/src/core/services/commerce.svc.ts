@@ -1,6 +1,21 @@
 import { type Guid } from '../entities/base.js'
 import { type AddressSnapshot, type Cart, type CartItem, type Order, type OrderItem, type OrderStatus, type PaymentStatus, type Review } from '../entities/commerce.js'
 
+export interface GuestOrderItemInput {
+  productVariantId: Guid
+  quantity: number
+  customName?: string | null
+  customNumber?: string | null
+}
+
+export interface CreateGuestOrderInput {
+  guestEmail?: string | null
+  couponCode?: string | null
+  shippingAddress: AddressSnapshot
+  billingAddress?: AddressSnapshot
+  items: GuestOrderItemInput[]
+}
+
 export interface ICartService {
   getCartById: (id: Guid) => Promise<Cart | null>
   getCartItemById: (id: Guid) => Promise<CartItem | null>
@@ -16,6 +31,14 @@ export interface ICartService {
 
 export interface IOrderService {
   createOrder: (order: Order, items: OrderItem[]) => Promise<Order>
+  /**
+   * Atomic guest checkout: server resolves prices from product variants,
+   * validates the optional coupon, recomputes subtotal / discount / total,
+   * snapshots an Order + OrderItems, and immediately places the order. All
+   * monetary inputs from the client are ignored — only items + addresses +
+   * couponCode are honored.
+   */
+  createGuestOrder: (input: CreateGuestOrderInput) => Promise<{ order: Order; items: OrderItem[] }>
   getOrderById: (id: Guid) => Promise<Order | null>
   getOrderByNumber: (orderNumber: string) => Promise<Order | null>
   listUserOrders: (userId: Guid) => Promise<Order[]>

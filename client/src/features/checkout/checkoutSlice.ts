@@ -1,78 +1,47 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import { clearCart } from '../cart/cartSlice';
+import { orderApi, extractErrorMessage } from '../../services/api';
 import type {
-  AddressSnapshot, AppliedCoupon, CheckoutState, CheckoutStep, Order, CartItem,
+  AddressSnapshot, AppliedCoupon, CheckoutState, CheckoutStep, Order,
 } from '../../types';
 import type { RootState } from '../../app/store';
 
 // ── Thunk ────────────────────────────────────────────────────────────────────
 //
-// Order submission is intentionally **local-only** right now:
-//   * The reserve/createOrder/placeOrder endpoints all require auth; calling
-//     them as a guest returns 401 and our global axios interceptor force-
-//     navigates to /login (see services/api/client.ts).
-//   * That breaks the requested guest-checkout flow, so we synthesise the
-//     order client-side, clear the cart, and let the confirmation screen +
-//     WhatsApp share button handle the rest.
-//
-// When the backend grows a real guest-order endpoint, swap the body of this
-// thunk back to the network flow.
+// Posts the cart to `POST /orders/guest` (anonymous). The server resolves
+// per-variant prices, validates the optional coupon, recomputes
+// subtotal/discount/total, and snapshots the order. We attach the local
+// itemsSnapshot purely so the WhatsApp confirmation message can render
+// product titles + variant labels (those aren't in the order_items table
+// in a form ready to display).
 
-function guestUserId(): string {
-  return `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function generateOrderNumber(): string {
-  return `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-}
-
-function cartSubtotal(items: CartItem[]): number {
-  return items.reduce((sum, it) => sum + it.priceAtTime * it.quantity, 0);
-}
-
-function buildLocalOrder(
-  userId:   string,
-  items:    CartItem[],
-  shipping: AddressSnapshot,
-  coupon:   AppliedCoupon | null,
-): Order {
-  const now            = new Date().toISOString();
-  const subtotal       = cartSubtotal(items);
-  const discountAmount = coupon ? Math.min(subtotal, coupon.amount) : 0;
-  const totalAmount    = Math.max(0, subtotal - discountAmount);
-  return {
-    id:              `local-${Date.now().toString(36)}`,
-    isActive:        true,
-    createdAt:       now,
-    updatedAt:       now,
-    userId,
-    orderNumber:     generateOrderNumber(),
-    status:          'pending',
-    paymentStatus:   'pending',
-    subtotal,
-    discountAmount,
-    shippingAmount:  0,
-    totalAmount,
-    shippingAddress: shipping,
-    billingAddress:  shipping,
-    placedAt:        now,
-    itemsSnapshot:   items,
-    couponCode:      coupon?.code,
-  };
-}
-
-export const submitOrder = createAsyncThunk<Order, AddressSnapshot, { state: RootState }>(
+export const submitOrder = createAsyncThunk<Order, AddressSnapshot, { state: RootState; rejectValue: string }>(
   'checkout/submitOrder',
-  async (shippingAddress, { getState, dispatch }) => {
+  async (shippingAddress, { getState, dispatch, rejectWithValue }) => {
     const state  = getState();
-    const userId = state.auth.user?.id ?? guestUserId();
+    const items  = state.cart.items;
+    const coupon: AppliedCoupon | null = state.checkout.coupon;
 
-    const order = buildLocalOrder(userId, state.cart.items, shippingAddress, state.checkout.coupon);
-
-    // Cart is empty after the order is "sent" so a second confirm can't fire.
-    dispatch(clearCart());
-
-    return order;
+    try {
+      const result = await orderApi.createGuest({
+        guestEmail:      null,
+        couponCode:      coupon?.code ?? null,
+        shippingAddress,
+        billingAddress:  shippingAddress,
+        items: items.map((it) => ({
+          productVariantId: it.productVariantId,
+          quantity:         it.quantity,
+          customName:       it.customName ?? null,
+          customNumber:     it.customNumber ?? null,
+        })),
+      });
+      // Cart only clears on success — a failed submit leaves the cart intact
+      // so the customer can fix the error (e.g. expired coupon) and retry.
+      dispatch(clearCart());
+      return { ...result.order, itemsSnapshot: items };
+    } catch (err) {
+      return rejectWithValue(extractErrorMessage(err, 'Order submission failed.'));
+    }
   },
 );
 
@@ -109,9 +78,9 @@ const checkoutSlice = createSlice({
         state.order   = payload;
         state.step    = 'confirmation';
       })
-      .addCase(submitOrder.rejected,  (state, { error }) => {
+      .addCase(submitOrder.rejected,  (state, { payload, error }) => {
         state.loading = false;
-        state.error   = error.message ?? 'Order submission failed.';
+        state.error   = (payload as string | undefined) ?? error.message ?? 'Order submission failed.';
       });
   },
 });

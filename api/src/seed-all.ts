@@ -91,6 +91,10 @@ type SeedProduct = {
   sizes:       string[]                        // S/M/L style sizes for variants
   colors?:     { name: string; hex: string }[] // omit if product isn't color-varied
   rating:      number                          // surfaces via review seeds below
+  /** When true, the storefront exposes custom name/number inputs on the detail page. */
+  printable?:  boolean
+  /** MSRP — when set, the storefront shows it struck-through next to basePrice. */
+  compareAtPrice?: string
 }
 
 const CATALOG: SeedProduct[] = [
@@ -108,6 +112,8 @@ const CATALOG: SeedProduct[] = [
     sizes: ['S', 'M', 'L', 'XL'],
     colors: [{ name: 'White', hex: '#ffffff' }],
     rating: 4.8,
+    printable: true,
+    compareAtPrice: '39.99',
   },
   {
     slug: 'fc-barcelona-home-jersey-2025-26',
@@ -122,6 +128,7 @@ const CATALOG: SeedProduct[] = [
     sizes: ['S', 'M', 'L', 'XL'],
     colors: [{ name: 'Blaugrana', hex: '#a50044' }],
     rating: 4.7,
+    printable: true,
   },
   {
     slug: 'manchester-city-home-jersey-2025-26',
@@ -437,6 +444,8 @@ try {
         tagsJson:         p.tags,
         brand:            p.brand,
         basePrice:        p.basePrice,
+        compareAtPrice:   p.compareAtPrice ?? null,
+        printable:        p.printable ?? false,
         status:           'active' as const,
         featured:         p.featured,
         searchVector:     [p.title, p.brand, p.team ?? '', p.sport, ...p.tags].join(' ').toLowerCase(),
@@ -875,6 +884,7 @@ try {
     'nav-link',
     'footer-column',
     'featured-section',
+    'coupon',
   ]))
 
   console.log('Seeding ui-content: hero slides (3 — incl. World Cup 2026)...')
@@ -1120,6 +1130,23 @@ try {
       {
         slot: 'featured-section', sortOrder: 0,
         payload: { title: 'New Arrivals', subtitle: "Fresh drops from the world's top clubs", limit: 8 },
+      },
+    ])
+
+  // Sample coupons — admin can edit/extend through the storefront admin UI.
+  // The storefront and the server-side /coupons/validate endpoint both pull
+  // from the same ui_content rows, so these are immediately usable at checkout.
+  console.log('Seeding ui-content: sample coupons (WELCOME10, FANS5)...')
+  await db
+    .insert(uiContent)
+    .values([
+      {
+        slot: 'coupon', sortOrder: 0,
+        payload: { code: 'WELCOME10', discountType: 'percentage', discountValue: 10, description: '10% off your first order' },
+      },
+      {
+        slot: 'coupon', sortOrder: 1,
+        payload: { code: 'FANS5',     discountType: 'fixed',      discountValue: 5,  description: '$5 off — fan-club perk' },
       },
     ])
 

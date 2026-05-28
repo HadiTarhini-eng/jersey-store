@@ -45,6 +45,13 @@ export interface CreateVariantInput {
   image?: ImageFile
 }
 
+export interface BulkPricingItem {
+  productId: Guid
+  basePrice: number
+  /** undefined = leave column untouched; null = explicitly clear compareAtPrice. */
+  compareAtPrice?: number | null
+}
+
 export interface IProductService {
   createProduct: (input: CreateProductInput) => Promise<Product>
   updateProduct: (id: Guid, data: Partial<Product>) => Promise<Product>
@@ -55,6 +62,7 @@ export interface IProductService {
   archiveProduct: (id: Guid) => Promise<Product>
   setFeatured: (id: Guid, featured: boolean) => Promise<Product>
   updateBasePrice: (id: Guid, basePrice: number) => Promise<Product>
+  bulkUpdatePricing: (items: BulkPricingItem[]) => Promise<Product[]>
   deleteProduct: (id: Guid) => Promise<void>
   addProductImage: (productId: Guid, file: ProductImageFile, sortOrder?: number) => Promise<Attachment>
   listProductImages: (productId: Guid) => Promise<Attachment[]>

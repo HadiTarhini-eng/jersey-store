@@ -12,6 +12,10 @@ export interface ProductEntity extends BusinessEntity {
   tags: string[]
   brand?: string | null
   basePrice: number
+  /** Compare-at price (MSRP). When set and > basePrice, the product is on sale. */
+  compareAtPrice?: number | null
+  /** Gates the custom name/number print inputs on the storefront detail page. */
+  printable: boolean
   status: ProductStatus
   featured: boolean
   searchVector?: string | null
@@ -69,6 +73,8 @@ export interface ProductPayload extends BusinessEntityPayload {
   tags?: string[]
   brand?: string | null
   basePrice: number
+  compareAtPrice?: number | null
+  printable?: boolean
   status?: ProductStatus
   featured?: boolean
   searchVector?: string | null
@@ -84,6 +90,8 @@ export class Product extends BaseEntity implements ProductEntity {
   tags: string[]
   brand?: string | null
   basePrice: number
+  compareAtPrice?: number | null
+  printable: boolean
   status: ProductStatus
   featured: boolean
   searchVector?: string | null
@@ -99,6 +107,8 @@ export class Product extends BaseEntity implements ProductEntity {
     this.tags = payload.tags ?? []
     this.brand = payload.brand
     this.basePrice = payload.basePrice
+    this.compareAtPrice = payload.compareAtPrice ?? null
+    this.printable = payload.printable ?? false
     this.status = payload.status ?? 'draft'
     this.featured = payload.featured ?? false
     this.searchVector = payload.searchVector
