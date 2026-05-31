@@ -333,6 +333,10 @@ export interface Order extends BusinessEntity {
   placedAt?:       ISODate | null;
   /** UI-only snapshot of the cart items at submission — used by the WhatsApp confirmation message. */
   itemsSnapshot?:  CartItem[];
+  /** Admin's rejection / explanation message. Set only when status is `cancelled`. */
+  rejectionReason?:    string | null;
+  /** When the customer last viewed the rejection message. Null = unread. */
+  adminMessageReadAt?: ISODate | null;
 }
 
 export interface OrderItem extends BusinessEntity {
@@ -592,6 +596,13 @@ export interface SiteConfig extends Partial<BusinessEntity> {
   cartEmptyMessage?:       string | null;
   cartEmptyCtaLabel?:      string | null;
   cartEmptyCtaHref?:       string | null;
+  /**
+   * Per-section visibility map for the storefront homepage. Keyed by
+   * section id (e.g. `shop-by-sport`). Missing keys default to "visible"
+   * on the client, so admins only need to flip the toggle when they want
+   * a section *hidden*.
+   */
+  homepageSectionsVisible?: Record<string, boolean>;
 }
 
 export interface UpdateSiteConfigPayload {
@@ -611,6 +622,7 @@ export interface UpdateSiteConfigPayload {
   cartEmptyMessage?:       string | null;
   cartEmptyCtaLabel?:      string | null;
   cartEmptyCtaHref?:       string | null;
+  homepageSectionsVisible?: Record<string, boolean>;
 }
 
 // ── Shipping ────────────────────────────────────────────────────────────────
@@ -661,6 +673,12 @@ export interface CouponPayload {
   discountType:  'percentage' | 'fixed';
   discountValue: number;
   description?:  string;
+  /**
+   * Cap on how many times any single signed-in user can redeem this code.
+   * `null` or omitted = no cap. Guest checkouts bypass the cap entirely
+   * because we have no identity to count against.
+   */
+  usageLimitPerUser?: number | null;
   [key: string]: unknown;
 }
 
@@ -727,16 +745,42 @@ export interface ProductFilters {
 
 // ── Admin domain ─────────────────────────────────────────────────────────────
 
+/** Aggregate revenue snapshot rendered on the admin Revenue page. */
+export interface AdminRevenue {
+  totalRevenue:        number;
+  totalDiscounts:      number;
+  deliveredCount:      number;
+  inFlightCount:       number;
+  cancelledCount:      number;
+  averageOrderValue:   number;
+  /** Revenue tied up in confirmed-but-not-yet-delivered orders. */
+  pendingRevenue:      number;
+  /** delivered ÷ (delivered + cancelled). 0 when no settled orders exist. */
+  conversionRate:      number;
+  last30dRevenue:      number;
+  previous30dRevenue:  number;
+  byMonth:             { month: string; revenue: number; orders: number }[];
+  topProducts:         { productVariantId: string; title: string; quantity: number; revenue: number }[];
+}
+
 export interface AdminOrder {
   id:           string;
   orderNumber:  string;
-  customer:     { id: string; name: string; email: string };
+  /**
+   * `id` and `email` are null for guest orders. The UI should render a
+   * "Guest" label in place of a customer link when `id` is null.
+   */
+  customer:     { id: string | null; name: string; email: string | null };
   items:        { productId: string; name: string; size: string; quantity: number; price: number }[];
   subtotal:     number;
   shipping:     number;
   total:        number;
-  status:       'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status:       'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   paymentStatus:'pending' | 'paid' | 'refunded' | 'failed';
+  /** Admin's rejection / explanation — set only when status is `cancelled`. */
+  rejectionReason?:    string | null;
+  /** When the customer last viewed the rejection message. Null = unread. */
+  adminMessageReadAt?: ISODate | null;
   shippingAddress: {
     fullName:     string;
     phone:        string;

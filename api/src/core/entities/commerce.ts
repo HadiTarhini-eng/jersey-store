@@ -46,6 +46,10 @@ export interface OrderEntity extends BusinessEntity {
   shippingAddress: AddressSnapshot
   billingAddress: AddressSnapshot
   placedAt?: Date | null
+  /** Required when status transitions to `cancelled`; shown to the customer as the shop's explanation. */
+  rejectionReason?: string | null
+  /** When the customer last viewed the rejection message. Null = unread (drives the envelope badge). */
+  adminMessageReadAt?: Date | null
 }
 
 export interface OrderItemEntity extends BusinessEntity {
@@ -72,12 +76,14 @@ export interface ReviewEntity extends BusinessEntity {
 
 export type CartPayload = BusinessEntityPayload & Omit<CartEntity, keyof BusinessEntity | 'status'> & { status?: CartStatus }
 export type CartItemPayload = BusinessEntityPayload & Omit<CartItemEntity, keyof BusinessEntity>
-export type OrderPayload = BusinessEntityPayload & Omit<OrderEntity, keyof BusinessEntity | 'status' | 'paymentStatus' | 'discountAmount' | 'shippingAmount' | 'totalAmount'> & {
+export type OrderPayload = BusinessEntityPayload & Omit<OrderEntity, keyof BusinessEntity | 'status' | 'paymentStatus' | 'discountAmount' | 'shippingAmount' | 'totalAmount' | 'rejectionReason' | 'adminMessageReadAt'> & {
   status?: OrderStatus
   paymentStatus?: PaymentStatus
   discountAmount?: number
   shippingAmount?: number
   totalAmount?: number
+  rejectionReason?: string | null
+  adminMessageReadAt?: Date | null
 }
 export type OrderItemPayload = BusinessEntityPayload & Omit<OrderItemEntity, keyof BusinessEntity | 'totalPrice'> & { totalPrice?: number }
 export type ReviewPayload = BusinessEntityPayload & Omit<ReviewEntity, keyof BusinessEntity | 'isVerifiedPurchase'> & { isVerifiedPurchase?: boolean }
@@ -142,6 +148,8 @@ export class Order extends BaseEntity implements OrderEntity {
   shippingAddress: AddressSnapshot
   billingAddress: AddressSnapshot
   placedAt?: Date | null
+  rejectionReason?: string | null
+  adminMessageReadAt?: Date | null
 
   constructor(payload: OrderPayload) {
     super(payload)
@@ -158,6 +166,8 @@ export class Order extends BaseEntity implements OrderEntity {
     this.shippingAddress = payload.shippingAddress
     this.billingAddress = payload.billingAddress
     this.placedAt = payload.placedAt
+    this.rejectionReason = payload.rejectionReason ?? null
+    this.adminMessageReadAt = payload.adminMessageReadAt ?? null
   }
 
   calculateTotal(): number {
@@ -175,9 +185,22 @@ export class Order extends BaseEntity implements OrderEntity {
     this.touch()
   }
 
-  cancel(): void {
+  /**
+   * Cancel the order with a customer-facing explanation. The reason becomes
+   * the message rendered on the customer's order detail page.
+   */
+  cancel(reason: string): void {
     this.status = 'cancelled'
+    this.rejectionReason = reason
+    // Force the message back to "unread" so the customer is re-notified even
+    // if they previously dismissed an older rejection on the same order.
+    this.adminMessageReadAt = null
     this.deactivate()
+  }
+
+  markMessageRead(date = new Date()): void {
+    this.adminMessageReadAt = date
+    this.touch(date)
   }
 }
 

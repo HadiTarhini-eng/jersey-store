@@ -5,20 +5,69 @@ import { StatusBadge } from '../components/StatusBadge';
 import { adminApi } from '../services/adminApi';
 import { orderApi } from '../../services/api';
 import { extractErrorMessage } from '../../services/api/client';
+import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import type { AdminOrder } from '../../types';
 import { formatPrice } from '../../utils/formatters';
+import { buildWhatsAppUrl, newOrderMessage, resolveFirstName } from '../../utils/waMessage';
+import { useSiteConfig } from '../../contexts/SiteConfigContext';
 
-const statusFilters = ['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
+const statusFilters = ['all', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
 type StatusFilter = typeof statusFilters[number];
-const orderStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
+type OrderStatus = Exclude<StatusFilter, 'all'>;
 
-const statusSelectedClass: Record<typeof orderStatuses[number], string> = {
-  pending:    'bg-black text-white border-power shadow-lg shadow-power/30',
-  processing: 'bg-black text-white border-accent shadow-lg shadow-accent/30',
-  shipped:    'bg-black text-white border-gray-500 shadow-lg shadow-gray-500/30',
-  delivered:  'bg-black text-white border-delivered shadow-lg shadow-delivered/30',
-  cancelled:  'bg-black text-white border-danger shadow-lg shadow-danger/30',
+/**
+ * Strict transition graph mirrored from the backend
+ * (api/src/infrastructure/services/commerce.svc.ts:ALLOWED_TRANSITIONS).
+ * Drives the context-aware action buttons on the order detail page —
+ * only legal next moves render.
+ */
+/**
+ * Mirrors `ALLOWED_TRANSITIONS` on the backend. The admin confirms an order
+ * by moving it directly from `pending → processing` — no separate "confirmed"
+ * step. The `confirmed` row is a legacy fallback for orders predating this
+ * workflow change.
+ */
+const ALLOWED_NEXT: Record<OrderStatus, OrderStatus[]> = {
+  pending:    ['processing', 'cancelled'],
+  processing: ['shipped', 'cancelled'],
+  shipped:    ['delivered'],
+  delivered:  [],
+  cancelled:  [],
+  confirmed:  ['processing', 'shipped', 'cancelled'],
+};
+
+/** Customer-facing label for `shipped` is "On route". */
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  pending:    'Pending',
+  confirmed:  'Confirmed',
+  processing: 'Processing',
+  shipped:    'On route',
+  delivered:  'Delivered',
+  cancelled:  'Cancelled',
+};
+
+/**
+ * Verb for the action button that moves the order INTO this status.
+ * `processing` reads as "Confirm order" because pending → processing IS the
+ * admin's confirmation step (we collapsed the separate `confirmed` state).
+ */
+const ACTION_LABEL: Record<OrderStatus, string> = {
+  pending:    'Mark pending',
+  confirmed:  'Mark confirmed',
+  processing: 'Confirm order',
+  shipped:    'Mark on route',
+  delivered:  'Mark delivered',
+  cancelled:  'Reject order',
+};
+
+const ACTION_VARIANT: Record<OrderStatus, 'primary' | 'success' | 'danger'> = {
+  pending:    'primary',
+  confirmed:  'success',
+  processing: 'success',
+  shipped:    'primary',
+  delivered:  'success',
+  cancelled:  'danger',
 };
 
 export function AdminOrders() {
@@ -66,8 +115,15 @@ export function AdminOrders() {
       label: 'Customer',
       render: (order) => (
         <div className="min-w-0">
-          <p className="text-primary truncate">{order.customer.name}</p>
-          <p className="text-xs text-muted truncate">{order.customer.email}</p>
+          <p className="text-primary truncate flex items-center gap-1.5">
+            {order.customer.name || 'Guest'}
+            {!order.customer.id && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-muted/20 text-muted border border-muted/30">
+                Guest
+              </span>
+            )}
+          </p>
+          <p className="text-xs text-muted truncate">{order.customer.email ?? '—'}</p>
         </div>
       ),
     },
@@ -82,11 +138,6 @@ export function AdminOrders() {
       label: 'Total',
       align: 'right',
       render: (order) => <span className="font-bold text-primary tabular-nums">{formatPrice(order.total)}</span>,
-    },
-    {
-      key: 'payment',
-      label: 'Payment',
-      render: (order) => <StatusBadge status={order.paymentStatus} />,
     },
     {
       key: 'status',
@@ -112,7 +163,7 @@ export function AdminOrders() {
                   : 'border-stroke text-secondary hover:text-primary hover:border-white/50',
               ].join(' ')}
             >
-              {status}
+              {status === 'all' ? 'All' : STATUS_LABEL[status]}
               <span className={`tabular-nums ${active ? 'text-black/60' : 'text-muted'}`}>{count}</span>
             </button>
           );
@@ -129,7 +180,7 @@ export function AdminOrders() {
           columns={columns}
           rowKey={(order) => order.id}
           onRowClick={(order) => navigate(`/admin/orders/${order.id}`)}
-          searchableText={(order) => `${order.orderNumber} ${order.customer.name} ${order.customer.email}`}
+          searchableText={(order) => `${order.orderNumber} ${order.customer.name} ${order.customer.email ?? ''}`}
           searchPlaceholder="Search by order #, name, or email..."
           emptyMessage="No orders match this filter."
         />
@@ -141,9 +192,11 @@ export function AdminOrders() {
 export function AdminOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const { push, promise } = useToast();
+  const siteConfig = useSiteConfig();
   const [order, setOrder] = useState<AdminOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -172,14 +225,39 @@ export function AdminOrderDetail() {
   }
 
   const itemsCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const currentStatus = order.status as OrderStatus;
+  const nextOptions = ALLOWED_NEXT[currentStatus] ?? [];
 
-  const onStatusChange = (status: typeof orderStatuses[number]) => {
-    void promise(orderApi.updateStatus(order.id, status), {
-      success: `Status set to ${status}`,
+  /**
+   * Move the order into `next`. Cancellation always opens the reject modal
+   * so the admin captures a reason; everything else fires straight through
+   * with no extra confirmation (terminal moves like "delivered" are still
+   * one-click but the action bar makes the verb explicit).
+   */
+  const onMoveStatus = (next: OrderStatus) => {
+    if (next === 'cancelled') {
+      setRejectOpen(true);
+      return;
+    }
+    void promise(orderApi.updateStatus(order.id, next), {
+      success: `Status set to ${STATUS_LABEL[next]}`,
       error:   (err) => extractErrorMessage(err, 'Could not update status'),
     }).then(() => {
-      setOrder((current) => current ? { ...current, status } : current);
+      setOrder((current) => current ? { ...current, status: next, rejectionReason: null } : current);
     }).catch(() => undefined);
+  };
+
+  const onReject = async (reason: string) => {
+    try {
+      await promise(orderApi.updateStatus(order.id, 'cancelled', reason), {
+        success: 'Order rejected — customer will see your message',
+        error:   (err) => extractErrorMessage(err, 'Could not reject order'),
+      });
+      setOrder((current) => current ? { ...current, status: 'cancelled', rejectionReason: reason, adminMessageReadAt: null } : current);
+      setRejectOpen(false);
+    } catch {
+      /* toast already shown */
+    }
   };
 
   return (
@@ -195,7 +273,8 @@ export function AdminOrderDetail() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <StatusBadge status={order.paymentStatus} />
+          {/* Payment status intentionally hidden — order workflow is the only
+              status the admin acts on in this flow. */}
           <StatusBadge status={order.status} />
         </div>
       </div>
@@ -253,38 +332,161 @@ export function AdminOrderDetail() {
 
         <div className="space-y-5">
           <section className="bg-surface border border-stroke rounded-2xl p-5">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">Customer</h3>
-            <p className="font-medium text-primary">{order.customer.name}</p>
-            <p className="text-sm text-muted truncate">{order.customer.email}</p>
-            <Link
-              to="/admin/customers"
-              className="inline-flex mt-3 text-xs font-bold uppercase tracking-widest text-accent hover:text-accent-light"
-            >
-              View customer →
-            </Link>
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3 flex items-center gap-2">
+              Customer
+              {!order.customer.id && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-widest bg-muted/20 text-muted border border-muted/30">
+                  Guest
+                </span>
+              )}
+            </h3>
+            <p className="font-medium text-primary">{order.customer.name || 'Guest'}</p>
+            <p className="text-sm text-muted truncate">{order.customer.email ?? '—'}</p>
+            <p className="text-xs text-muted mt-1">{order.shippingAddress.phone}</p>
+
+            {/* Click-to-message via wa.me — opens a pre-filled WhatsApp draft
+                so the admin can send a notification with one tap. Hidden when
+                the customer's phone isn't usable. */}
+            {(() => {
+              const waUrl = buildWhatsAppUrl({
+                phone:     order.shippingAddress.phone,
+                firstName: resolveFirstName(order.shippingAddress),
+                shopName:  siteConfig.name,
+                message:   newOrderMessage(order.orderNumber, resolveFirstName(order.shippingAddress), siteConfig.name),
+              });
+              if (!waUrl) return null;
+              return (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-ok/15 border border-ok/40 text-ok text-xs font-bold uppercase tracking-wider hover:bg-ok/25 transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24z" />
+                  </svg>
+                  Notify on WhatsApp
+                </a>
+              );
+            })()}
+
+            {order.customer.id && (
+              <div className="mt-2">
+                <Link
+                  to="/admin/customers"
+                  className="inline-flex text-xs font-bold uppercase tracking-widest text-accent hover:text-accent-light"
+                >
+                  View customer →
+                </Link>
+              </div>
+            )}
           </section>
 
           <section className="bg-surface border border-stroke rounded-2xl p-5 space-y-3">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted">Update status</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {orderStatuses.map((status) => (
-                <button
-                  key={status}
-                  onClick={() => onStatusChange(status)}
-                  className={[
-                    'px-3 py-2 rounded-lg border-2 text-xs font-bold uppercase tracking-wider transition-colors',
-                    order.status === status
-                      ? statusSelectedClass[status]
-                      : 'border-stroke text-secondary hover:text-primary hover:border-white/50',
-                  ].join(' ')}
-                >
-                  {status}
-                </button>
-              ))}
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted">Current status</h3>
+              <p className="font-sport text-2xl text-primary tracking-wide mt-1">{STATUS_LABEL[currentStatus]}</p>
             </div>
+
+            {nextOptions.length > 0 ? (
+              <div className="space-y-2 pt-2 border-t border-stroke">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Next steps</p>
+                {nextOptions.map((next) => {
+                  const variant = ACTION_VARIANT[next];
+                  const className = variant === 'success'
+                    ? 'bg-delivered text-white hover:bg-delivered/90 border-delivered'
+                    : variant === 'danger'
+                    ? 'bg-transparent text-danger hover:bg-danger/10 border-danger'
+                    : 'bg-accent text-white hover:bg-accent-light border-accent';
+                  return (
+                    <button
+                      key={next}
+                      type="button"
+                      onClick={() => onMoveStatus(next)}
+                      className={`w-full px-4 py-2.5 rounded-xl border-2 text-sm font-bold uppercase tracking-wider transition-colors ${className}`}
+                    >
+                      {ACTION_LABEL[next]}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="pt-2 border-t border-stroke text-xs text-muted">
+                This order is in a terminal state and can&apos;t be changed.
+              </p>
+            )}
           </section>
+
+          {order.rejectionReason && (
+            <section className="bg-danger/10 border border-danger/40 rounded-2xl p-5 space-y-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-danger">Rejection message sent to customer</h3>
+              <p className="text-sm text-primary whitespace-pre-line">{order.rejectionReason}</p>
+              <p className="text-[10px] text-muted">
+                {order.adminMessageReadAt
+                  ? `Customer read this on ${new Date(order.adminMessageReadAt).toLocaleString()}`
+                  : 'Not yet read by the customer.'}
+              </p>
+            </section>
+          )}
         </div>
       </div>
+
+      <RejectOrderModal
+        isOpen={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        onSubmit={onReject}
+      />
     </div>
+  );
+}
+
+function RejectOrderModal({ isOpen, onClose, onSubmit }: { isOpen: boolean; onClose: () => void; onSubmit: (reason: string) => void | Promise<void> }) {
+  const [reason, setReason] = useState('');
+  useEffect(() => { if (!isOpen) setReason(''); }, [isOpen]);
+
+  const trimmed = reason.trim();
+  const canSubmit = trimmed.length > 0 && trimmed.length <= 1000;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Reject order" maxWidth="max-w-md">
+      <div className="space-y-3">
+        <p className="text-sm text-secondary">
+          The customer will see this message on their order page. Use it to explain why
+          you can&apos;t fulfil the order, or to suggest alternatives.
+        </p>
+        <label className="block">
+          <span className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-1">
+            Message to customer
+          </span>
+          <textarea
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value.slice(0, 1000))}
+            rows={5}
+            placeholder="e.g. We're out of stock in this size. Would you like a refund or to switch to size L?"
+            className="w-full px-3 py-2.5 rounded-xl bg-surface-raised border border-stroke text-primary text-sm outline-none focus:border-accent placeholder:text-muted/60 resize-y"
+          />
+          <span className="block text-[10px] text-muted mt-1">{trimmed.length} / 1000</span>
+        </label>
+      </div>
+
+      <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-stroke">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-muted hover:text-primary hover:bg-surface-raised transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={!canSubmit}
+          onClick={() => void onSubmit(trimmed)}
+          className="px-5 py-2.5 rounded-xl bg-danger text-white font-bold text-sm uppercase tracking-wider hover:bg-danger/90 shadow-lg shadow-danger/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Reject &amp; notify
+        </button>
+      </div>
+    </Modal>
   );
 }

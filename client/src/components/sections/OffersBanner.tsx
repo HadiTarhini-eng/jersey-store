@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { theme } from '../../config/theme';
 import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import type { OfferBanner } from '../../types';
 
@@ -37,8 +36,31 @@ export function OffersBanner() {
   const banner = banners[safeIndex];
   if (!banner) return null;
 
+  // Whole-banner click target. `ctaHref` is still the persisted destination
+  // string — the admin form just builds it from a filter picker now. When
+  // the value is an external http(s) URL we render an `<a>` (new tab);
+  // otherwise it's an internal route via `<Link>`.
+  const linkHref = banner.ctaHref?.trim() || '/shop';
+  const external = /^https?:\/\//i.test(linkHref);
+
   return (
     <div className="relative w-full rounded-2xl overflow-hidden" style={{ height: 'clamp(180px, 25vw, 220px)' }}>
+      {external ? (
+        <a
+          href={linkHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={banner.headline}
+          className="absolute inset-0 z-10 focus-accent rounded-2xl"
+        />
+      ) : (
+        <Link
+          to={linkHref}
+          aria-label={banner.headline}
+          className="absolute inset-0 z-10 focus-accent rounded-2xl"
+        />
+      )}
+
       {/* Background image */}
       <div
         className="absolute inset-0 bg-cover bg-center transition-opacity duration-300"
@@ -62,40 +84,34 @@ export function OffersBanner() {
 
       {/* Content */}
       <div
-        className="relative h-full flex flex-col justify-center px-6 md:px-10 transition-all duration-300"
+        className="relative h-full flex flex-col justify-center px-6 md:px-10 transition-all duration-300 pointer-events-none"
         style={{ opacity: animating ? 0 : 1, transform: animating ? 'translateX(-8px)' : 'translateX(0)' }}
       >
-        {/* Label badge */}
         <span
-          className="inline-block mb-2 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-widest text-white"
+          className="inline-block self-start mb-2 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-widest text-white"
           style={{ backgroundColor: banner.color }}
         >
           {banner.label}
         </span>
 
-        {/* Headline */}
         <h3 className="font-sport text-3xl md:text-5xl tracking-wide text-primary uppercase leading-none mb-1">
           {banner.headline}
         </h3>
 
-        {/* Subheadline */}
-        <p className="text-secondary text-sm md:text-base mb-4 max-w-xs">
+        <p className="text-secondary text-sm md:text-base max-w-xs">
           {banner.subheadline}
         </p>
-
-        {/* CTA */}
-        <Link to={banner.ctaHref}>
-          <button className={theme.btnGhost}>{banner.ctaLabel}</button>
-        </Link>
       </div>
 
-      {/* Dot navigation */}
+      {/* Dot navigation — sits above the link layer (z-20) so taps on dots
+          navigate the carousel instead of following the banner link. */}
       {banners.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
           {banners.map((_, i) => (
             <button
               key={i}
-              onClick={() => goTo(i)}
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); goTo(i); }}
               aria-label={`Go to banner ${i + 1}`}
               className={[
                 'rounded-full transition-all duration-300',

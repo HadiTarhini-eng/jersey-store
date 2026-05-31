@@ -6,3 +6,4 @@ const IdParams = Type.Object({ id: Type.String() })
 export const listAdminCustomersSchema: FastifySchema = { tags: ['Admin'] }
 export const listAdminOrdersSchema:    FastifySchema = { tags: ['Admin'] }
 export const getAdminOrderSchema:      FastifySchema = { tags: ['Admin'], params: IdParams }
+export const revenueSummarySchema:     FastifySchema = { tags: ['Admin'], description: 'Aggregate revenue across delivered orders + breakdown by month.' }

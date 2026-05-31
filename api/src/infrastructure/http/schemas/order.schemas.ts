@@ -81,7 +81,15 @@ const CreateGuestOrderBody = Type.Object({
 })
 export type CreateGuestOrderBodyType = Static<typeof CreateGuestOrderBody>
 
-const UpdateStatusBody = Type.Object({ status: OrderStatusEnum })
+const UpdateStatusBody = Type.Object({
+  status: OrderStatusEnum,
+  /**
+   * Required when `status === 'cancelled'` (the server validates). Shown to
+   * the customer as the shop's rejection / explanation message. Bounded at
+   * 1000 chars to keep the column tidy.
+   */
+  rejectionReason: Type.Optional(Type.Union([Type.String({ maxLength: 1000 }), Type.Null()])),
+})
 export type UpdateStatusBodyType = Static<typeof UpdateStatusBody>
 
 const UpdatePaymentBody = Type.Object({ paymentStatus: PaymentStatusEnum })
@@ -104,3 +112,4 @@ export const updateOrderStatusSchema: FastifySchema = { tags: ['Orders'], params
 export const updatePaymentStatusSchema: FastifySchema = { tags: ['Orders'], params: IdParams, body: UpdatePaymentBody }
 export const updateOrderAddressesSchema: FastifySchema = { tags: ['Orders'], params: IdParams, body: UpdateAddressesBody }
 export const cancelOrderSchema: FastifySchema = { tags: ['Orders'], params: IdParams }
+export const markAdminMessageReadSchema: FastifySchema = { tags: ['Orders'], params: IdParams, description: "Customer dismisses the admin's rejection message — stamps adminMessageReadAt." }

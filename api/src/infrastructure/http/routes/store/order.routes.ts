@@ -15,4 +15,5 @@ export const orderRoutes = (service: IOrderService): RouteOptions[] => [
   { method: 'PATCH', url: '/orders/:id/payment',           roles: ['Admin'],         schema: s.updatePaymentStatusSchema,  handler: ctrl.updatePaymentStatus(service) },
   { method: 'PATCH', url: '/orders/:id/addresses',         roles: ['User', 'Admin'], schema: s.updateOrderAddressesSchema, handler: ctrl.updateOrderAddresses(service) },
   { method: 'POST',  url: '/orders/:id/cancel',            roles: ['User', 'Admin'], schema: s.cancelOrderSchema,          handler: ctrl.cancelOrder(service) },
+  { method: 'POST',  url: '/orders/:id/mark-message-read', roles: ['User', 'Admin'], schema: s.markAdminMessageReadSchema, handler: ctrl.markAdminMessageRead(service) },
 ]

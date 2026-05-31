@@ -4,8 +4,10 @@ import { useProduct } from '../features/products/hooks/useProducts';
 import { useProductEnrichment } from '../features/products/hooks/useProductEnrichment';
 import { fetchProductBySlug } from '../features/products/productsSlice';
 import { ProductDetailView } from '../features/products/components/ProductDetailView';
-import { ReviewsSection } from '../features/reviews/ReviewsSection';
-import { useProductReviews } from '../features/reviews/useProductReviews';
+// Reviews are disabled for now — the section + hook stay in the repo so we
+// can re-enable later, but neither runs on this page. See FEATURE_FLAGS.
+// import { ReviewsSection } from '../features/reviews/ReviewsSection';
+// import { useProductReviews } from '../features/reviews/useProductReviews';
 import { useProductSeo } from '../features/products/hooks/useProductSeo';
 import { decodeProductTags } from '../features/products/lib/productMeta';
 import { ProductSlider } from '../features/products/components/ProductSlider';
@@ -16,8 +18,7 @@ export function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const dispatch = useAppDispatch();
   const { product, loading, error, notFound } = useProduct(slug ?? '');
-  const enrichment = useProductEnrichment(product?.id, product?.categoryId);
-  const reviewsState = useProductReviews(product?.id ?? '');
+  const enrichment = useProductEnrichment(product?.id, product?.categoryId, product?.tags);
 
   const primaryImage =
     enrichment.attachments[0]?.compressedFileUrl
@@ -29,8 +30,7 @@ export function ProductDetailPage() {
     price:       product.basePrice,
     currency:    decodeProductTags(product.tags).currency || 'USD',
     inStock:     product.inStock ?? false,
-    rating:      reviewsState.count > 0 ? reviewsState.average : undefined,
-    reviewCount: reviewsState.count,
+    // Reviews are disabled; SEO rating/reviewCount intentionally omitted.
   } : null);
 
   if (loading) {
@@ -123,17 +123,20 @@ export function ProductDetailPage() {
       </nav>
 
       <ProductDetailView
-        product={{ ...product, rating: reviewsState.average, reviewCount: reviewsState.count }}
+        product={product}
         specs={enrichment.specs}
         offers={enrichment.offers}
         attachments={enrichment.attachments}
       />
 
-      <ReviewsSection productId={product.id} state={reviewsState} />
+      {/* Reviews are disabled — see commented imports at the top of the file. */}
 
       {enrichment.related.length > 0 && (
-        <section className="mt-16 pt-10 border-t border-stroke" aria-label="Related products">
-          <h2 className={`${theme.sectionTitle} mb-6`}>You may also like</h2>
+        <section className="mt-16 pt-10 border-t border-stroke" aria-label="Similar items">
+          <h2 className={`${theme.sectionTitle} mb-1`}>Similar items</h2>
+          <p className={`${theme.sectionSubtitle} mb-6`}>
+            Other pieces that share tags with this one — built from the same teams, sports, or styles.
+          </p>
           <ProductSlider products={enrichment.related} />
         </section>
       )}

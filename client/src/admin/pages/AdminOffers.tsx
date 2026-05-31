@@ -6,6 +6,7 @@ import { ImageUpload } from '../components/ImageUpload';
 import { useToast } from '../../components/ui/Toast';
 import { extractErrorMessage } from '../../services/api/client';
 import { formatPrice } from '../../utils/formatters';
+import { ShopFilterPicker, buildShopUrl, parseShopUrl, type ShopFilterValue } from '../components/ShopFilterPicker';
 import type { CouponPayload, HeroSlide, OfferBanner } from '../../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -344,7 +345,9 @@ function SlidePreview({ slide }: { slide: HeroSlide }) {
   );
 }
 
-const editorInput = 'w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
+// Dark-mode input style shared by every editor modal in this file. Kept as a
+// constant so any visual tweak lands on every modal in one edit.
+const editorInput = 'w-full px-3 py-2.5 rounded-xl bg-surface-raised border border-stroke text-primary placeholder:text-muted text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
 const editorInputError = editorInput + ' border-danger ring-2 ring-danger/20';
 
 interface SlideEditorProps {
@@ -357,11 +360,13 @@ function SlideEditor({ slide, onCancel, onSave }: SlideEditorProps) {
   const [form, setForm] = useState<HeroSlide | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof HeroSlide, string>>>({});
+  const [filter, setFilter] = useState<ShopFilterValue>({ type: 'none', value: '' });
 
   useEffect(() => {
     setForm(slide);
     setFile(null);
     setErrors({});
+    setFilter(slide ? parseShopUrl(slide.ctaHref) : { type: 'none', value: '' });
   }, [slide]);
 
   if (!slide || !form) return null;
@@ -379,9 +384,10 @@ function SlideEditor({ slide, onCancel, onSave }: SlideEditorProps) {
     if (!form.headline.trim())    errs.headline = 'Required';
     if (!form.subheadline.trim()) errs.subheadline = 'Required';
     if (!form.ctaLabel.trim())    errs.ctaLabel = 'Required';
-    if (!form.ctaHref.trim())     errs.ctaHref = 'Required';
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    onSave(form, file);
+    // Build the CTA href from the filter picker — the legacy free-text field
+    // is gone, but `ctaHref` on the wire keeps its meaning.
+    onSave({ ...form, ctaHref: buildShopUrl(filter) }, file);
   };
 
   const currentTheme = findSlideTheme(form);
@@ -390,25 +396,25 @@ function SlideEditor({ slide, onCancel, onSave }: SlideEditorProps) {
     <Modal isOpen={!!slide} onClose={onCancel} title="Slide editor" maxWidth="max-w-4xl">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <div className="lg:col-span-2 space-y-3">
-          <div className="rounded-2xl overflow-hidden border border-gray-200">
+          <div className="rounded-2xl overflow-hidden border border-stroke">
             <SlidePreview slide={form} />
           </div>
-          <p className="text-[10px] uppercase tracking-widest text-gray-500">Live preview</p>
+          <p className="text-[10px] uppercase tracking-widest text-muted">Live preview · CTA links to <span className="font-mono text-secondary">{buildShopUrl(filter)}</span></p>
         </div>
 
         <div className="lg:col-span-3 space-y-4 max-h-[60vh] overflow-y-auto pr-1">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-2">Theme</p>
+            <p className="text-[10px] uppercase tracking-widest text-muted mb-2">Theme</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {slideThemes.map((t) => {
                 const active = currentTheme.id === t.id;
                 return (
                   <button type="button" key={t.id} onClick={() => applyTheme(t)}
                     className={['relative text-left rounded-xl border-2 p-3 transition-all',
-                      active ? 'border-accent' : 'border-gray-200 hover:border-gray-400'].join(' ')}>
+                      active ? 'border-accent bg-accent/10' : 'border-stroke hover:border-white/40'].join(' ')}>
                     <span className="block w-full h-6 rounded mb-2" style={{ backgroundColor: t.accent }} />
-                    <span className="text-xs font-bold uppercase tracking-wider text-gray-900">{t.name}</span>
-                    <span className="block text-[10px] text-gray-500 mt-0.5 line-clamp-1">{t.description}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-primary">{t.name}</span>
+                    <span className="block text-[10px] text-muted mt-0.5 line-clamp-1">{t.description}</span>
                     {active && (
                       <svg className="absolute top-1.5 right-1.5 w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -447,18 +453,17 @@ function SlideEditor({ slide, onCancel, onSave }: SlideEditorProps) {
             </EditorField>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <EditorField label="CTA link" error={errors.ctaHref} required>
-              <input value={form.ctaHref} onChange={(e) => setField('ctaHref', e.target.value)} className={errors.ctaHref ? editorInputError : editorInput} placeholder="/shop" />
-            </EditorField>
-            <EditorField label="Alignment">
-              <select value={form.align ?? 'left'} onChange={(e) => setField('align', e.target.value as HeroSlide['align'])} className={editorInput}>
-                <option value="left">Left</option>
-                <option value="center">Center</option>
-                <option value="right">Right</option>
-              </select>
-            </EditorField>
-          </div>
+          <EditorField label="CTA destination" hint="What filter the button sends shoppers to.">
+            <ShopFilterPicker value={filter} onChange={setFilter} inputClass={editorInput} />
+          </EditorField>
+
+          <EditorField label="Alignment">
+            <select value={form.align ?? 'left'} onChange={(e) => setField('align', e.target.value as HeroSlide['align'])} className={editorInput}>
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </EditorField>
 
           <EditorField label="Overlay anchor">
             <select value={form.overlay ?? 'left'} onChange={(e) => setField('overlay', e.target.value as HeroSlide['overlay'])} className={editorInput}>
@@ -478,9 +483,9 @@ function SlideEditor({ slide, onCancel, onSave }: SlideEditorProps) {
 
 function EditorFooter({ onCancel, onSave, label = 'Save' }: { onCancel: () => void; onSave: () => void; label?: string }) {
   return (
-    <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+    <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-stroke">
       <button type="button" onClick={onCancel}
-        className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+        className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-muted hover:text-primary hover:bg-surface-raised transition-colors">
         Cancel
       </button>
       <button type="button" onClick={onSave}
@@ -495,10 +500,10 @@ function EditorField({ label, hint, error, required, children }: { label: string
   return (
     <div className="space-y-1.5">
       <label className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+        <span className="text-xs font-bold uppercase tracking-wider text-secondary">
           {label} {required && <span className="text-danger">*</span>}
         </span>
-        {hint && !error && <span className="text-[10px] text-gray-500 normal-case">{hint}</span>}
+        {hint && !error && <span className="text-[10px] text-muted normal-case">{hint}</span>}
         {error && <span className="text-[10px] text-danger normal-case">{error}</span>}
       </label>
       {children}
@@ -652,14 +657,7 @@ function BannerPreview({ banner }: { banner: OfferBanner }) {
         </span>
         <p className="font-sport text-xl tracking-wide text-primary uppercase leading-none">{banner.headline}</p>
         <p className="text-[10px] text-secondary mt-0.5 line-clamp-1">{banner.subheadline}</p>
-        {banner.ctaLabel && (
-          <span
-            className="inline-flex items-center self-start mt-1.5 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest text-white"
-            style={{ backgroundColor: banner.color }}
-          >
-            {banner.ctaLabel} →
-          </span>
-        )}
+        {/* CTA button removed — the whole banner is now clickable. */}
       </div>
     </div>
   );
@@ -675,11 +673,13 @@ function BannerEditor({ banner, onCancel, onSave }: BannerEditorProps) {
   const [form, setForm] = useState<OfferBanner | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof OfferBanner, string>>>({});
+  const [filter, setFilter] = useState<ShopFilterValue>({ type: 'none', value: '' });
 
   useEffect(() => {
     setForm(banner);
     setFile(null);
     setErrors({});
+    setFilter(banner ? parseShopUrl(banner.ctaHref) : { type: 'none', value: '' });
   }, [banner]);
 
   if (!banner || !form) return null;
@@ -693,10 +693,17 @@ function BannerEditor({ banner, onCancel, onSave }: BannerEditorProps) {
     const errs: Partial<Record<keyof OfferBanner, string>> = {};
     if (!form.label.trim())     errs.label = 'Required';
     if (!form.headline.trim())  errs.headline = 'Required';
-    if (!form.ctaLabel.trim())  errs.ctaLabel = 'Required';
-    if (!form.ctaHref.trim())   errs.ctaHref = 'Required';
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    onSave(form, file);
+
+    // The banner no longer renders a CTA button — the whole tile is clickable.
+    // We persist a derived URL into `ctaHref` (for back-compat) and clear the
+    // legacy `ctaLabel` so old data doesn't keep rendering a stale chip.
+    const next: OfferBanner = {
+      ...form,
+      ctaLabel: '',
+      ctaHref:  buildShopUrl(filter),
+    };
+    onSave(next, file);
   };
 
   const currentTheme = findBannerTheme(form);
@@ -705,25 +712,25 @@ function BannerEditor({ banner, onCancel, onSave }: BannerEditorProps) {
     <Modal isOpen={!!banner} onClose={onCancel} title="Banner editor" maxWidth="max-w-4xl">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <div className="lg:col-span-2 space-y-3">
-          <div className="rounded-2xl overflow-hidden border border-gray-200">
+          <div className="rounded-2xl overflow-hidden border border-stroke">
             <BannerPreview banner={form} />
           </div>
-          <p className="text-[10px] uppercase tracking-widest text-gray-500">Live preview</p>
+          <p className="text-[10px] uppercase tracking-widest text-muted">Live preview · clicking the banner sends shoppers to <span className="font-mono text-secondary">{buildShopUrl(filter)}</span></p>
         </div>
 
         <div className="lg:col-span-3 space-y-4 max-h-[60vh] overflow-y-auto pr-1">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-gray-500 mb-2">Theme</p>
+            <p className="text-[10px] uppercase tracking-widest text-muted mb-2">Theme</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {bannerThemes.map((t) => {
                 const active = currentTheme.id === t.id;
                 return (
                   <button type="button" key={t.id} onClick={() => setField('color', t.color)}
                     className={['relative text-left rounded-xl border-2 p-3 transition-all',
-                      active ? 'border-accent' : 'border-gray-200 hover:border-gray-400'].join(' ')}>
+                      active ? 'border-accent bg-accent/10' : 'border-stroke hover:border-white/40'].join(' ')}>
                     <span className="block w-full h-6 rounded mb-2" style={{ backgroundColor: t.color }} />
-                    <span className="text-xs font-bold uppercase tracking-wider text-gray-900">{t.name}</span>
-                    <span className="block text-[10px] text-gray-500 mt-0.5 line-clamp-1">{t.description}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-primary">{t.name}</span>
+                    <span className="block text-[10px] text-muted mt-0.5 line-clamp-1">{t.description}</span>
                     {active && (
                       <svg className="absolute top-1.5 right-1.5 w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -756,14 +763,9 @@ function BannerEditor({ banner, onCancel, onSave }: BannerEditorProps) {
             <input value={form.subheadline} onChange={(e) => setField('subheadline', e.target.value)} className={editorInput} placeholder="On selected items" />
           </EditorField>
 
-          <div className="grid grid-cols-2 gap-3">
-            <EditorField label="CTA label" error={errors.ctaLabel} required>
-              <input value={form.ctaLabel} onChange={(e) => setField('ctaLabel', e.target.value)} className={errors.ctaLabel ? editorInputError : editorInput} placeholder="Shop Sale" />
-            </EditorField>
-            <EditorField label="CTA link" error={errors.ctaHref} required>
-              <input value={form.ctaHref} onChange={(e) => setField('ctaHref', e.target.value)} className={errors.ctaHref ? editorInputError : editorInput} placeholder="/shop?badge=Sale" />
-            </EditorField>
-          </div>
+          <EditorField label="Where does it link to?" hint="The whole banner is clickable — pick the shop filter shoppers should land on.">
+            <ShopFilterPicker value={filter} onChange={setFilter} inputClass={editorInput} />
+          </EditorField>
         </div>
       </div>
 
@@ -964,13 +966,17 @@ function OfferStripSection() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface CouponRowDraft {
-  code:          string;
-  discountType:  'percentage' | 'fixed';
-  discountValue: string;
-  description:   string;
+  code:              string;
+  discountType:      'percentage' | 'fixed';
+  discountValue:     string;
+  description:       string;
+  /** Blank = no cap. Any positive integer caps redemptions for a single user. */
+  usageLimitPerUser: string;
 }
 
-const emptyDraft: CouponRowDraft = { code: '', discountType: 'percentage', discountValue: '', description: '' };
+const emptyDraft: CouponRowDraft = {
+  code: '', discountType: 'percentage', discountValue: '', description: '', usageLimitPerUser: '',
+};
 
 function CouponsSection() {
   const hook = useUiContentSlot<CouponPayload>('coupon');
@@ -984,11 +990,24 @@ function CouponsSection() {
     const code  = editing.draft.code.trim().toUpperCase();
     const value = Number(editing.draft.discountValue);
     if (!code || !Number.isFinite(value) || value <= 0) return;
+
+    // Parse the optional per-user cap. Blank ⇒ no cap (null). Non-positive
+    // values are rejected here so the admin can't accidentally save "0" and
+    // lock the coupon out for everyone.
+    const limitRaw = editing.draft.usageLimitPerUser.trim();
+    let usageLimitPerUser: number | null = null;
+    if (limitRaw.length > 0) {
+      const parsed = Number(limitRaw);
+      if (!Number.isFinite(parsed) || parsed < 1 || !Number.isInteger(parsed)) return;
+      usageLimitPerUser = parsed;
+    }
+
     const payload: CouponPayload = {
       code,
       discountType:  editing.draft.discountType,
       discountValue: value,
       description:   editing.draft.description.trim() || undefined,
+      usageLimitPerUser,
     };
     try {
       if (editing.id) {
@@ -1051,7 +1070,14 @@ function CouponsSection() {
               className={['flex items-center gap-3 px-4 py-3 rounded-xl border border-stroke bg-surface', !c.isActive && 'opacity-60'].filter(Boolean).join(' ')}
             >
               <div className="flex-1 min-w-0">
-                <p className="font-mono font-bold text-primary tracking-wider">{c.code}</p>
+                <p className="font-mono font-bold text-primary tracking-wider flex items-center gap-2">
+                  {c.code}
+                  {c.usageLimitPerUser != null && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-accent/15 text-accent border border-accent/30">
+                      Max {c.usageLimitPerUser}/user
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-secondary mt-0.5">
                   <span className="text-ok font-semibold">{valueLabel}</span>
                   {c.description && <span className="text-muted"> · {c.description}</span>}
@@ -1063,10 +1089,11 @@ function CouponsSection() {
                   setEditing({
                     id: c.id,
                     draft: {
-                      code:          c.code,
-                      discountType:  c.discountType,
-                      discountValue: String(c.discountValue),
-                      description:   c.description ?? '',
+                      code:              c.code,
+                      discountType:      c.discountType,
+                      discountValue:     String(c.discountValue),
+                      description:       c.description ?? '',
+                      usageLimitPerUser: c.usageLimitPerUser != null ? String(c.usageLimitPerUser) : '',
                     },
                   })
                 }
@@ -1131,6 +1158,20 @@ function CouponsSection() {
                 value={editing.draft.description}
                 onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, description: e.target.value } })}
                 placeholder="Welcome offer for newsletter subscribers"
+                className={editorInput}
+              />
+            </EditorField>
+            <EditorField
+              label="Usage limit per user (optional)"
+              hint="Leave blank for no cap. Only enforced for signed-in customers — guests bypass the limit."
+            >
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={editing.draft.usageLimitPerUser}
+                onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, usageLimitPerUser: e.target.value } })}
+                placeholder="e.g. 1 for a one-time welcome code"
                 className={editorInput}
               />
             </EditorField>

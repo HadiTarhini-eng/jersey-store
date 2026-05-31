@@ -51,6 +51,37 @@ const cartStatuses = ['active', 'converted', 'abandoned'] as const
 const orderStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const
 const paymentStatuses = ['pending', 'authorized', 'paid', 'failed', 'refunded'] as const
 
+/**
+ * The order-status workflow the admin walks an order through. Strict — the
+ * admin cannot jump steps. Cancellation is allowed from any non-terminal
+ * state and always requires a rejection reason.
+ *
+ *   pending    ──▶ processing | cancelled        ("Confirm order" / "Reject")
+ *   processing ──▶ shipped    | cancelled        ("Mark on route" / "Reject")
+ *   shipped    ──▶ delivered                     ("Mark delivered")
+ *   delivered  ──▶ (terminal)
+ *   cancelled  ──▶ (terminal)
+ *
+ *   confirmed  ──▶ processing | shipped | cancelled  (legacy fallback only)
+ *
+ * `confirmed` stays in the enum so existing rows don't break, but it is no
+ * longer reachable through new transitions — admins now confirm-and-start
+ * processing in one step.
+ *
+ * `shipped` is rendered as "On route" on the customer-facing UI but kept as
+ * `shipped` on the wire so older orders don't need migration.
+ */
+const ALLOWED_TRANSITIONS: Record<OrderStatus, ReadonlyArray<OrderStatus>> = {
+  pending:    ['processing', 'cancelled'],
+  processing: ['shipped', 'cancelled'],
+  shipped:    ['delivered'],
+  delivered:  [],
+  cancelled:  [],
+  confirmed:  ['processing', 'shipped', 'cancelled'],
+}
+
+const MAX_REJECTION_REASON_LENGTH = 1000
+
 export class CartService implements ICartService {
   constructor(
     private readonly cartRepository: EntityRepository<Cart>,
@@ -242,7 +273,9 @@ export class OrderService implements IOrderService {
     const totalAmount = roundCents(Math.max(0, subtotal - discountAmount))
     const order = new Order({
       id: orderId,
-      userId: null,
+      // If the caller was authenticated, attribute the order to them.
+      // Guest carts still post here with userId omitted/null.
+      userId: input.userId ?? null,
       guestEmail: input.guestEmail ?? null,
       orderNumber: generateOrderNumber(),
       status: 'pending',
@@ -262,9 +295,11 @@ export class OrderService implements IOrderService {
     await this.orderRepository.create(order)
     await Promise.all(resolvedItems.map((item) => this.orderItemRepository.create(item)))
 
-    // Place immediately — guest checkout is single-step.
+    // New orders enter the admin workflow at `pending`. The admin's "Confirm
+    // order" action is what moves them forward to `processing`; previously this
+    // step auto-bumped to `confirmed`, which short-circuited the workflow.
+    // `placedAt` is still stamped at creation so timestamps are meaningful.
     const placed = await this.orderRepository.update(order.id, {
-      status: 'confirmed',
       placedAt: new Date(),
     } as Partial<Order>)
     return { order: placed, items: resolvedItems }
@@ -297,12 +332,82 @@ export class OrderService implements IOrderService {
     return this.orderRepository.update(id, { status: 'confirmed', placedAt: new Date() } as Partial<Order>)
   }
 
-  async updateOrderStatus(id: Guid, status: OrderStatus): Promise<Order> {
+  async updateOrderStatus(id: Guid, status: OrderStatus, rejectionReason?: string | null): Promise<Order> {
     assertGuid(id)
     assertAllowed(status, orderStatuses, 'status')
     const order = await this.orderRepository.require(id, 'Order')
-    if (order.status === 'cancelled') throw new ValidationError('Cancelled orders cannot be updated')
-    return this.orderRepository.update(id, { status } as Partial<Order>)
+
+    // Strict workflow — see ALLOWED_TRANSITIONS for the graph.
+    const allowed = ALLOWED_TRANSITIONS[order.status] ?? []
+    if (status !== order.status && !allowed.includes(status)) {
+      throw new ValidationError(`Order cannot transition from ${order.status} to ${status}`)
+    }
+
+    // Cancellation always needs a customer-facing reason. Anything else must
+    // NOT carry a reason — keeps the data model tight.
+    const patch: Partial<Order> = { status }
+    if (status === 'cancelled') {
+      const trimmed = (rejectionReason ?? '').trim()
+      if (trimmed.length === 0) {
+        throw new ValidationError('rejectionReason is required when cancelling an order')
+      }
+      if (trimmed.length > MAX_REJECTION_REASON_LENGTH) {
+        throw new ValidationError(`rejectionReason must be ${MAX_REJECTION_REASON_LENGTH} characters or fewer`)
+      }
+      patch.rejectionReason = trimmed
+      // Force the message to "unread" so the customer is re-notified.
+      patch.adminMessageReadAt = null
+    }
+
+    // ── Stock adjustments tied to the workflow ────────────────────────────
+    //
+    // Inventory is held during creation (status = pending) but NOT deducted
+    // until the admin confirms the order — that's the pending → processing
+    // transition. If the admin then cancels a confirmed/processing/shipped
+    // order, we restore the stock so the catalog reflects reality.
+    //
+    // delivered → no stock change (already deducted on confirm).
+    // pending → cancelled → no stock change (never deducted).
+    const moving = status !== order.status
+    if (moving && order.status === 'pending' && status === 'processing') {
+      await this.adjustStockForOrder(id, 'deduct')
+    } else if (
+      moving && status === 'cancelled' &&
+      (order.status === 'processing' || order.status === 'shipped' || order.status === 'confirmed')
+    ) {
+      await this.adjustStockForOrder(id, 'restore')
+    }
+
+    return this.orderRepository.update(id, patch)
+  }
+
+  /**
+   * Adjust on-hand stock for every line in an order. `deduct` subtracts the
+   * ordered quantity from each variant; `restore` adds it back. Best-effort
+   * per line — a single broken variant won't bomb the rest of the order.
+   */
+  private async adjustStockForOrder(orderId: Guid, direction: 'deduct' | 'restore'): Promise<void> {
+    const items = await this.orderItemRepository.listBy('orderId', orderId)
+    for (const item of items) {
+      try {
+        const variant = await this.variantRepository.findBy('id', item.productVariantId)
+        if (!variant) continue
+        const delta = direction === 'deduct' ? -item.quantity : item.quantity
+        const next = Math.max(0, variant.stockQuantity + delta)
+        await this.variantRepository.update(variant.id, { stockQuantity: next } as Partial<ProductVariant>)
+      } catch (err) {
+        console.warn(`Stock ${direction} failed for variant ${item.productVariantId}:`, err)
+      }
+    }
+  }
+
+  async markAdminMessageRead(id: Guid): Promise<Order> {
+    assertGuid(id)
+    const order = await this.orderRepository.require(id, 'Order')
+    // No-op when there's nothing to read — but still return the row so the
+    // client doesn't 404 on benign double-clicks.
+    if (!order.rejectionReason || order.adminMessageReadAt) return order
+    return this.orderRepository.update(id, { adminMessageReadAt: new Date() } as Partial<Order>)
   }
 
   async updatePaymentStatus(id: Guid, paymentStatus: PaymentStatus): Promise<Order> {

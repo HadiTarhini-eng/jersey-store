@@ -23,7 +23,20 @@ export const createOrder = (service: IOrderService) =>
 export const createGuestOrder = (service: IOrderService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const body = request.body as CreateGuestOrderBodyType
+    // The route is unprotected so guests can checkout, but we still try to
+    // verify a JWT if the client sent one — that way a logged-in customer's
+    // order gets attributed to them instead of orphaned as a true guest.
+    // Failures are swallowed; on success `request.user` carries the user id.
+    let userId: string | null = null
+    try {
+      await request.jwtVerify()
+      userId = (request.user as { id?: string } | undefined)?.id ?? null
+    } catch {
+      userId = null
+    }
+
     const result = await service.createGuestOrder({
+      userId,
       guestEmail: body.guestEmail ?? null,
       couponCode: body.couponCode ?? null,
       shippingAddress: body.shippingAddress,
@@ -79,8 +92,19 @@ export const placeOrder = (service: IOrderService) =>
 export const updateOrderStatus = (service: IOrderService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { id } = request.params as IdParams
-    const { status } = request.body as UpdateStatusBodyType
-    sendOk(reply, await service.updateOrderStatus(id, status))
+    const { status, rejectionReason } = request.body as UpdateStatusBodyType
+    sendOk(reply, await service.updateOrderStatus(id, status, rejectionReason ?? null))
+  }
+
+export const markAdminMessageRead = (service: IOrderService) =>
+  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const { id } = request.params as IdParams
+    const order = await service.getOrderById(id)
+    if (!order) throw new NotFoundError('Order')
+    // Owner-only: customer dismisses their own message. Admins are allowed
+    // through `assertOwner` already.
+    assertOwner(request, order.userId)
+    sendOk(reply, await service.markAdminMessageRead(id))
   }
 
 export const updatePaymentStatus = (service: IOrderService) =>

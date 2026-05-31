@@ -209,14 +209,14 @@ function StockEditorModal({ product, onClose, onSave }: StockEditorModalProps) {
     <Modal isOpen={!!product} onClose={onClose} title={`Stock — ${product.name}`} maxWidth="max-w-lg">
       <div className="space-y-3">
         {variants.map((v, i) => (
-          <div key={`${v.size}-${i}`} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50">
-            <span className="font-sport text-xl tracking-wide text-gray-900 uppercase w-12 text-center">{v.size}</span>
+          <div key={`${v.size}-${i}`} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-stroke bg-surface">
+            <span className="font-sport text-xl tracking-wide text-primary uppercase w-12 text-center">{v.size}</span>
             <div className="flex-1 flex items-center gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setStock(i, v.stock - 1)}
                 disabled={v.stock <= 0}
-                className="w-9 h-9 rounded-lg border border-gray-300 bg-white text-gray-600 hover:text-gray-900 hover:border-gray-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-9 h-9 rounded-lg border border-stroke bg-surface-raised text-secondary hover:text-primary hover:border-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 −
               </button>
@@ -230,7 +230,7 @@ function StockEditorModal({ product, onClose, onSave }: StockEditorModalProps) {
               <button
                 type="button"
                 onClick={() => setStock(i, v.stock + 1)}
-                className="w-9 h-9 rounded-lg border border-gray-300 bg-white text-gray-600 hover:text-gray-900 hover:border-gray-400 transition-colors"
+                className="w-9 h-9 rounded-lg border border-stroke bg-surface-raised text-secondary hover:text-primary hover:border-accent transition-colors"
               >
                 +
               </button>
@@ -243,7 +243,7 @@ function StockEditorModal({ product, onClose, onSave }: StockEditorModalProps) {
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-muted hover:text-primary hover:bg-surface-raised transition-colors"
         >
           Cancel
         </button>
@@ -590,11 +590,11 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
           </FormSection>
 
           <FormSection title="Variants & Stock">
-            <p className="text-xs text-gray-600 mb-2">Set stock per size. Sizes with 0 stock will be marked unavailable on the storefront.</p>
+            <p className="text-xs text-secondary mb-2">Set stock per size. Sizes with 0 stock will be marked unavailable on the storefront.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
               {form.variants.map((v) => (
-                <div key={v.size} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-                  <p className="font-sport text-lg text-center text-gray-900 uppercase tracking-wide">{v.size}</p>
+                <div key={v.size} className="bg-surface-raised border border-stroke rounded-xl p-3">
+                  <p className="font-sport text-lg text-center text-primary uppercase tracking-wide">{v.size}</p>
                   <input
                     type="number"
                     min={0}
@@ -611,21 +611,21 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
         {/* ── Sidebar ─────────────────────────────────────────────────────── */}
         <div className="space-y-5">
           <FormSection title="Live preview">
-            <div className="aspect-[3/4] rounded-2xl bg-gray-100 overflow-hidden border border-gray-200">
+            <div className="aspect-[3/4] rounded-2xl bg-surface-raised overflow-hidden border border-stroke">
               {previewImage ? (
                 <img src={previewImage} alt="" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs uppercase tracking-widest">
+                <div className="w-full h-full flex items-center justify-center text-muted text-xs uppercase tracking-widest">
                   No image
                 </div>
               )}
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-widest text-gray-500">
+              <p className="text-[10px] uppercase tracking-widest text-muted">
                 {form.sport || 'sport'} · {form.team || 'team'}
               </p>
-              <p className="font-medium text-gray-900 leading-snug">{form.name || 'Product name'}</p>
-              <p className="font-bold text-gray-900 tabular-nums">
+              <p className="font-medium text-primary leading-snug">{form.name || 'Product name'}</p>
+              <p className="font-bold text-primary tabular-nums">
                 {form.price ? formatPrice(Number(form.price), form.currency) : '—'}
               </p>
             </div>
@@ -691,12 +691,12 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-stroke">
         <button
           type="button"
           onClick={onCancel}
           disabled={submitting}
-          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors disabled:opacity-60"
+          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-muted hover:text-primary hover:bg-surface-raised transition-colors disabled:opacity-60"
         >
           Cancel
         </button>
@@ -716,12 +716,17 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
 // Light form primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
-const lightInputClass = 'w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
+// Inputs in the admin product form now share the same dark surface used by
+// the rest of the admin shell. The "light" name is kept to avoid a wide
+// rename, but every white background is gone — surface-raised + stroke
+// borders, with the existing accent focus ring still tying the form to the
+// rest of the admin UI.
+const lightInputClass = 'w-full px-3 py-2.5 rounded-xl bg-surface-raised border border-stroke text-primary placeholder:text-muted text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{title}</h3>
+    <section className="bg-surface border border-stroke rounded-2xl p-5 space-y-4 shadow-sm">
+      <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted">{title}</h3>
       {children}
     </section>
   );
@@ -733,10 +738,10 @@ function FormField({
   return (
     <div className="space-y-1.5">
       <label className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+        <span className="text-xs font-bold uppercase tracking-wider text-secondary">
           {label} {required && <span className="text-danger">*</span>}
         </span>
-        {hint && !error && <span className="text-[10px] text-gray-500 normal-case">{hint}</span>}
+        {hint && !error && <span className="text-[10px] text-muted normal-case">{hint}</span>}
         {error && <span className="text-[10px] text-danger normal-case">{error}</span>}
       </label>
       {children}

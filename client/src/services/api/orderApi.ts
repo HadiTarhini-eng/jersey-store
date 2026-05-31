@@ -14,7 +14,14 @@ export const orderApi = {
   forUser:       (userId: string)                  => http.get<Order[]>(endpoints.orders.forUser(userId)),
   items:         (id: string)                      => http.get<OrderItem[]>(endpoints.orders.items(id)),
   place:         (id: string)                      => http.post<Order>(endpoints.orders.place(id)),
-  updateStatus:  (id: string, status: OrderStatus) => http.patch<Order>(endpoints.orders.status(id), { status }),
+  /**
+   * Admin-only. Pass `rejectionReason` when moving to `cancelled` — server
+   * enforces the strict transition graph and rejects empty reasons.
+   */
+  updateStatus:  (id: string, status: OrderStatus, rejectionReason?: string | null) =>
+                   http.patch<Order>(endpoints.orders.status(id), { status, rejectionReason: rejectionReason ?? null }),
+  /** Customer dismisses an unread rejection message — clears the unread dot. */
+  markMessageRead: (id: string)                    => http.post<Order>(endpoints.orders.markMessageRead(id)),
   updatePayment: (id: string, paymentStatus: PaymentStatus) =>
                    http.patch<Order>(endpoints.orders.payment(id), { paymentStatus }),
   updateAddresses:(id: string, addresses: { shippingAddress: AddressSnapshot; billingAddress: AddressSnapshot }) =>

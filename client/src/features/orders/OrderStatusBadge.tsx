@@ -29,8 +29,22 @@ interface OrderStatusBadgeProps {
  * status string we throw at it. Reused on the customer Orders list,
  * detail page, and admin grids — pick a label, get the colour.
  */
+/**
+ * Customer-friendly labels.
+ * - `shipped`   → "On route" (the value stays `shipped` on the wire).
+ * - `confirmed` → "Processing" (we collapsed the admin confirm step into
+ *   the customer-visible processing state; legacy `confirmed` orders still
+ *   render correctly).
+ */
+const labels: Record<string, string> = {
+  shipped:   'On route',
+  confirmed: 'Processing',
+};
+
 export function OrderStatusBadge({ status, className = '' }: OrderStatusBadgeProps) {
-  const tone = styles[status.toLowerCase()] ?? 'bg-white/5 text-muted border-stroke';
+  const key   = status.toLowerCase();
+  const tone  = styles[key] ?? 'bg-white/5 text-muted border-stroke';
+  const label = labels[key] ?? status;
   return (
     <span
       className={[
@@ -40,7 +54,7 @@ export function OrderStatusBadge({ status, className = '' }: OrderStatusBadgePro
         className,
       ].join(' ')}
     >
-      {status}
+      {label}
     </span>
   );
 }

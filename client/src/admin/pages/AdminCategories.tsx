@@ -89,7 +89,7 @@ function CrudGrid<T extends { id: string }>({ items, renderCard, onAdd, addLabel
   );
 }
 
-const inputClass = 'w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
+const inputClass = 'w-full px-3 py-2.5 rounded-xl bg-surface-raised border border-stroke text-primary placeholder:text-muted text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20';
 const inputErrorClass = inputClass + ' border-danger ring-2 ring-danger/20';
 
 interface CardChromeProps {
@@ -151,10 +151,10 @@ function FormField({ label, hint, error, required, children }: { label: string; 
   return (
     <div className="space-y-1.5">
       <label className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+        <span className="text-xs font-bold uppercase tracking-wider text-secondary">
           {label} {required && <span className="text-danger">*</span>}
         </span>
-        {hint && !error && <span className="text-[10px] text-gray-500 normal-case">{hint}</span>}
+        {hint && !error && <span className="text-[10px] text-muted normal-case">{hint}</span>}
         {error && <span className="text-[10px] text-danger normal-case">{error}</span>}
       </label>
       {children}
@@ -364,7 +364,7 @@ function SportEditor({ sport, onCancel, onSave }: { sport: Sport | null; onCance
               type="color"
               value={form.color ?? '#007aff'}
               onChange={(e) => set('color', e.target.value)}
-              className="w-12 h-10 rounded-lg border border-gray-300 bg-white cursor-pointer"
+              className="w-12 h-10 rounded-lg border border-stroke bg-surface-raised cursor-pointer"
             />
             <input value={form.color ?? ''} onChange={(e) => set('color', e.target.value)} className={inputClass} placeholder="#007aff" />
           </div>
@@ -375,9 +375,9 @@ function SportEditor({ sport, onCancel, onSave }: { sport: Sport | null; onCance
               type="checkbox"
               checked={!!form.featured}
               onChange={(e) => set('featured', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 bg-white text-accent focus:ring-accent"
+              className="w-4 h-4 rounded border-stroke bg-surface-raised text-accent focus:ring-accent"
             />
-            <span className="text-sm text-gray-700">Display on storefront homepage</span>
+            <span className="text-sm text-secondary">Display on storefront homepage</span>
           </label>
         </FormField>
       </div>
@@ -603,13 +603,13 @@ function TeamEditor({ team, sports, onCancel, onSave }: { team: Team | null; spo
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Primary color">
             <div className="flex gap-2">
-              <input type="color" value={form.color ?? '#000000'} onChange={(e) => set('color', e.target.value)} className="w-12 h-10 rounded-lg border border-gray-300 bg-white cursor-pointer" />
+              <input type="color" value={form.color ?? '#000000'} onChange={(e) => set('color', e.target.value)} className="w-12 h-10 rounded-lg border border-stroke bg-surface-raised cursor-pointer" />
               <input value={form.color ?? ''} onChange={(e) => set('color', e.target.value)} className={inputClass} />
             </div>
           </FormField>
           <FormField label="Secondary color">
             <div className="flex gap-2">
-              <input type="color" value={form.colorSecondary ?? '#ffffff'} onChange={(e) => set('colorSecondary', e.target.value)} className="w-12 h-10 rounded-lg border border-gray-300 bg-white cursor-pointer" />
+              <input type="color" value={form.colorSecondary ?? '#ffffff'} onChange={(e) => set('colorSecondary', e.target.value)} className="w-12 h-10 rounded-lg border border-stroke bg-surface-raised cursor-pointer" />
               <input value={form.colorSecondary ?? ''} onChange={(e) => set('colorSecondary', e.target.value)} className={inputClass} />
             </div>
           </FormField>
@@ -838,13 +838,13 @@ function KitEditor({
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Primary color">
             <div className="flex gap-2">
-              <input type="color" value={form.color ?? '#007aff'} onChange={(e) => set('color', e.target.value)} className="w-12 h-10 rounded-lg border border-gray-300 bg-white cursor-pointer" />
+              <input type="color" value={form.color ?? '#007aff'} onChange={(e) => set('color', e.target.value)} className="w-12 h-10 rounded-lg border border-stroke bg-surface-raised cursor-pointer" />
               <input value={form.color ?? ''} onChange={(e) => set('color', e.target.value)} className={inputClass} />
             </div>
           </FormField>
           <FormField label="Dark accent">
             <div className="flex gap-2">
-              <input type="color" value={form.colorDark ?? '#0055cc'} onChange={(e) => set('colorDark', e.target.value)} className="w-12 h-10 rounded-lg border border-gray-300 bg-white cursor-pointer" />
+              <input type="color" value={form.colorDark ?? '#0055cc'} onChange={(e) => set('colorDark', e.target.value)} className="w-12 h-10 rounded-lg border border-stroke bg-surface-raised cursor-pointer" />
               <input value={form.colorDark ?? ''} onChange={(e) => set('colorDark', e.target.value)} className={inputClass} />
             </div>
           </FormField>
@@ -858,11 +858,11 @@ function KitEditor({
 
 function EditorFooter({ onCancel, onSave }: { onCancel: () => void; onSave: () => void }) {
   return (
-    <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-      <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+    <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-stroke">
+      <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-muted hover:text-primary hover:bg-surface-raised transition-colors">
         Cancel
       </button>
-      <button type="button" onClick={onSave} className="px-5 py-2.5 rounded-xl bg-white text-black font-bold text-sm uppercase tracking-wider border-2 border-white hover:bg-black hover:text-white transition-colors">
+      <button type="button" onClick={onSave} className="px-5 py-2.5 rounded-xl bg-accent text-white font-bold text-sm uppercase tracking-wider border-2 border-accent hover:bg-accent-light transition-colors">
         Save
       </button>
     </div>

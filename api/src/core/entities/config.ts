@@ -24,6 +24,13 @@ export interface SiteConfigEntity extends BusinessEntity {
   cartEmptyMessage?: string | null
   cartEmptyCtaLabel?: string | null
   cartEmptyCtaHref?: string | null
+  /**
+   * Per-section visibility map for the homepage. Missing keys default to
+   * "visible" so a fresh config keeps every section on without explicit setup.
+   * Currently consumed by the storefront homepage to gate "Shop by Sport"
+   * (key: `shop-by-sport`); future sections will reuse the same map.
+   */
+  homepageSectionsVisible: Record<string, boolean>
 }
 
 export type SiteConfigPayload = BusinessEntityPayload & Omit<SiteConfigEntity, keyof BusinessEntity>
@@ -47,6 +54,7 @@ export class SiteConfig extends BaseEntity implements SiteConfigEntity {
   cartEmptyMessage?: string | null
   cartEmptyCtaLabel?: string | null
   cartEmptyCtaHref?: string | null
+  homepageSectionsVisible: Record<string, boolean>
 
   constructor(payload: SiteConfigPayload) {
     super(payload)
@@ -68,6 +76,7 @@ export class SiteConfig extends BaseEntity implements SiteConfigEntity {
     this.cartEmptyMessage = payload.cartEmptyMessage ?? null
     this.cartEmptyCtaLabel = payload.cartEmptyCtaLabel ?? null
     this.cartEmptyCtaHref = payload.cartEmptyCtaHref ?? null
+    this.homepageSectionsVisible = payload.homepageSectionsVisible ?? {}
   }
 }
 

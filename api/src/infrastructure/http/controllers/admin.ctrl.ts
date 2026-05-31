@@ -20,3 +20,8 @@ export const getAdminOrder = (service: IAdminService) =>
     if (!order) throw new ServiceError('Order not found', 404)
     sendOk(reply, order)
   }
+
+export const getRevenueSummary = (service: IAdminService) =>
+  async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    sendOk(reply, await service.revenueSummary())
+  }

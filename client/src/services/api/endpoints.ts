@@ -120,6 +120,7 @@ export const endpoints = {
     payment:       (id: string)            => `/orders/${id}/payment`,
     addresses:     (id: string)            => `/orders/${id}/addresses`,
     cancel:        (id: string)            => `/orders/${id}/cancel`,
+    markMessageRead: (id: string)          => `/orders/${id}/mark-message-read`,
   },
 
   // ── Reviews ─────────────────────────────────────────────────────────────────
@@ -194,6 +195,7 @@ export const endpoints = {
     listCustomers: () => '/admin/customers',
     listOrders:    () => '/admin/orders',
     getOrder:      (id: string) => `/admin/orders/${id}`,
+    revenue:       () => '/admin/revenue',
   },
 
   // ── Analytics (admin only) ──────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { http } from '../../services/api/client';
 import { endpoints } from '../../services/api/endpoints';
 import type {
-  AddressSnapshot, AdminCustomer, AdminOrder, ISODate, OrderStatus, PaymentStatus,
+  AddressSnapshot, AdminCustomer, AdminOrder, AdminRevenue, ISODate, OrderStatus, PaymentStatus,
 } from '../../types';
 
 /**
@@ -34,7 +34,8 @@ interface BackendAdminOrderItem {
 interface BackendAdminOrder {
   id:               string;
   orderNumber:      string;
-  customer:         { id: string; firstName: string; lastName: string; email: string };
+  /** `id` and `email` are null for guest orders (placed without a JWT). */
+  customer:         { id: string | null; firstName: string; lastName: string; email: string | null };
   items:            BackendAdminOrderItem[];
   itemsCount:       number;
   subtotal:         number;
@@ -46,10 +47,15 @@ interface BackendAdminOrder {
   billingAddress:   AddressSnapshot;
   createdAt:        ISODate;
   placedAt:         ISODate | null;
+  rejectionReason?:    string | null;
+  adminMessageReadAt?: ISODate | null;
 }
 
 function mapOrderStatus(status: OrderStatus): AdminOrder['status'] {
-  return status === 'confirmed' ? 'processing' : status;
+  // `confirmed` is now a distinct state in the admin workflow (the step
+  // between the customer placing the order and the shop kicking off
+  // fulfilment), so pass it through verbatim.
+  return status;
 }
 
 function mapPaymentStatus(status: PaymentStatus): AdminOrder['paymentStatus'] {
@@ -98,7 +104,9 @@ function toAdminOrder(o: BackendAdminOrder): AdminOrder {
       state:        o.shippingAddress.state ?? undefined,
       postalCode:   o.shippingAddress.postalCode ?? undefined,
     },
-    createdAt: o.createdAt,
+    createdAt:          o.createdAt,
+    rejectionReason:    o.rejectionReason    ?? null,
+    adminMessageReadAt: o.adminMessageReadAt ?? null,
   };
 }
 
@@ -116,5 +124,14 @@ export const adminApi = {
   async getOrder(id: string): Promise<AdminOrder> {
     const row = await http.get<BackendAdminOrder>(endpoints.admin.getOrder(id));
     return toAdminOrder(row);
+  },
+
+  /**
+   * Pulls the aggregate revenue snapshot used by the admin Revenue page —
+   * lifetime totals, delivered/in-flight/cancelled counts, and a month-by-
+   * month breakdown for the charts.
+   */
+  async revenueSummary(): Promise<AdminRevenue> {
+    return http.get<AdminRevenue>(endpoints.admin.revenue());
   },
 };

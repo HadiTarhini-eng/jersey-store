@@ -7,4 +7,5 @@ export const adminRoutes = (service: IAdminService): RouteOptions[] => [
   { method: 'GET', url: '/admin/customers',     roles: ['Admin'], schema: s.listAdminCustomersSchema, handler: ctrl.listAdminCustomers(service) },
   { method: 'GET', url: '/admin/orders',        roles: ['Admin'], schema: s.listAdminOrdersSchema,    handler: ctrl.listAdminOrders(service) },
   { method: 'GET', url: '/admin/orders/:id',    roles: ['Admin'], schema: s.getAdminOrderSchema,      handler: ctrl.getAdminOrder(service) },
+  { method: 'GET', url: '/admin/revenue',       roles: ['Admin'], schema: s.revenueSummarySchema,     handler: ctrl.getRevenueSummary(service) },
 ]

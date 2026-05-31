@@ -1,14 +1,38 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { customerOrderService, type CustomerOrder } from '../services/customerOrderService';
+import { orderApi } from '../services/api';
 import { formatPrice, formatDate } from '../utils/formatters';
 import { theme } from '../config/theme';
 import { OrderStatusBadge } from '../features/orders/OrderStatusBadge';
 import type { OrderStatus } from '../types';
 
-// Linear progression of order statuses for the timeline. "cancelled" is
-// surfaced separately (red banner) since it isn't part of the happy path.
-const TIMELINE: OrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
+// Linear progression of order statuses for the customer-facing timeline.
+// "confirmed" is collapsed into "processing" — the customer never sees a
+// separate confirmation step. "cancelled" is surfaced separately (red
+// banner) since it isn't part of the happy path.
+const TIMELINE: OrderStatus[] = ['pending', 'processing', 'shipped', 'delivered'];
+
+// Customer-friendly labels for each timeline step. `shipped` is rendered as
+// "On route" — the wire value stays `shipped` so we don't need a migration.
+const TIMELINE_LABEL: Record<OrderStatus, string> = {
+  pending:    'Pending',
+  confirmed:  'Processing',
+  processing: 'Processing',
+  shipped:    'On route',
+  delivered:  'Delivered',
+  cancelled:  'Cancelled',
+};
+
+/**
+ * Map any backend status to the customer-facing timeline index. `confirmed`
+ * orders (legacy) collapse to the same step as `processing` so the customer
+ * sees a clean 4-step progression: pending → processing → on route → delivered.
+ */
+function timelineIndex(status: OrderStatus): number {
+  if (status === 'confirmed') return TIMELINE.indexOf('processing');
+  return TIMELINE.indexOf(status);
+}
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +48,21 @@ export function OrderDetailPage() {
     return () => { cancelled = true; };
   }, [id]);
 
+  // When the customer opens an order with an unread rejection message, mark
+  // it read on the backend (clears the envelope dot on the list page) and
+  // mirror the timestamp locally so we don't re-fetch just to repaint.
+  useEffect(() => {
+    if (!order || !order.rejectionReason || order.adminMessageReadAt) return;
+    let cancelled = false;
+    orderApi.markMessageRead(order.id)
+      .then(() => {
+        if (cancelled) return;
+        setOrder((current) => current ? { ...current, adminMessageReadAt: new Date().toISOString() } : current);
+      })
+      .catch(() => { /* best effort — non-fatal */ });
+    return () => { cancelled = true; };
+  }, [order]);
+
   if (order === undefined) {
     return (
       <main className={`${theme.pageContainer} py-8 lg:py-12 space-y-4`}>
@@ -38,8 +77,8 @@ export function OrderDetailPage() {
 
   const itemsCount = order.items.reduce((sum, i) => sum + i.quantity, 0);
   const isCancelled = order.status === 'cancelled';
-  // Where we are along the happy-path timeline.
-  const stepIndex = TIMELINE.indexOf(order.status as OrderStatus);
+  // Where we are along the happy-path timeline (confirmed → processing).
+  const stepIndex = timelineIndex(order.status as OrderStatus);
 
   return (
     <main className={`${theme.pageContainer} py-8 lg:py-12 space-y-6`}>
@@ -56,19 +95,37 @@ export function OrderDetailPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <OrderStatusBadge status={order.paymentStatus} />
+            {/* Single status badge — payment status is intentionally hidden
+                from the customer view since order workflow is the only signal
+                that matters here. `confirmed` displays as "Processing" via
+                OrderStatusBadge's label map. */}
             <OrderStatusBadge status={order.status} />
           </div>
         </div>
       </div>
 
-      {/* Status timeline — or cancellation banner */}
+      {/* Status timeline — or cancellation banner with the shop's message */}
       {isCancelled ? (
-        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-5">
-          <p className="text-sm font-bold uppercase tracking-wider text-danger">Order cancelled</p>
-          <p className="text-sm text-secondary mt-1">
-            This order was cancelled. If you were charged, a refund has been issued.
-          </p>
+        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-5 space-y-3">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-danger shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold uppercase tracking-wider text-danger">
+                {order.rejectionReason ? 'Message from the shop' : 'Order cancelled'}
+              </p>
+              {order.rejectionReason ? (
+                <p className="text-sm text-primary mt-2 whitespace-pre-line leading-relaxed">
+                  {order.rejectionReason}
+                </p>
+              ) : (
+                <p className="text-sm text-secondary mt-1">
+                  This order was cancelled. If you were charged, a refund has been issued.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       ) : (
         <StatusTimeline currentIndex={stepIndex} estimatedDelivery={order.estimatedDelivery} />
@@ -193,11 +250,11 @@ function StatusTimeline({ currentIndex, estimatedDelivery }: { currentIndex: num
               </span>
               <span
                 className={[
-                  'text-[10px] uppercase tracking-widest font-bold capitalize',
+                  'text-[10px] uppercase tracking-widest font-bold',
                   reached ? 'text-primary' : 'text-muted',
                 ].join(' ')}
               >
-                {step}
+                {TIMELINE_LABEL[step]}
               </span>
             </li>
           );

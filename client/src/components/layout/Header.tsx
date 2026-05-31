@@ -5,6 +5,7 @@ import { useAuth } from '../../features/auth/hooks/useAuth';
 import { useSiteConfig } from '../../contexts/SiteConfigContext';
 import { useNavLinks } from '../../hooks/useNavLinks';
 import { MobileNav } from './MobileNav';
+import { SearchButton } from './SearchButton';
 
 /** Reusable cart button — same markup on mobile and desktop, different placement. */
 function CartButton({ totalItems, openCart }: { totalItems: number; openCart: () => void }) {
@@ -103,7 +104,8 @@ export function Header() {
               <Logo />
             </div>
 
-            <div className="justify-self-end">
+            <div className="justify-self-end flex items-center gap-2">
+              <SearchButton />
               <CartButton totalItems={totalItems} openCart={openCart} />
             </div>
           </div>
@@ -237,6 +239,7 @@ export function Header() {
                 </div>
               )}
 
+              <SearchButton />
               <CartButton totalItems={totalItems} openCart={openCart} />
             </div>
           </div>

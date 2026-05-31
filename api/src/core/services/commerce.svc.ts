@@ -9,6 +9,12 @@ export interface GuestOrderItemInput {
 }
 
 export interface CreateGuestOrderInput {
+  /**
+   * Optional authenticated owner. When the storefront submits this body with
+   * a valid JWT, the controller lifts the caller's user id into here so the
+   * order is attributed to the customer instead of landing as a true guest.
+   */
+  userId?: Guid | null
   guestEmail?: string | null
   couponCode?: string | null
   shippingAddress: AddressSnapshot
@@ -44,10 +50,18 @@ export interface IOrderService {
   listUserOrders: (userId: Guid) => Promise<Order[]>
   listOrderItems: (orderId: Guid) => Promise<OrderItem[]>
   placeOrder: (id: Guid) => Promise<Order>
-  updateOrderStatus: (id: Guid, status: OrderStatus) => Promise<Order>
+  /**
+   * Move an order along the admin status workflow. Transitions are strictly
+   * gated (see `ALLOWED_TRANSITIONS` in the service implementation). When
+   * moving to `cancelled`, a non-empty `rejectionReason` is required and is
+   * surfaced to the customer as the shop's explanation.
+   */
+  updateOrderStatus: (id: Guid, status: OrderStatus, rejectionReason?: string | null) => Promise<Order>
   updatePaymentStatus: (id: Guid, paymentStatus: PaymentStatus) => Promise<Order>
   updateAddresses: (id: Guid, shippingAddress: AddressSnapshot, billingAddress: AddressSnapshot) => Promise<Order>
   cancelOrder: (id: Guid) => Promise<Order>
+  /** Customer dismisses the rejection notification — stamps `adminMessageReadAt`. Owner-checked at the controller. */
+  markAdminMessageRead: (id: Guid) => Promise<Order>
 }
 
 export interface IReviewService {

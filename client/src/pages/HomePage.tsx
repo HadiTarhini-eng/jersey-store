@@ -108,21 +108,44 @@ function HeroSection({ slide, slides, currentSlide, onSelectSlide, designYourOwn
           </p>
 
           <div className={`flex flex-wrap items-center gap-3 md:gap-4 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : ''}`}>
-            <Link to={slide.ctaHref}>
-              <button
+            {/* Primary CTA — switches between <a target="_blank"> and <Link>
+                based on whether the admin chose an external URL or an
+                in-app filter. The mutually-exclusive distinction is set in
+                AdminOffers via ShopFilterPicker. */}
+            {/^https?:\/\//i.test(slide.ctaHref) ? (
+              <a
+                href={slide.ctaHref}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm tracking-wider uppercase border-2 border-white bg-white text-black hover:bg-black hover:text-white active:scale-95 transition-colors duration-200 focus-accent"
               >
                 {slide.ctaLabel}
-              </button>
-            </Link>
-            <Link to={designYourOwn.href}>
-              <button
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm tracking-wider uppercase border-2 text-white hover:scale-105 active:scale-95 transition-all duration-200 focus-accent"
-                style={{ borderColor: accent, color: accent, backgroundColor: `${accent}14` }}
-              >
-                {designYourOwn.label}
-              </button>
-            </Link>
+              </a>
+            ) : (
+              <Link to={slide.ctaHref}>
+                <button
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm tracking-wider uppercase border-2 border-white bg-white text-black hover:bg-black hover:text-white active:scale-95 transition-colors duration-200 focus-accent"
+                >
+                  {slide.ctaLabel}
+                </button>
+              </Link>
+            )}
+            {/*
+              "Design Your Own" CTA — hidden for now (feature pending). Keep
+              the markup so we can flip the gate later without rebuilding.
+              When ready, replace the surrounding `false &&` with a real
+              feature flag (e.g. `siteConfig.homepageSectionsVisible?.['hero-design-your-own']`).
+            */}
+            {false && (
+              <Link to={designYourOwn.href}>
+                <button
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm tracking-wider uppercase border-2 text-white hover:scale-105 active:scale-95 transition-all duration-200 focus-accent"
+                  style={{ borderColor: accent, color: accent, backgroundColor: `${accent}14` }}
+                >
+                  {designYourOwn.label}
+                </button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -261,13 +284,17 @@ export function HomePage() {
       )}
 
       {/* ── 5. Sports Carousel ───────────────────────────────────────────────── */}
-      <div className={`${theme.pageContainer} w-full py-6 md:py-8`}>
-        <div className="mb-6">
-          <h2 className={theme.sectionTitle}>Shop by Sport</h2>
-          <p className={theme.sectionSubtitle}>Pick your sport and find the perfect kit</p>
+      {/* Hidden when the admin has explicitly toggled off the `shop-by-sport`
+          section under Settings → Homepage sections. Missing key = visible. */}
+      {(siteConfig.homepageSectionsVisible?.['shop-by-sport'] !== false) && (
+        <div className={`${theme.pageContainer} w-full py-6 md:py-8`}>
+          <div className="mb-6">
+            <h2 className={theme.sectionTitle}>Shop by Sport</h2>
+            <p className={theme.sectionSubtitle}>Pick your sport and find the perfect kit</p>
+          </div>
+          <SportsCarousel />
         </div>
-        <SportsCarousel />
-      </div>
+      )}
 
       {/* ── 6. Teams Slider ──────────────────────────────────────────────────── */}
       <div className={`${theme.pageContainer} w-full py-2 md:py-3`}>

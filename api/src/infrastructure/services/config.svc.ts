@@ -36,6 +36,7 @@ export class SiteConfigService implements ISiteConfigService {
       filterMinPrice: 0,
       filterMaxPrice: 1000,
       sortOptions: [],
+      homepageSectionsVisible: {},
     })
     return this.repository.create(seeded)
   }

@@ -1,14 +1,56 @@
+import { useMemo } from 'react';
 import { ProductGrid }    from '../features/products/components/ProductGrid';
 import { ProductFilters } from '../features/products/components/ProductFilters';
 import { ProductSearch }  from '../features/products/components/ProductSearch';
 import { Select }         from '../components/ui/Select';
 import { useProducts }    from '../features/products/hooks/useProducts';
 import { useFilters }     from '../features/products/hooks/useFilters';
+import { useCategories }  from '../features/products/hooks/useCategories';
 import { useSiteConfig }  from '../contexts/SiteConfigContext';
+
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function ShopPage() {
   const { filters, sort, setSort } = useFilters();
-  const { products, loading, error } = useProducts(filters, sort);
+  const { categories } = useCategories();
+
+  /**
+   * Resolve the URL's `categoryId` to a real backend Category GUID.
+   *
+   * Two surfaces feed this param:
+   *  - The home page's kit-category tiles, which fall back to the
+   *    ui-content row's id when the admin hasn't bound the tile to a
+   *    real product category (that id is a Guid but matches no products).
+   *  - Direct URLs like `/shop?categoryId=jerseys` typed or shared by
+   *    users, where the value is a category slug instead of a Guid.
+   *
+   * We resolve in this order: keep as-is if it's a valid Guid that
+   * matches a category; otherwise try slug match; otherwise drop the
+   * filter so the user at least sees products instead of an empty grid.
+   */
+  const resolvedFilters = useMemo(() => {
+    const cid = filters.categoryId;
+    if (!cid) return filters;
+
+    // Already a known Guid → trust it.
+    if (GUID_RE.test(cid) && categories.some((c) => c.id === cid)) {
+      return filters;
+    }
+
+    // Try resolving against slug (case-insensitive).
+    const lower = cid.toLowerCase();
+    const bySlug = categories.find((c) => c.slug.toLowerCase() === lower);
+    if (bySlug) {
+      return { ...filters, categoryId: bySlug.id };
+    }
+
+    // Unknown id and unknown slug — categories may still be loading. Skip
+    // the filter for now; once `categories` populates the memo re-runs.
+    if (categories.length === 0) return filters;
+    return { ...filters, categoryId: undefined };
+  }, [filters, categories]);
+
+  const { products, loading, error } = useProducts(resolvedFilters, sort);
   const { sortOptions } = useSiteConfig();
 
   const SortSelect = () => (

@@ -1,6 +1,8 @@
 interface StatusBadgeProps {
   status: string;
   tone?:  'accent' | 'ok' | 'caution' | 'danger' | 'muted' | 'power';
+  /** Override the rendered text — useful for renaming e.g. `shipped` → "On route". */
+  label?: string;
 }
 
 const toneClasses: Record<NonNullable<StatusBadgeProps['tone']>, string> = {
@@ -18,6 +20,7 @@ const toneClasses: Record<NonNullable<StatusBadgeProps['tone']>, string> = {
  */
 const statusToTone: Record<string, StatusBadgeProps['tone']> = {
   pending:    'caution',
+  confirmed:  'accent',
   processing: 'accent',
   shipped:    'accent',
   delivered:  'ok',
@@ -31,8 +34,13 @@ const statusToTone: Record<string, StatusBadgeProps['tone']> = {
   archived:   'muted',
 };
 
-export function StatusBadge({ status, tone }: StatusBadgeProps) {
+const statusToLabel: Record<string, string> = {
+  shipped:   'On route',
+};
+
+export function StatusBadge({ status, tone, label }: StatusBadgeProps) {
   const resolved = tone ?? statusToTone[status.toLowerCase()] ?? 'muted';
+  const text     = label ?? statusToLabel[status.toLowerCase()] ?? status;
   return (
     <span
       className={[
@@ -40,7 +48,7 @@ export function StatusBadge({ status, tone }: StatusBadgeProps) {
         toneClasses[resolved],
       ].join(' ')}
     >
-      {status}
+      {text}
     </span>
   );
 }

@@ -90,6 +90,16 @@ function SiteTab() {
   const socialLinks = (value('socialLinks') as Record<string, string>) ?? {};
   const setSocial = (k: string, v: string) => set('socialLinks', { ...socialLinks, [k]: v });
 
+  // Homepage section visibility — keyed map. Missing keys default to "on" on
+  // the storefront, so admin only needs to flip the toggle when they want a
+  // section hidden. Add new sections by appending to HOMEPAGE_SECTIONS.
+  const HOMEPAGE_SECTIONS: { key: string; label: string; hint: string }[] = [
+    { key: 'shop-by-sport', label: 'Shop by Sport', hint: 'Section above the team slider on the homepage.' },
+  ];
+  const sectionsVisible = (value('homepageSectionsVisible') as Record<string, boolean>) ?? {};
+  const setSectionVisible = (k: string, v: boolean) =>
+    set('homepageSectionsVisible', { ...sectionsVisible, [k]: v });
+
   return (
     <section className="bg-surface border border-stroke rounded-2xl p-5 space-y-4">
       <Field label="Store name"><input className={inputClass} value={(value('name') as string) ?? ''} onChange={(e) => set('name', e.target.value)} /></Field>
@@ -116,6 +126,45 @@ function SiteTab() {
             <input className={inputClass} value={socialLinks[key] ?? ''} onChange={(e) => setSocial(key, e.target.value)} />
           </Field>
         ))}
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-xs uppercase tracking-widest text-muted mb-2">Homepage sections</legend>
+        <p className="text-xs text-muted mb-3">
+          Toggle storefront sections on or off without deleting their content. New sections default to visible.
+        </p>
+        {HOMEPAGE_SECTIONS.map(({ key, label, hint }) => {
+          // Missing key in the map ⇒ visible. So we only turn the switch off
+          // when the value is explicitly `false`.
+          const visible = sectionsVisible[key] !== false;
+          return (
+            <label key={key} className="flex items-start gap-3 p-3 rounded-xl border border-stroke bg-surface-raised cursor-pointer hover:border-accent/40 transition-colors">
+              <div className="relative mt-0.5">
+                <input
+                  type="checkbox"
+                  checked={visible}
+                  onChange={(e) => setSectionVisible(key, e.target.checked)}
+                  className="sr-only"
+                />
+                <div className={[
+                  'w-9 h-5 rounded-full transition-colors',
+                  visible ? 'bg-accent' : 'bg-stroke',
+                ].join(' ')} />
+                <div className={[
+                  'absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform',
+                  visible ? 'translate-x-4' : '',
+                ].join(' ')} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-primary">{label}</p>
+                <p className="text-xs text-muted mt-0.5">{hint}</p>
+              </div>
+              <span className={`text-[10px] font-bold uppercase tracking-widest shrink-0 ${visible ? 'text-ok' : 'text-muted'}`}>
+                {visible ? 'On' : 'Off'}
+              </span>
+            </label>
+          );
+        })}
       </fieldset>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}

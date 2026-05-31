@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../app/hooks';
 import { CheckoutForm } from '../features/checkout/components/CheckoutForm';
@@ -27,23 +27,35 @@ export function CheckoutPage() {
   const { step, shippingAddress, order, loading, error } = useAppSelector((s) => s.checkout);
   const { items } = useAppSelector((s) => s.cart);
 
-  // Surface any submit error as a toast (and dismiss the inline banner reliance).
+  // If the user returns to /checkout after a previously-completed order, the
+  // slice still carries `step='confirmation'` and the old `order`. Reset on
+  // mount when we see that combo + a fresh cart so the new flow starts clean.
+  useEffect(() => {
+    if (step === 'confirmation' && items.length > 0) {
+      dispatch(resetCheckout());
+    }
+    // mount-only; deps left empty intentionally so a mid-session reset doesn't
+    // re-fire this effect mid-flow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (error) toast.push({ variant: 'error', title: 'Order failed', message: error });
   }, [error, toast]);
 
-  // When the step advances (shipping → review → confirmation), scroll the page
-  // back to the top so the user actually sees the freshly rendered step.
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
 
-  // Bounce back to /cart only when the user lands on checkout with an empty
-  // cart at the start. Once the flow has advanced past `shipping`, we never
-  // redirect again — `submitOrder` clears the cart before the slice transitions
-  // to `confirmation`, and redirecting in that window would yank the user away
-  // from the success screen.
-  if (items.length === 0 && step === 'shipping') {
+  // Bounce back to /cart only on the FIRST render of this page — i.e. when
+  // the user lands on /checkout with an empty cart. Without the ref gate,
+  // state changes during the session (like resetCheckout firing right before
+  // a Link navigates away to /orders) would cause CheckoutPage to briefly
+  // re-render with `step='shipping'`+ empty cart and Navigate to /cart,
+  // hijacking the intended destination.
+  const initialMount = useRef(true);
+  useEffect(() => { initialMount.current = false; }, []);
+  if (initialMount.current && items.length === 0 && step === 'shipping') {
     return <Navigate to={ROUTES.CART} replace />;
   }
 
@@ -142,6 +154,7 @@ interface ConfirmationViewProps {
 }
 
 function ConfirmationView({ order, onContinueShopping }: ConfirmationViewProps) {
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const siteConfig = useSiteConfig();
   const waNumber = phoneToWaNumber(siteConfig.phone ?? undefined);
   const waUrl    = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(buildWhatsAppMessage(order, siteConfig.name))}` : null;
@@ -156,13 +169,16 @@ function ConfirmationView({ order, onContinueShopping }: ConfirmationViewProps) 
         />
         <div className="relative w-24 h-24 rounded-full bg-ok flex items-center justify-center animate-scale-in shadow-lg shadow-ok/40">
           <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+            {/*
+              Tailwind purges keyframes that no `animate-*` class references —
+              the previous inline `animation: drawCheck …` style lost to that
+              purge, leaving the path stuck at full dashoffset (invisible).
+              Using the `animate-draw-check` class binds it correctly.
+            */}
             <path
               d="M5 13l4 4L19 7"
-              style={{
-                strokeDasharray:  22,
-                strokeDashoffset: 22,
-                animation: 'drawCheck 0.55s cubic-bezier(0.65,0,0.45,1) 0.15s forwards',
-              }}
+              className="animate-draw-check"
+              style={{ strokeDasharray: 22, strokeDashoffset: 22 }}
             />
           </svg>
         </div>
@@ -195,6 +211,29 @@ function ConfirmationView({ order, onContinueShopping }: ConfirmationViewProps) 
             Message us on WhatsApp
           </a>
         ) : null}
+
+        {isAuthenticated ? (
+          // Signed-in customers get an in-app track-this-order shortcut. The
+          // order is already saved against their userId via the auth-stamped
+          // /orders/guest endpoint, so it shows up immediately in /orders.
+          <Link to="/orders" onClick={onContinueShopping}>
+            <Button variant="primary" size="lg" fullWidth>
+              View order in My Orders
+            </Button>
+          </Link>
+        ) : (
+          // Guests can't track in-app — surface the friction and nudge sign-in.
+          <div className="rounded-xl border border-stroke bg-surface-raised px-4 py-3 text-left text-xs text-secondary leading-relaxed">
+            <p className="font-bold uppercase tracking-widest text-primary text-[10px] mb-1">Want to track this order in the app?</p>
+            <p>
+              You&apos;re checking out as a guest, so we can&apos;t link this order to an account.
+              Next time, <Link to="/register" className="text-accent hover:text-accent-light underline-offset-2 hover:underline">create an account</Link>{' '}
+              to see every order under{' '}
+              <Link to="/orders" className="text-accent hover:text-accent-light underline-offset-2 hover:underline">My Orders</Link>.
+              For now you can still reach us on WhatsApp for updates.
+            </p>
+          </div>
+        )}
 
         <Link to="/shop" onClick={onContinueShopping}>
           <Button variant="ghost" size="lg" fullWidth>Continue shopping</Button>

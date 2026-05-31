@@ -206,6 +206,14 @@ export const orders = pgTable('orders', {
   shippingAddress: jsonb('shipping_address').$type<Record<string, unknown>>().notNull(),
   billingAddress: jsonb('billing_address').$type<Record<string, unknown>>().notNull(),
   placedAt: timestamp('placed_at'),
+  // When the admin moves the order to `cancelled`, they must supply a reason.
+  // Stored here so the customer's order detail page can render the explanation
+  // (and any suggestions) as a message from the shop.
+  rejectionReason: varchar('rejection_reason', { length: 1000 }),
+  // Timestamp the customer last read the admin's rejection message. NULL
+  // means there's an unread message — drives the envelope-with-dot indicator
+  // on the customer's orders page.
+  adminMessageReadAt: timestamp('admin_message_read_at'),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -291,6 +299,10 @@ export const siteConfig = pgTable('site_config', {
   cartEmptyMessage: varchar('cart_empty_message', { length: 255 }),
   cartEmptyCtaLabel: varchar('cart_empty_cta_label', { length: 80 }),
   cartEmptyCtaHref: varchar('cart_empty_cta_href', { length: 255 }),
+  // Per-section visibility for the storefront homepage. Keyed map (e.g.
+  // `{ "shop-by-sport": false }`) so future toggles can be added without a
+  // schema change. Missing keys default to "visible" on the client.
+  homepageSectionsVisible: jsonb('homepage_sections_visible').$type<Record<string, boolean>>().notNull().default({}),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

@@ -27,6 +27,9 @@ const UpdateSiteConfigBody = Type.Partial(Type.Object({
   cartEmptyMessage: Type.Union([Type.String(), Type.Null()]),
   cartEmptyCtaLabel: Type.Union([Type.String(), Type.Null()]),
   cartEmptyCtaHref: Type.Union([Type.String(), Type.Null()]),
+  // Per-section visibility map keyed by section id. Missing keys default to
+  // visible on the client, so an empty `{}` keeps every section on.
+  homepageSectionsVisible: Type.Record(Type.String(), Type.Boolean()),
 }))
 export type UpdateSiteConfigBodyType = Static<typeof UpdateSiteConfigBody>
 

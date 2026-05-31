@@ -67,7 +67,7 @@ function DesktopAccordion({ categories }: { categories: UiCategory[] }) {
         return (
           <Link
             key={cat.id}
-            to={`/shop?categoryId=${cat.productCategoryId ?? cat.id}`}
+            to={`/shop?categoryId=${cat.productCategoryId ?? cat.slug ?? cat.id}`}
             onMouseEnter={() => setHoveredId(cat.id)}
             onMouseLeave={() => setHoveredId(null)}
             className="relative overflow-hidden rounded-2xl group cursor-pointer"
@@ -163,7 +163,7 @@ function DesktopAccordion({ categories }: { categories: UiCategory[] }) {
 function MobileTile({ category, palette }: { category: UiCategory; palette: { color: string; dark: string } }) {
   return (
     <Link
-      to={`/shop?categoryId=${category.productCategoryId ?? category.id}`}
+      to={`/shop?categoryId=${category.productCategoryId ?? category.slug ?? category.id}`}
       className="relative block h-32 rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
       style={{ boxShadow: `0 10px 30px -10px ${palette.color}60` }}
     >

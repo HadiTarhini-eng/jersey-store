@@ -78,7 +78,12 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
 
   const selectedVariant = variants.find((v) => v.id === selectedVariantId);
   const price           = variantPrice(selectedVariant, product.basePrice);
-  const onSale          = meta.originalPrice !== undefined && meta.originalPrice > price;
+  // `compareAtPrice` is the canonical backend column for the pre-sale MSRP.
+  // `productService.decorateFromTags` already folds the legacy
+  // `originalPrice` tag into this column, so we don't need to read the
+  // deprecated enrichment here.
+  const compareAt       = product.compareAtPrice ?? meta.originalPrice;
+  const onSale          = compareAt !== undefined && compareAt !== null && compareAt > price;
   const maxQty          = selectedVariant?.stockQuantity ?? Math.min(10, totalStock || 10);
 
   // ─── Gallery prepends variant.imageUrl when one is set on the active variant ──
@@ -146,7 +151,7 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
                                       : { tone: 'success',  text: 'In stock' };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[55%_45%] gap-8 lg:gap-12">
+    <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] xl:grid-cols-[55%_45%] gap-8 lg:gap-10 xl:gap-12">
       <ProductGallery
         images={galleryImages}
         title={product.title}
@@ -172,7 +177,7 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
 
         <PriceBlock
           price={price}
-          originalPrice={onSale ? meta.originalPrice : undefined}
+          originalPrice={onSale ? (compareAt ?? undefined) : undefined}
           currency={currency}
         />
 
@@ -307,8 +312,11 @@ function ProductGallery({
 }) {
   const active = images[selectedIndex];
   const Thumbnails = (
+    // Horizontal at smaller sizes and at `lg` (1024–1279px); the vertical
+    // side-strip only kicks in at `xl` so the main image keeps full column
+    // width at 1080×720-ish viewports.
     <div
-      className="flex gap-2 overflow-x-auto hide-scrollbar pb-1 lg:flex-col lg:overflow-y-auto lg:pb-0 lg:pr-1 lg:max-h-[560px]"
+      className="flex gap-2 overflow-x-auto hide-scrollbar pb-1 xl:flex-col xl:overflow-y-auto xl:pb-0 xl:pr-1 xl:max-h-[640px]"
       role="tablist"
       aria-label="Product images"
     >
@@ -332,9 +340,10 @@ function ProductGallery({
   );
 
   return (
-    <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-[5rem_1fr] lg:gap-4">
-      {/* Vertical thumb strip on the left at lg+; horizontal strip below at smaller sizes. */}
-      {images.length > 1 && <div className="hidden lg:block">{Thumbnails}</div>}
+    // Vertical thumb strip on the left only at xl+; otherwise thumbs render
+    // beneath the main image so the gallery column isn't split at 1080px.
+    <div className="space-y-4 xl:space-y-0 xl:grid xl:grid-cols-[5rem_1fr] xl:gap-4">
+      {images.length > 1 && <div className="hidden xl:block">{Thumbnails}</div>}
 
       <div>
         <button
@@ -366,7 +375,8 @@ function ProductGallery({
         </button>
 
         {/* Horizontal strip at < lg */}
-        {images.length > 1 && <div className="lg:hidden mt-4">{Thumbnails}</div>}
+        {/* Horizontal strip below the main image, hidden only at xl+ where the side strip takes over. */}
+        {images.length > 1 && <div className="xl:hidden mt-4">{Thumbnails}</div>}
       </div>
     </div>
   );

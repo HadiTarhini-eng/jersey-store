@@ -38,6 +38,10 @@ export interface CustomerOrder {
   shippingAddress:    AddressSnapshot;
   createdAt:          string;
   estimatedDelivery?: string;
+  /** Admin's rejection message — only set when status is `cancelled`. */
+  rejectionReason?:    string | null;
+  /** Null when there's an unread admin message — drives the envelope dot. */
+  adminMessageReadAt?: string | null;
 }
 
 /**
@@ -84,10 +88,12 @@ async function toCustomerOrder(order: Order): Promise<CustomerOrder> {
     subtotal:        order.subtotal,
     shipping:        order.shippingAmount,
     total:           order.totalAmount,
-    status:          order.status,
-    paymentStatus:   order.paymentStatus,
-    shippingAddress: normalizeAddress(order.shippingAddress),
-    createdAt:       (order.placedAt ?? order.createdAt) as string,
+    status:             order.status,
+    paymentStatus:      order.paymentStatus,
+    shippingAddress:    normalizeAddress(order.shippingAddress),
+    createdAt:          (order.placedAt ?? order.createdAt) as string,
+    rejectionReason:    order.rejectionReason ?? null,
+    adminMessageReadAt: order.adminMessageReadAt ?? null,
   };
 }
 
