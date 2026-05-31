@@ -22,13 +22,13 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onCancel} title={title} maxWidth="max-w-md">
-      <p className="text-gray-700 text-sm leading-relaxed">{message}</p>
+      <p className="text-secondary text-sm leading-relaxed">{message}</p>
 
       <div className="flex items-center justify-end gap-3 mt-6">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          className="px-4 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider text-muted hover:text-primary hover:bg-surface-raised transition-colors"
         >
           {cancelLabel}
         </button>

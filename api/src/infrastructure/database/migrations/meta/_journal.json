@@ -50,6 +50,13 @@
       "when": 1780315200000,
       "tag": "20260601000000_coupon_items_applied",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780401600000,
+      "tag": "20260602000000_social_links_visible",
+      "breakpoints": true
     }
   ]
 }

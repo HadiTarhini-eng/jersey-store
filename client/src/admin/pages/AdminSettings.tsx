@@ -1,43 +1,24 @@
 import { useEffect, useState } from 'react';
-import { shippingApi, siteConfigApi } from '../../services/api';
+import { siteConfigApi } from '../../services/api';
 import { extractErrorMessage } from '../../services/api/client';
-import type {
-  CreateShippingMethodPayload, ShippingMethod, SiteConfig, UpdateSiteConfigPayload,
-} from '../../types';
-import { ConfirmModal } from '../components/ConfirmModal';
+import type { SiteConfig, UpdateSiteConfigPayload } from '../../types';
 
 const inputClass = 'w-full bg-surface-raised border border-stroke rounded-xl px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent';
 
-type Tab = 'site' | 'shipping';
+/** Socials the storefront knows how to render — order mirrors socialPlatforms.tsx. */
+const SOCIAL_FIELDS: { key: string; placeholder: string }[] = [
+  { key: 'instagram', placeholder: 'https://instagram.com/yourstore' },
+  { key: 'twitter',   placeholder: 'https://twitter.com/yourstore' },
+  { key: 'facebook',  placeholder: 'https://facebook.com/yourstore' },
+  { key: 'youtube',   placeholder: 'https://youtube.com/@yourstore' },
+  { key: 'whatsapp',  placeholder: 'https://wa.me/15551234567' },
+];
 
 export function AdminSettings() {
-  const [tab, setTab] = useState<Tab>('site');
-
   return (
     <div className="space-y-5">
-      <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-1 px-1">
-        <TabButton active={tab === 'site'}     onClick={() => setTab('site')}>Site</TabButton>
-        <TabButton active={tab === 'shipping'} onClick={() => setTab('shipping')}>Shipping</TabButton>
-      </div>
-
-      {tab === 'site' && <SiteTab />}
-      {tab === 'shipping' && <ShippingTab />}
+      <SiteTab />
     </div>
-  );
-}
-
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        'px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors',
-        active ? 'bg-accent text-white border-2 border-accent' : 'bg-surface border-2 border-stroke text-secondary hover:text-primary',
-      ].join(' ')}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -90,6 +71,13 @@ function SiteTab() {
   const socialLinks = (value('socialLinks') as Record<string, string>) ?? {};
   const setSocial = (k: string, v: string) => set('socialLinks', { ...socialLinks, [k]: v });
 
+  // Per-social visibility — missing key ⇒ visible, so we only store an explicit
+  // `false` when the admin hides one. Hides the social everywhere it renders
+  // (footer, contact page, and the floating WhatsApp button).
+  const socialVisible = (value('socialLinksVisible') as Record<string, boolean>) ?? {};
+  const setSocialVisible = (k: string, v: boolean) =>
+    set('socialLinksVisible', { ...socialVisible, [k]: v });
+
   // Homepage section visibility — keyed map. Missing keys default to "on" on
   // the storefront, so admin only needs to flip the toggle when they want a
   // section hidden. Add new sections by appending to HOMEPAGE_SECTIONS.
@@ -119,13 +107,43 @@ function SiteTab() {
           />
         </Field>
       </div>
-      <fieldset className="space-y-2">
+      <fieldset className="space-y-3">
         <legend className="text-xs uppercase tracking-widest text-muted mb-2">Social links</legend>
-        {(['instagram', 'twitter', 'facebook', 'youtube'] as const).map((key) => (
-          <Field key={key} label={key}>
-            <input className={inputClass} value={socialLinks[key] ?? ''} onChange={(e) => setSocial(key, e.target.value)} />
-          </Field>
-        ))}
+        <p className="text-xs text-muted mb-3">
+          Paste each profile URL (for WhatsApp use a <code>wa.me</code> link or a phone number).
+          Toggle a social off to hide it everywhere — footer, contact page, and the floating WhatsApp button.
+        </p>
+        {SOCIAL_FIELDS.map(({ key, placeholder }) => {
+          const on = socialVisible[key] !== false;
+          return (
+            <div key={key} className="flex items-end gap-3">
+              <label className="block flex-1">
+                <span className="block text-[11px] uppercase tracking-widest text-muted mb-1 capitalize">{key}</span>
+                <input
+                  className={inputClass}
+                  value={socialLinks[key] ?? ''}
+                  onChange={(e) => setSocial(key, e.target.value)}
+                  placeholder={placeholder}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setSocialVisible(key, !on)}
+                aria-pressed={on}
+                title={on ? 'Visible — click to hide' : 'Hidden — click to show'}
+                className="shrink-0 inline-flex items-center gap-2 px-2.5 py-2 rounded-xl border border-stroke hover:border-accent/40 transition-colors"
+              >
+                <span className="relative inline-block">
+                  <span className={['block w-9 h-5 rounded-full transition-colors', on ? 'bg-accent' : 'bg-stroke'].join(' ')} />
+                  <span className={['absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform', on ? 'translate-x-4' : ''].join(' ')} />
+                </span>
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${on ? 'text-ok' : 'text-muted'}`}>
+                  {on ? 'On' : 'Off'}
+                </span>
+              </button>
+            </div>
+          );
+        })}
       </fieldset>
 
       <fieldset className="space-y-2">
@@ -179,162 +197,6 @@ function SiteTab() {
         </button>
       </div>
     </section>
-  );
-}
-
-// ── Shipping methods ───────────────────────────────────────────────────────────
-
-function ShippingTab() {
-  const [methods, setMethods] = useState<ShippingMethod[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
-  const [editing, setEditing] = useState<ShippingMethod | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<ShippingMethod | null>(null);
-
-  const refresh = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setMethods(await shippingApi.list());
-    } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to load shipping methods'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { void refresh(); }, []);
-
-  const onSave = async (data: CreateShippingMethodPayload, id?: string) => {
-    try {
-      if (id) await shippingApi.update(id, data);
-      else    await shippingApi.create(data);
-      await refresh();
-    } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to save shipping method'));
-    } finally {
-      setEditing(null);
-      setCreating(false);
-    }
-  };
-
-  const onDelete = async (id: string) => {
-    try { await shippingApi.delete(id); await refresh(); }
-    catch (err) { setError(extractErrorMessage(err, 'Failed to delete')); }
-    finally { setPendingDelete(null); }
-  };
-
-  const onToggle = async (m: ShippingMethod) => {
-    try {
-      if (m.isActive) await shippingApi.deactivate(m.id);
-      else            await shippingApi.activate(m.id);
-      await refresh();
-    } catch (err) {
-      setError(extractErrorMessage(err, 'Failed to toggle'));
-    }
-  };
-
-  return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-widest text-muted">{methods.length} method{methods.length !== 1 ? 's' : ''}</p>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="px-4 py-2.5 rounded-xl bg-accent text-white font-bold text-xs uppercase tracking-wider"
-        >
-          + Add method
-        </button>
-      </div>
-
-      {loading && <p className="text-muted text-sm">Loading…</p>}
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {methods.map((m) => (
-          <div key={m.id} className="bg-surface border border-stroke rounded-2xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-primary">{m.name}</p>
-              <button
-                type="button"
-                onClick={() => onToggle(m)}
-                className={`text-[10px] uppercase tracking-widest px-2 py-1 rounded ${m.isActive ? 'bg-emerald-500/15 text-emerald-500' : 'bg-gray-500/15 text-gray-500'}`}
-              >
-                {m.isActive ? 'Active' : 'Inactive'}
-              </button>
-            </div>
-            {m.description && <p className="text-sm text-secondary">{m.description}</p>}
-            <p className="text-sm text-primary font-bold">${m.baseRate.toFixed(2)}</p>
-            <p className="text-xs text-muted">
-              {m.estimatedDaysMin && m.estimatedDaysMax
-                ? `${m.estimatedDaysMin}-${m.estimatedDaysMax} days`
-                : '—'}
-              {m.freeShippingThreshold ? ` • free over $${m.freeShippingThreshold}` : ''}
-            </p>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setEditing(m)} className="text-xs uppercase tracking-widest text-secondary hover:text-primary">Edit</button>
-              <button type="button" onClick={() => setPendingDelete(m)} className="text-xs uppercase tracking-widest text-red-500 hover:text-red-400">Delete</button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {(editing || creating) && (
-        <ShippingEditor
-          method={editing}
-          onCancel={() => { setEditing(null); setCreating(false); }}
-          onSave={(data) => onSave(data, editing?.id)}
-        />
-      )}
-
-      <ConfirmModal
-        isOpen={!!pendingDelete}
-        title="Delete shipping method"
-        message={pendingDelete ? `Delete "${pendingDelete.name}"?` : ''}
-        confirmLabel="Delete"
-        destructive
-        onCancel={() => setPendingDelete(null)}
-        onConfirm={() => pendingDelete && onDelete(pendingDelete.id)}
-      />
-    </section>
-  );
-}
-
-function ShippingEditor({ method, onCancel, onSave }: { method: ShippingMethod | null; onCancel: () => void; onSave: (data: CreateShippingMethodPayload) => void }) {
-  const [form, setForm] = useState<CreateShippingMethodPayload>({
-    name:                  method?.name                  ?? '',
-    description:           method?.description           ?? '',
-    baseRate:              method?.baseRate              ?? 0,
-    freeShippingThreshold: method?.freeShippingThreshold ?? null,
-    estimatedDaysMin:      method?.estimatedDaysMin      ?? null,
-    estimatedDaysMax:      method?.estimatedDaysMax      ?? null,
-    sortOrder:             method?.sortOrder             ?? 0,
-  });
-
-  const set = <K extends keyof CreateShippingMethodPayload>(k: K, v: CreateShippingMethodPayload[K]) =>
-    setForm((p) => ({ ...p, [k]: v }));
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onCancel}>
-      <div className="bg-surface border border-stroke rounded-2xl p-5 max-w-lg w-full space-y-4" onClick={(e) => e.stopPropagation()}>
-        <p className="text-lg font-bold text-primary">{method ? 'Edit method' : 'New method'}</p>
-        <Field label="Name"><input className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} /></Field>
-        <Field label="Description"><textarea rows={2} className={inputClass} value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} /></Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Base rate ($)"><input type="number" min="0" step="0.01" className={inputClass} value={form.baseRate} onChange={(e) => set('baseRate', Number(e.target.value))} /></Field>
-          <Field label="Free above ($)"><input type="number" min="0" step="0.01" className={inputClass} value={form.freeShippingThreshold ?? ''} onChange={(e) => set('freeShippingThreshold', e.target.value === '' ? null : Number(e.target.value))} /></Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Min days"><input type="number" min="0" className={inputClass} value={form.estimatedDaysMin ?? ''} onChange={(e) => set('estimatedDaysMin', e.target.value === '' ? null : Number(e.target.value))} /></Field>
-          <Field label="Max days"><input type="number" min="0" className={inputClass} value={form.estimatedDaysMax ?? ''} onChange={(e) => set('estimatedDaysMax', e.target.value === '' ? null : Number(e.target.value))} /></Field>
-        </div>
-        <div className="flex justify-end gap-2 pt-3 border-t border-stroke">
-          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-xl text-secondary hover:text-primary">Cancel</button>
-          <button type="button" onClick={() => onSave(form)} className="px-5 py-2 rounded-xl bg-accent text-white font-bold text-sm uppercase tracking-wider">Save</button>
-        </div>
-      </div>
-    </div>
   );
 }
 

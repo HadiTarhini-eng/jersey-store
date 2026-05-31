@@ -11,6 +11,16 @@ export const ROUTES = {
   ORDERS:         '/orders',
   ORDER_DETAIL:   '/orders/:id',
   FAVORITES:      '/favorites',
+  // Static content / info pages
+  FAQ:            '/faq',
+  SHIPPING:       '/shipping-policy',
+  RETURNS:        '/returns',
+  SIZE_GUIDE:     '/size-guide',
+  CONTACT:        '/contact',
+  ABOUT:          '/about',
+  COMPANY:        '/company',
+  PRIVACY:        '/privacy',
+  TERMS:          '/terms',
   NOT_FOUND:      '*',
 } as const;
 

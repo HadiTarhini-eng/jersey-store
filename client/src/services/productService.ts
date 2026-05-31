@@ -10,6 +10,9 @@ import { productApi, extractErrorMessage, extractErrorStatus } from './api';
 import { decodeProductTags } from '../features/products/lib/productMeta';
 import type { Product, ProductFilters, ProductSearchQuery, SortOption } from '../types';
 
+/** "New arrival" window — kept in sync with <ProductChip>'s 14-day rule. */
+const NEW_ARRIVAL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
 /**
  * Projects compare-at price + tag-encoded meta onto the Product so downstream
  * components don't have to re-decode it. `compareAtPrice` is the canonical
@@ -69,15 +72,70 @@ function applyClientFilters(items: Product[], filters: ProductFilters, sort: Sor
   if (filters.inStock)    result = result.filter((p) => p.inStock !== false);
   if (filters.minPrice !== undefined) result = result.filter((p) => p.basePrice >= filters.minPrice!);
   if (filters.maxPrice !== undefined) result = result.filter((p) => p.basePrice <= filters.maxPrice!);
-  // Backend has no sport/team concept — both are matched against tags.
-  if (filters.sport) result = result.filter((p) => p.tags.includes(filters.sport!));
-  if (filters.team)  result = result.filter((p) => p.tags.includes(filters.team!));
+  // Backend has no sport/team concept — both are encoded as `sport:<slug>` /
+  // `team:<slug>` tags. Filter values are the sport/team *slug*, so decode the
+  // tag meta and compare against the decoded slug rather than doing a raw
+  // array-includes (which never matched the bare slug).
+  // Sport/team are stored as `sport:<slug>` / `team:<slug>` meta tags on
+  // admin-created products. Older/seeded rows instead carry the slug as a
+  // plain tag (e.g. `football`, `real-madrid`), so accept either form.
+  if (filters.sport) {
+    result = result.filter((p) => {
+      const meta = decodeProductTags(p.tags);
+      return meta.sport === filters.sport || p.tags.includes(filters.sport!);
+    });
+  }
+  if (filters.team) {
+    result = result.filter((p) => {
+      const meta = decodeProductTags(p.tags);
+      return meta.team === filters.team || p.tags.includes(filters.team!);
+    });
+  }
 
+  // Badge filter — drives the New Arrivals / Sale nav links. `new` and `sale`
+  // mirror the exact definitions used by the storefront's <ProductChip> pills
+  // (see pickProductChip) so the filter and the visible badge always agree:
+  //   • new  → created within the last 14 days
+  //   • sale → on sale by price (compareAt > basePrice) or a `sale` tag
+  // Any other value falls back to matching the product's `badge:` meta tag.
+  if (filters.badge) {
+    const wanted = filters.badge.toLowerCase();
+    if (wanted === 'new') {
+      result = result.filter((p) => {
+        if (!p.createdAt) return false;
+        const age = Date.now() - new Date(p.createdAt).getTime();
+        return Number.isFinite(age) && age >= 0 && age < NEW_ARRIVAL_WINDOW_MS;
+      });
+    } else if (wanted === 'sale') {
+      result = result.filter((p) => {
+        const compareAt = p.compareAtPrice ?? decodeProductTags(p.tags).originalPrice;
+        const hasDiscount = compareAt != null && compareAt > p.basePrice;
+        const hasSaleTag  = p.tags?.some((t) => t.toLowerCase() === 'sale');
+        return hasDiscount || hasSaleTag;
+      });
+    } else {
+      result = result.filter((p) => decodeProductTags(p.tags).badge?.toLowerCase() === wanted);
+    }
+  }
+
+  // `basePrice` arrives from the numeric backend column as a string on some
+  // payloads — coerce with Number() so price sorts compare numerically rather
+  // than lexicographically.
+  const price = (p: Product) => Number(p.basePrice) || 0;
   switch (sort) {
-    case 'price-asc':  result.sort((a, b) => a.basePrice - b.basePrice); break;
-    case 'price-desc': result.sort((a, b) => b.basePrice - a.basePrice); break;
+    case 'price-asc':  result.sort((a, b) => price(a) - price(b)); break;
+    case 'price-desc': result.sort((a, b) => price(b) - price(a)); break;
     case 'rating':     result.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)); break;
-    case 'popular':    result.sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0)); break;
+    case 'popular':
+      // Rank by real units sold (all-time, non-cancelled orders). When two
+      // products have equal sales — including a fresh store where every count
+      // is 0 — fall back to newest so the order is still sensible.
+      result.sort((a, b) => {
+        const sold = (b.salesCount ?? 0) - (a.salesCount ?? 0);
+        if (sold !== 0) return sold;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      break;
     case 'newest':
     default:           result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }

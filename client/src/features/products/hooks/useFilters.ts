@@ -20,6 +20,7 @@ export function useFilters() {
     maxPrice:   searchParams.has('maxPrice') ? Number(searchParams.get('maxPrice')) : undefined,
     sport:      searchParams.get('sport')      ?? undefined,
     team:       searchParams.get('team')       ?? undefined,
+    badge:      searchParams.get('badge')      ?? undefined,
   };
 
   const sort = (searchParams.get('sort') ?? 'newest') as SortOption;
@@ -42,6 +43,33 @@ export function useFilters() {
     [setSearchParams],
   );
 
+  /**
+   * Apply several param changes in a single navigation. Two back-to-back
+   * `setFilter` calls race — React-Router's `setSearchParams` recomputes from
+   * the params captured at render, so the second call clobbers the first.
+   * Callers that need to change multiple keys at once (e.g. set sport AND
+   * clear team) must use this so every change lands in one URL update.
+   */
+  const setFilters = useCallback(
+    (changes: Record<string, string | string[] | undefined>) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [key, value] of Object.entries(changes)) {
+          if (value === undefined || value === '' || (Array.isArray(value) && !value.length)) {
+            next.delete(key);
+          } else if (Array.isArray(value)) {
+            next.delete(key);
+            value.forEach((v) => next.append(key, v));
+          } else {
+            next.set(key, value);
+          }
+        }
+        return next;
+      }, { replace: true });
+    },
+    [setSearchParams],
+  );
+
   const clearFilters = useCallback(
     () => setSearchParams({}, { replace: true }),
     [setSearchParams],
@@ -54,5 +82,5 @@ export function useFilters() {
     (v) => v !== undefined && v !== '' && !(Array.isArray(v) && !v.length),
   ).length;
 
-  return { filters, sort, setFilter, clearFilters, setSort, setQuery, activeFilterCount };
+  return { filters, sort, setFilter, setFilters, clearFilters, setSort, setQuery, activeFilterCount };
 }

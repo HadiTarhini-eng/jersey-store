@@ -98,6 +98,12 @@ export class Product extends BaseEntity implements ProductEntity {
   featured: boolean
   searchVector?: string | null
   createdBy: Guid
+  /**
+   * All-time units sold across non-cancelled orders. Not persisted — attached
+   * by the product service on storefront search to power the "Most Popular"
+   * sort. Undefined on entities that weren't enriched.
+   */
+  salesCount?: number
 
   constructor(payload: ProductPayload) {
     super(payload)

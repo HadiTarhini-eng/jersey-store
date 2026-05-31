@@ -21,6 +21,8 @@ import {
   type ProductSearchFilters,
 } from '../../core/services/product.svc.js'
 import { type ImageFile, type IStorageService } from '../../core/services/storage.svc.js'
+import { eq, ne, sql } from 'drizzle-orm'
+import { orderItems, orders, productVariants } from '../database/schema.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
 import { ConflictError, ValidationError } from './errors.js'
 import { deleteInlineImage, uploadInlineImage } from './image.svc.js'
@@ -127,7 +129,7 @@ export class ProductService implements IProductService {
     }
     const products = await this.productRepository.list()
     const query = filters.query?.trim().toLowerCase()
-    return products.filter((product) => {
+    const filtered = products.filter((product) => {
       if (filters.categoryId !== undefined && product.categoryId !== filters.categoryId) return false
       if (filters.status !== undefined && product.status !== filters.status) return false
       if (filters.featured !== undefined && product.featured !== filters.featured) return false
@@ -141,6 +143,36 @@ export class ProductService implements IProductService {
         .toLowerCase()
         .includes(query)
     })
+    return this.attachSalesCount(filtered)
+  }
+
+  /**
+   * Enriches each product with `salesCount` — the all-time number of units
+   * sold across non-cancelled orders — so the storefront can offer a
+   * "Most Popular" sort backed by real purchases. Deleted products simply
+   * don't appear in `products`, so popularity only ever ranks available items.
+   * One grouped query covers the whole list; products with no sales get 0.
+   */
+  private async attachSalesCount(products: Product[]): Promise<Product[]> {
+    if (products.length === 0) return products
+    const { db } = await import('../database/db.js')
+    const rows = await db
+      .select({
+        productId: productVariants.productId,
+        units: sql<number>`COALESCE(SUM(${orderItems.quantity}), 0)`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orders.id, orderItems.orderId))
+      .innerJoin(productVariants, eq(productVariants.id, orderItems.productVariantId))
+      .where(ne(orders.status, 'cancelled'))
+      .groupBy(productVariants.productId)
+
+    const soldByProduct = new Map<Guid, number>(
+      rows.map((row: any) => [row.productId as Guid, Number(row.units)]),
+    )
+    return products.map((product) =>
+      Object.assign(product, { salesCount: soldByProduct.get(product.id) ?? 0 }),
+    )
   }
 
   async publishProduct(id: Guid): Promise<Product> {

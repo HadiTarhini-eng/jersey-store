@@ -146,6 +146,8 @@ export interface Product extends BusinessEntity {
   variants?:      ProductVariant[];
   rating?:        number;
   reviewCount?:   number;
+  /** All-time units sold (non-cancelled orders); drives the "Most Popular" sort. */
+  salesCount?:    number;
   inStock?:       boolean;
   /**
    * @deprecated Mirror of `compareAtPrice` kept for back-compat with components
@@ -621,6 +623,12 @@ export interface SiteConfig extends Partial<BusinessEntity> {
    * a section *hidden*.
    */
   homepageSectionsVisible?: Record<string, boolean>;
+  /**
+   * Per-social visibility toggles, keyed by platform (instagram, twitter,
+   * facebook, youtube, whatsapp). Missing keys default to "visible", so a
+   * social only disappears when its key is explicitly `false`.
+   */
+  socialLinksVisible?: Record<string, boolean>;
 }
 
 export interface UpdateSiteConfigPayload {
@@ -641,6 +649,7 @@ export interface UpdateSiteConfigPayload {
   cartEmptyCtaLabel?:      string | null;
   cartEmptyCtaHref?:       string | null;
   homepageSectionsVisible?: Record<string, boolean>;
+  socialLinksVisible?:     Record<string, boolean>;
 }
 
 // ── Shipping ────────────────────────────────────────────────────────────────
@@ -699,6 +708,12 @@ export interface CouponPayload {
    * one order ⇒ 2 items remain for a future order.
    */
   itemsAllowedPerUser?: number | null;
+  /**
+   * Optional allowlist of customer (user) ids permitted to redeem this coupon.
+   * Empty/omitted ⇒ any signed-in customer may use it; non-empty ⇒ only those
+   * accounts. Coupons always require sign-in regardless.
+   */
+  allowedUserIds?: string[] | null;
   [key: string]: unknown;
 }
 
@@ -769,6 +784,12 @@ export interface ProductFilters {
   // UI-only legacy reference helpers — used to drive the sports/teams JSON UI.
   sport?:      string;
   team?:       string;
+  /**
+   * Badge filter (applied client-side). `Sale` is special-cased to mean
+   * "on sale by price" (compareAtPrice > basePrice); any other value matches
+   * the product's encoded `badge:` tag (e.g. `New`, `World Cup`).
+   */
+  badge?:      string;
 }
 
 // ── Admin domain ─────────────────────────────────────────────────────────────

@@ -51,7 +51,7 @@ export function AdminLayout() {
     <>
       <div className="px-5 py-5 border-b border-white/10">
         <Link to="/" className="font-sport text-xl tracking-wide text-white block">
-          JERSEYS<span className="text-accent">4</span>EVER
+          JERSEYS_<span className="text-accent">4</span>EVER
         </Link>
         <p className="text-[10px] uppercase tracking-widest text-white/40 mt-1">Admin Console</p>
       </div>

@@ -31,6 +31,11 @@ export function isCouponPayload(payload: unknown): payload is CouponPayload {
   if (p.itemsAllowedPerUser !== undefined && p.itemsAllowedPerUser !== null) {
     if (typeof p.itemsAllowedPerUser !== 'number' || !Number.isFinite(p.itemsAllowedPerUser) || p.itemsAllowedPerUser < 1) return false
   }
+  // allowedUserIds is optional; if present must be an array of non-empty strings.
+  if (p.allowedUserIds !== undefined && p.allowedUserIds !== null) {
+    if (!Array.isArray(p.allowedUserIds)) return false
+    if (!p.allowedUserIds.every((u) => typeof u === 'string' && u.trim().length > 0)) return false
+  }
   return true
 }
 
@@ -128,6 +133,21 @@ export class CouponService implements ICouponService {
     }
     const payload = await this.findActivePayload(code)
     if (!payload) throw new NotFoundError('Coupon')
+
+    // Coupons require a signed-in account — guests can never redeem. This is a
+    // global policy (not just for allowlisted coupons) so identity-based rules
+    // below have something to match against.
+    if (!userId) {
+      throw new ValidationError('Sign in to use a coupon — coupons are only available to registered customers.')
+    }
+
+    // Per-customer allowlist. When the coupon names specific customers, only
+    // those accounts may redeem it; every other signed-in user is rejected.
+    if (payload.allowedUserIds && payload.allowedUserIds.length > 0) {
+      if (!payload.allowedUserIds.includes(userId)) {
+        throw new ValidationError(`Coupon ${payload.code} isn't available for your account.`)
+      }
+    }
 
     // Per-user item cap. Only enforced when:
     //  - the coupon explicitly sets `itemsAllowedPerUser`, AND

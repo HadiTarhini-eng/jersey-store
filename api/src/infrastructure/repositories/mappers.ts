@@ -126,6 +126,7 @@ export const mappers = {
       ...data,
       freeShippingThreshold: numberOrZero(data.freeShippingThreshold),
       socialLinks: data.socialLinks ?? {},
+      socialLinksVisible: data.socialLinksVisible ?? {},
       filterMinPrice: numberOrZero(data.filterMinPrice),
       filterMaxPrice: numberOrZero(data.filterMaxPrice),
       sortOptions: Array.isArray(data.sortOptions) ? data.sortOptions : [],

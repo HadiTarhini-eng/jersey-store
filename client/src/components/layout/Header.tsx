@@ -4,6 +4,7 @@ import { useCart } from '../../features/cart/hooks/useCart';
 import { useAuth } from '../../features/auth/hooks/useAuth';
 import { useSiteConfig } from '../../contexts/SiteConfigContext';
 import { useNavLinks } from '../../hooks/useNavLinks';
+import { isNavLinkActive } from '../../utils/navActive';
 import { MobileNav } from './MobileNav';
 import { SearchButton } from './SearchButton';
 
@@ -35,9 +36,9 @@ function Logo() {
     <Link
       to="/"
       className="font-sport text-xl tracking-wide text-white whitespace-nowrap"
-      aria-label="Jerseys4Ever — Home"
+      aria-label="Jerseys_4Ever — Home"
     >
-      JERSEYS<span className="text-accent">4</span>EVER
+      JERSEYS_<span className="text-accent">4</span>EVER
     </Link>
   );
 }
@@ -144,36 +145,34 @@ export function Header() {
                       {openDropdown === link.href && (
                         <div className="absolute top-full left-0 mt-1 w-52 bg-black border border-white/15 rounded-xl shadow-2xl shadow-black/60 animate-slide-up overflow-hidden">
                           {link.children.map((child) => (
-                            <NavLink
+                            <Link
                               key={child.href}
                               to={child.href}
-                              className={({ isActive }) =>
-                                [
-                                  'block px-4 py-2.5 text-sm font-semibold uppercase tracking-wider transition-colors',
-                                  isActive
-                                    ? 'text-accent bg-white/5'
-                                    : 'text-white/80 hover:text-white hover:bg-white/10',
-                                ].join(' ')
-                              }
+                              className={[
+                                'block px-4 py-2.5 text-sm font-semibold uppercase tracking-wider transition-colors',
+                                isNavLinkActive(child.href, location)
+                                  ? 'text-accent bg-white/5'
+                                  : 'text-white/80 hover:text-white hover:bg-white/10',
+                              ].join(' ')}
                             >
                               {child.label}
-                            </NavLink>
+                            </Link>
                           ))}
                         </div>
                       )}
                     </>
                   ) : (
-                    <NavLink
+                    <Link
                       to={link.href}
-                      className={({ isActive }) =>
-                        [
-                          'px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors',
-                          isActive ? 'text-accent bg-white/5' : 'text-white hover:bg-white/10',
-                        ].join(' ')
-                      }
+                      className={[
+                        'px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors',
+                        isNavLinkActive(link.href, location)
+                          ? 'text-accent bg-white/5'
+                          : 'text-white hover:bg-white/10',
+                      ].join(' ')}
                     >
                       {link.label}
-                    </NavLink>
+                    </Link>
                   )}
                 </div>
               ))}

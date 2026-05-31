@@ -274,7 +274,7 @@ function SuggestionRow({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm text-white truncate">{p.title}</p>
-            <p className="text-xs text-white/50 truncate">{p.brand ?? 'Jerseys4Ever'}</p>
+            <p className="text-xs text-white/50 truncate">{p.brand ?? 'Jerseys_4Ever'}</p>
           </div>
           <span className="text-sm font-bold text-white tabular-nums shrink-0">
             {formatPrice(p.basePrice)}

@@ -2,16 +2,14 @@ import { useMemo } from 'react';
 import { ProductGrid }    from '../features/products/components/ProductGrid';
 import { ProductFilters } from '../features/products/components/ProductFilters';
 import { ProductSearch }  from '../features/products/components/ProductSearch';
-import { Select }         from '../components/ui/Select';
 import { useProducts }    from '../features/products/hooks/useProducts';
 import { useFilters }     from '../features/products/hooks/useFilters';
 import { useCategories }  from '../features/products/hooks/useCategories';
-import { useSiteConfig }  from '../contexts/SiteConfigContext';
 
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function ShopPage() {
-  const { filters, sort, setSort } = useFilters();
+  const { filters, sort } = useFilters();
   const { categories } = useCategories();
 
   /**
@@ -51,16 +49,6 @@ export function ShopPage() {
   }, [filters, categories]);
 
   const { products, loading, error } = useProducts(resolvedFilters, sort);
-  const { sortOptions } = useSiteConfig();
-
-  const SortSelect = () => (
-    <Select
-      options={sortOptions}
-      value={sort}
-      onChange={(e) => setSort(e.target.value as Parameters<typeof setSort>[0])}
-      aria-label="Sort products"
-    />
-  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
@@ -79,12 +67,9 @@ export function ShopPage() {
 
       {/* ── Mobile layout ────────────────────────────────────────────────────── */}
       <div className="lg:hidden">
-        {/* Toolbar: filter trigger + sort */}
+        {/* Toolbar: filter trigger (sort lives inside the filter drawer) */}
         <div className="flex items-center gap-3 mb-5">
           <ProductFilters />
-          <div className="ml-auto w-40">
-            <SortSelect />
-          </div>
         </div>
         {/* Products — full width */}
         <ProductGrid products={products} loading={loading} error={error} />
@@ -94,11 +79,6 @@ export function ShopPage() {
       <div className="hidden lg:flex gap-8 items-start">
         <ProductFilters />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-end mb-5">
-            <div className="w-48">
-              <SortSelect />
-            </div>
-          </div>
           <ProductGrid products={products} loading={loading} error={error} />
         </div>
       </div>

@@ -7,7 +7,8 @@ import { useToast } from '../../components/ui/Toast';
 import { extractErrorMessage } from '../../services/api/client';
 import { formatPrice } from '../../utils/formatters';
 import { ShopFilterPicker, buildShopUrl, parseShopUrl, type ShopFilterValue } from '../components/ShopFilterPicker';
-import type { CouponPayload, HeroSlide, OfferBanner } from '../../types';
+import { adminApi } from '../services/adminApi';
+import type { AdminCustomer, CouponPayload, HeroSlide, OfferBanner } from '../../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hero-slide themes
@@ -972,16 +973,99 @@ interface CouponRowDraft {
   description:         string;
   /** Blank = no cap. Any positive integer caps how many *items* a single user can redeem this coupon against across all their orders. */
   itemsAllowedPerUser: string;
+  /** Empty = available to every signed-in customer. Non-empty = only these customer ids. */
+  allowedUserIds:      string[];
 }
 
 const emptyDraft: CouponRowDraft = {
-  code: '', discountType: 'percentage', discountValue: '', description: '', itemsAllowedPerUser: '',
+  code: '', discountType: 'percentage', discountValue: '', description: '', itemsAllowedPerUser: '', allowedUserIds: [],
 };
+
+/**
+ * Searchable checkbox list of customers used to build a coupon's allowlist.
+ * Empty selection means "every signed-in customer"; any selection narrows
+ * redemption to those accounts only.
+ */
+function CustomerAllowlistPicker({
+  customers, selected, onChange,
+}: {
+  customers: AdminCustomer[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? customers.filter((c) => `${c.firstName} ${c.lastName} ${c.email}`.toLowerCase().includes(q))
+    : customers;
+
+  const toggle = (id: string) =>
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search customers by name or email…"
+          className={editorInput}
+        />
+        {selected.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted hover:text-primary transition-colors"
+          >
+            Clear ({selected.length})
+          </button>
+        )}
+      </div>
+      <div className="max-h-48 overflow-y-auto hide-scrollbar rounded-xl border border-stroke divide-y divide-stroke">
+        {customers.length === 0 ? (
+          <p className="px-3 py-3 text-xs text-muted">No customers available.</p>
+        ) : filtered.length === 0 ? (
+          <p className="px-3 py-3 text-xs text-muted">No matches for “{query}”.</p>
+        ) : (
+          filtered.map((c) => (
+            <label key={c.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-raised transition-colors">
+              <input
+                type="checkbox"
+                checked={selected.includes(c.id)}
+                onChange={() => toggle(c.id)}
+                className="w-4 h-4 rounded border-stroke bg-surface-raised text-accent focus:ring-accent"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm text-primary truncate">{c.firstName} {c.lastName}</span>
+                <span className="block text-[11px] text-muted truncate">{c.email}</span>
+              </span>
+            </label>
+          ))
+        )}
+      </div>
+      <p className="text-[10px] text-muted">
+        {selected.length === 0
+          ? 'Available to every signed-in customer.'
+          : `Only ${selected.length} selected customer${selected.length === 1 ? '' : 's'} can redeem this coupon.`}
+      </p>
+    </div>
+  );
+}
 
 function CouponsSection() {
   const hook = useUiContentSlot<CouponPayload>('coupon');
   const items = hook.items;
   const [editing, setEditing] = useState<{ id: string | null; draft: CouponRowDraft } | null>(null);
+  // Customer roster — powers the optional per-coupon allowlist picker. Loaded
+  // once per section mount; failures leave the list empty (picker shows none).
+  const [customers, setCustomers] = useState<AdminCustomer[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.listCustomers()
+      .then((rows) => { if (!cancelled) setCustomers(rows); })
+      .catch(() => { /* leave empty if unavailable */ });
+    return () => { cancelled = true; };
+  }, []);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; code: string } | null>(null);
   const { promise } = useToast();
 
@@ -1008,6 +1092,8 @@ function CouponsSection() {
       discountValue: value,
       description:   editing.draft.description.trim() || undefined,
       itemsAllowedPerUser,
+      // Empty selection ⇒ no restriction (available to every signed-in customer).
+      allowedUserIds: editing.draft.allowedUserIds.length > 0 ? editing.draft.allowedUserIds : undefined,
     };
     try {
       if (editing.id) {
@@ -1077,6 +1163,11 @@ function CouponsSection() {
                       Max {c.itemsAllowedPerUser} item{c.itemsAllowedPerUser === 1 ? '' : 's'}/user
                     </span>
                   )}
+                  {c.allowedUserIds && c.allowedUserIds.length > 0 && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-power/15 text-power border border-power/30">
+                      {c.allowedUserIds.length} customer{c.allowedUserIds.length === 1 ? '' : 's'} only
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-secondary mt-0.5">
                   <span className="text-ok font-semibold">{valueLabel}</span>
@@ -1094,6 +1185,7 @@ function CouponsSection() {
                       discountValue:       String(c.discountValue),
                       description:         c.description ?? '',
                       itemsAllowedPerUser: c.itemsAllowedPerUser != null ? String(c.itemsAllowedPerUser) : '',
+                      allowedUserIds:      c.allowedUserIds ?? [],
                     },
                   })
                 }
@@ -1173,6 +1265,16 @@ function CouponsSection() {
                 onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, itemsAllowedPerUser: e.target.value } })}
                 placeholder="e.g. 7 — redeemable on 7 items total per user"
                 className={editorInput}
+              />
+            </EditorField>
+            <EditorField
+              label="Restrict to specific customers (optional)"
+              hint="Leave empty so any signed-in customer can redeem it. Pick customers to limit redemption to those accounts only. Coupons always require sign-in."
+            >
+              <CustomerAllowlistPicker
+                customers={customers}
+                selected={editing.draft.allowedUserIds}
+                onChange={(ids) => setEditing({ ...editing, draft: { ...editing.draft, allowedUserIds: ids } })}
               />
             </EditorField>
           </div>

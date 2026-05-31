@@ -174,27 +174,27 @@ function TeamBadge({ team, draggable }: { team: Team; draggable: boolean }) {
     >
       <div
         className="
-          relative w-16 h-16 md:w-20 md:h-20 rounded-full
-          flex items-center justify-center bg-white/95 ring-1 ring-white/70 overflow-hidden
-          transition-all duration-300
-          group-hover:scale-110 group-hover:bg-white
-          group-hover:shadow-[0_0_30px_rgba(255,255,255,0.25)]
+          relative w-16 h-16 md:w-20 md:h-20
+          flex items-center justify-center
+          transition-transform duration-300 group-hover:scale-110
         "
       >
         {hasImage ? (
+          // Crest renders as-is — upload a transparent (no-background) PNG and
+          // it fills the badge box at full size, with a soft shadow for depth
+          // against the dark section.
           <img
             src={sources[sourceIndex]}
             alt={team.name}
             loading="lazy"
             draggable={false}
             referrerPolicy="no-referrer"
-            className="w-11 h-11 md:w-14 md:h-14 object-contain drop-shadow pointer-events-none"
+            className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] pointer-events-none"
             onError={handleImageError}
           />
         ) : (
           <span
-            className="font-sport text-base md:text-lg tracking-wide font-bold"
-            style={{ color: team.color ?? '#000000' }}
+            className="font-sport text-lg md:text-xl tracking-wide font-bold text-primary"
           >
             {team.abbreviation ?? team.name.slice(0, 3).toUpperCase()}
           </span>

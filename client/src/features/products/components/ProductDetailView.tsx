@@ -29,9 +29,13 @@ function variantPrice(v: ProductVariant | undefined, basePrice: number): number 
   return v?.priceOverride ?? basePrice;
 }
 
-function variantSize(v: ProductVariant, slug: string): string {
-  const prefix = `${slug}-`;
-  return v.sku.startsWith(prefix) ? v.sku.slice(prefix.length).toUpperCase() : v.sku.toUpperCase();
+function variantSize(v: ProductVariant): string {
+  // Variant SKUs are `<product-slug>-<size>` and sizes never contain a hyphen,
+  // so the size is always the final hyphen segment. Taking that (rather than
+  // stripping the product slug) means the label is only ever the size — even
+  // when the slug and SKU prefix don't line up (e.g. the slug was edited).
+  const idx = v.sku.lastIndexOf('-');
+  return (idx >= 0 ? v.sku.slice(idx + 1) : v.sku).toUpperCase();
 }
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -131,7 +135,7 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
       updatedAt:        now,
       productTitle:     product.title,
       image:            galleryImages[0]?.src,
-      variantLabel:     variantSize(selectedVariant, product.slug),
+      variantLabel:     variantSize(selectedVariant),
       maxStock:         selectedVariant.stockQuantity,
       customName:       trimmedName   || undefined,
       customNumber:     trimmedNumber || undefined,
@@ -139,7 +143,7 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
     toast.push({
       variant: 'success',
       title:   'Added to cart',
-      message: `${product.title} (${variantSize(selectedVariant, product.slug)}) × ${quantity}`,
+      message: `${product.title} (${variantSize(selectedVariant)}) × ${quantity}`,
     });
     // Brief blue flash on the Add-to-Cart button as visual feedback.
     setFlashing(true);
@@ -181,12 +185,12 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
           )}
         </div>
 
-        {/* Rating row — always reserved so layout doesn't shift when reviews load */}
-        <div className="min-h-[20px]">
-          {reviewCount > 0
-            ? <StarRating value={rating} count={reviewCount} />
-            : <span className="text-xs text-muted">No reviews yet</span>}
-        </div>
+        {/* Rating row — only shown once the product has reviews. */}
+        {reviewCount > 0 && (
+          <div className="min-h-[20px]">
+            <StarRating value={rating} count={reviewCount} />
+          </div>
+        )}
 
         <PriceBlock
           price={price}
@@ -234,7 +238,6 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
         {variants.length > 0 && (
           <VariantSelector
             variants={variants}
-            slug={product.slug}
             selectedId={selectedVariantId}
             error={variantError}
             onSelect={(id) => {
@@ -374,12 +377,26 @@ function ProductGallery({
         >
           {active && (
             <img
+              key={active.src}
               src={active.src}
               srcSet={active.srcSet}
               sizes="(min-width: 1024px) 55vw, 100vw"
               alt={active.alt ?? `${title} — view ${selectedIndex + 1}`}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              onError={(e) => {
+                // The srcSet offers a full-res `fileUrl` (1200w) candidate that
+                // browsers prefer on wide/retina laptop viewports. If that
+                // original is broken/missing, drop the srcSet so the browser
+                // falls back to the known-good compressed `src` instead of
+                // leaving an empty box. Only hide if that also fails.
+                const img = e.target as HTMLImageElement;
+                if (img.srcset) {
+                  img.srcset = '';
+                  img.sizes = '';
+                } else {
+                  img.style.display = 'none';
+                }
+              }}
             />
           )}
           {badge && (
@@ -456,9 +473,9 @@ function StockLine({ tone, text }: { tone: string; text: string }) {
 }
 
 function VariantSelector({
-  variants, slug, selectedId, error, onSelect, onOutOfStock, onOpenSizeGuide,
+  variants, selectedId, error, onSelect, onOutOfStock, onOpenSizeGuide,
 }: {
-  variants: ProductVariant[]; slug: string;
+  variants: ProductVariant[];
   selectedId: string; error: boolean;
   onSelect: (id: string) => void;
   /** Called when the user clicks a size that is visible but has 0 stock. */
@@ -483,7 +500,7 @@ function VariantSelector({
         {variants.map((v) => {
           const out      = v.stockQuantity === 0;
           const selected = selectedId === v.id;
-          const label    = variantSize(v, slug);
+          const label    = variantSize(v);
           return (
             <button
               key={v.id}

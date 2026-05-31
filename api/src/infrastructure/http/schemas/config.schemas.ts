@@ -19,6 +19,7 @@ const UpdateSiteConfigBody = Type.Partial(Type.Object({
   currency: Type.String({ minLength: 1, maxLength: 8 }),
   freeShippingThreshold: Type.Number({ minimum: 0 }),
   socialLinks: Type.Record(Type.String(), Type.String()),
+  socialLinksVisible: Type.Record(Type.String(), Type.Boolean()),
   heroDesignYourOwnLabel: Type.Union([Type.String(), Type.Null()]),
   heroDesignYourOwnHref: Type.Union([Type.String(), Type.Null()]),
   filterMinPrice: Type.Number({ minimum: 0 }),

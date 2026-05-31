@@ -26,6 +26,17 @@ const OrderDetailPage   = lazy(() => import('./pages/OrderDetailPage').then((m) 
 const FavoritesPage     = lazy(() => import('./pages/FavoritesPage').then((m) => ({ default: m.FavoritesPage })));
 const NotFoundPage      = lazy(() => import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
+// Static content / info pages
+const FaqPage            = lazy(() => import('./pages/info/FaqPage').then((m) => ({ default: m.FaqPage })));
+const ShippingPolicyPage = lazy(() => import('./pages/info/ShippingPolicyPage').then((m) => ({ default: m.ShippingPolicyPage })));
+const ReturnsPage        = lazy(() => import('./pages/info/ReturnsPage').then((m) => ({ default: m.ReturnsPage })));
+const SizeGuidePage      = lazy(() => import('./pages/info/SizeGuidePage').then((m) => ({ default: m.SizeGuidePage })));
+const ContactPage        = lazy(() => import('./pages/info/ContactPage').then((m) => ({ default: m.ContactPage })));
+const AboutPage          = lazy(() => import('./pages/info/AboutPage').then((m) => ({ default: m.AboutPage })));
+const CompanyPage        = lazy(() => import('./pages/info/CompanyPage').then((m) => ({ default: m.CompanyPage })));
+const PrivacyPolicyPage  = lazy(() => import('./pages/info/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })));
+const TermsPage          = lazy(() => import('./pages/info/TermsPage').then((m) => ({ default: m.TermsPage })));
+
 // Admin section — own layout, sidebar, role gate
 const AdminLayout       = lazy(() => import('./admin/components/AdminLayout').then((m) => ({ default: m.AdminLayout })));
 const AdminGuard        = lazy(() => import('./admin/components/AdminGuard').then((m) => ({ default: m.AdminGuard })));
@@ -120,6 +131,17 @@ function AppRoutes() {
               path={ROUTES.REGISTER}
               element={<ProtectedRoute redirectIfAuthenticated><RegisterPage /></ProtectedRoute>}
             />
+
+            {/* Static content / info pages */}
+            <Route path={ROUTES.FAQ}         element={<FaqPage />} />
+            <Route path={ROUTES.SHIPPING}    element={<ShippingPolicyPage />} />
+            <Route path={ROUTES.RETURNS}     element={<ReturnsPage />} />
+            <Route path={ROUTES.SIZE_GUIDE}  element={<SizeGuidePage />} />
+            <Route path={ROUTES.CONTACT}     element={<ContactPage />} />
+            <Route path={ROUTES.ABOUT}       element={<AboutPage />} />
+            <Route path={ROUTES.COMPANY}     element={<CompanyPage />} />
+            <Route path={ROUTES.PRIVACY}     element={<PrivacyPolicyPage />} />
+            <Route path={ROUTES.TERMS}       element={<TermsPage />} />
 
             <Route path={ROUTES.NOT_FOUND} element={<NotFoundPage />} />
           </Route>

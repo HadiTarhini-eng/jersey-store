@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { AnalyticsDaily } from '../../core/entities/analytics.js'
 import {
   type AnalyticsActivity,
@@ -10,7 +10,7 @@ import {
   type AnalyticsTopProduct,
   type IAnalyticsService,
 } from '../../core/services/analytics.svc.js'
-import { analyticsDaily, categories, orderItems, orders, productVariants, products, users } from '../database/schema.js'
+import { categories, orderItems, orders, productVariants, products, users } from '../database/schema.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
 import { assertDateRange } from './validators.js'
 
@@ -101,46 +101,96 @@ export class AnalyticsService implements IAnalyticsService {
 
   async getOverview(range: AnalyticsRange): Promise<AnalyticsOverview> {
     assertDateRange(range.from, range.to)
-    const currentRows = await this.loadRange(range.from, range.to)
     const span = Math.max(1, Math.round((range.to.getTime() - range.from.getTime()) / 86_400_000))
     const previousTo = addDays(startOfDay(range.from), -1)
     const previousFrom = addDays(previousTo, -(span - 1))
-    const previousRows = await this.loadRange(previousFrom, previousTo)
 
-    const sum = (rows: AnalyticsDaily[], key: keyof Pick<AnalyticsDaily, 'revenue' | 'orderCount' | 'unitCount' | 'newCustomers'>): number =>
-      rows.reduce((acc, row) => acc + Number(row[key] ?? 0), 0)
-
-    const revenue = sum(currentRows, 'revenue')
-    const orders = sum(currentRows, 'orderCount')
-    const units = sum(currentRows, 'unitCount')
-    const customers = sum(currentRows, 'newCustomers')
+    const current = await this.aggregateRange(range.from, range.to)
+    const previous = await this.aggregateRange(previousFrom, previousTo)
 
     return {
-      revenue: { value: revenue, deltaPct: percentDelta(revenue, sum(previousRows, 'revenue')) },
-      orders: { value: orders, deltaPct: percentDelta(orders, sum(previousRows, 'orderCount')) },
-      customers: { value: customers, deltaPct: percentDelta(customers, sum(previousRows, 'newCustomers')) },
-      units: { value: units, deltaPct: percentDelta(units, sum(previousRows, 'unitCount')) },
+      revenue:   { value: current.revenue,   deltaPct: percentDelta(current.revenue, previous.revenue) },
+      orders:    { value: current.orders,    deltaPct: percentDelta(current.orders, previous.orders) },
+      customers: { value: current.customers, deltaPct: percentDelta(current.customers, previous.customers) },
+      units:     { value: current.units,     deltaPct: percentDelta(current.units, previous.units) },
     }
   }
 
   async getSalesByDay(range: AnalyticsRange): Promise<AnalyticsDayPoint[]> {
     assertDateRange(range.from, range.to)
-    const rows = await this.loadRange(range.from, range.to)
-    return rows.map((row) => ({ day: row.day, revenue: Number(row.revenue), orders: row.orderCount }))
+    const db = await this.getDb()
+    const dayExpr = sql<string>`to_char(${orders.placedAt}, 'YYYY-MM-DD')`
+    const rows = await db
+      .select({
+        day: dayExpr,
+        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
+        orders: sql<number>`COUNT(*)`,
+      })
+      .from(orders)
+      .where(and(
+        gte(orders.placedAt, startOfDay(range.from)),
+        lte(orders.placedAt, endOfDay(range.to)),
+        ne(orders.status, 'cancelled'),
+      ))
+      .groupBy(dayExpr)
+      .orderBy(dayExpr)
+    return rows.map((row: any) => ({ day: row.day, revenue: Number(row.revenue), orders: Number(row.orders) }))
   }
 
   async getRevenueByMonth(year: number): Promise<AnalyticsMonthPoint[]> {
     const from = new Date(Date.UTC(year, 0, 1))
     const to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999))
-    const rows = await this.loadRange(from, to)
-    const buckets = new Map<string, number>()
-    for (const row of rows) {
-      const month = row.day.slice(0, 7)
-      buckets.set(month, (buckets.get(month) ?? 0) + Number(row.revenue))
+    const db = await this.getDb()
+    const monthExpr = sql<string>`to_char(${orders.placedAt}, 'YYYY-MM')`
+    const rows = await db
+      .select({
+        month: monthExpr,
+        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
+      })
+      .from(orders)
+      .where(and(
+        gte(orders.placedAt, from),
+        lte(orders.placedAt, to),
+        ne(orders.status, 'cancelled'),
+      ))
+      .groupBy(monthExpr)
+      .orderBy(monthExpr)
+    return rows.map((row: any) => ({ month: row.month, revenue: Number(row.revenue) }))
+  }
+
+  /**
+   * Live aggregate of a date range straight from orders/order_items/users — no
+   * precomputed snapshot, so the dashboard always reflects the real database.
+   * Revenue/orders/units exclude cancelled orders; "customers" counts user
+   * signups in the window (independent of orders).
+   */
+  private async aggregateRange(from: Date, to: Date): Promise<{ revenue: number; orders: number; units: number; customers: number }> {
+    const db = await this.getDb()
+    const start = startOfDay(from)
+    const end = endOfDay(to)
+    const inWindow = and(gte(orders.placedAt, start), lte(orders.placedAt, end), ne(orders.status, 'cancelled'))
+
+    const [orderAgg, unitAgg, customerAgg] = await Promise.all([
+      db.select({
+        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
+        count: sql<number>`COUNT(*)`,
+      }).from(orders).where(inWindow),
+      db.select({
+        units: sql<number>`COALESCE(SUM(${orderItems.quantity}), 0)`,
+      }).from(orderItems)
+        .innerJoin(orders, eq(orders.id, orderItems.orderId))
+        .where(inWindow),
+      db.select({
+        count: sql<number>`COUNT(*)`,
+      }).from(users).where(and(gte(users.createdAt, start), lte(users.createdAt, end))),
+    ])
+
+    return {
+      revenue: Number(orderAgg[0]?.revenue ?? 0),
+      orders: Number(orderAgg[0]?.count ?? 0),
+      units: Number(unitAgg[0]?.units ?? 0),
+      customers: Number(customerAgg[0]?.count ?? 0),
     }
-    return [...buckets.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, revenue]) => ({ month, revenue }))
   }
 
   async getTopProducts(range: AnalyticsRange, limit: number): Promise<AnalyticsTopProduct[]> {
@@ -233,24 +283,6 @@ export class AnalyticsService implements IAnalyticsService {
     return activities
       .sort((a, b) => b.at.getTime() - a.at.getTime())
       .slice(0, limit)
-  }
-
-  private async loadRange(from: Date, to: Date): Promise<AnalyticsDaily[]> {
-    const fromStr = toDayString(startOfDay(from))
-    const toStr = toDayString(startOfDay(to))
-    const db = await this.getDb()
-    const rows = await db
-      .select()
-      .from(analyticsDaily)
-      .where(and(gte(analyticsDaily.day, fromStr), lte(analyticsDaily.day, toStr)))
-      .orderBy(analyticsDaily.day)
-    return rows.map((row: any) => new AnalyticsDaily({
-      ...row,
-      revenue: Number(row.revenue ?? 0),
-      orderCount: row.orderCount ?? 0,
-      unitCount: row.unitCount ?? 0,
-      newCustomers: row.newCustomers ?? 0,
-    }))
   }
 
   private async getDb(): Promise<any> {

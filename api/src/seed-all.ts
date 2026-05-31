@@ -441,7 +441,14 @@ try {
         slug:             p.slug,
         shortDescription: p.shortDesc,
         fullDescription:  p.fullDesc,
-        tagsJson:         p.tags,
+        // Encode sport/team as `key:slug` meta tags (the same wire format the
+        // admin product form uses) so the storefront filters, breadcrumbs and
+        // admin list all resolve them. Plain descriptive tags follow.
+        tagsJson:         [
+          `sport:${p.sport}`,
+          ...(p.team ? [`team:${p.team}`] : []),
+          ...p.tags,
+        ],
         brand:            p.brand,
         basePrice:        p.basePrice,
         compareAtPrice:   p.compareAtPrice ?? null,
@@ -824,7 +831,7 @@ try {
     .values([
       {
         slug: 'default',
-        name: 'Jerseys4Ever',
+        name: 'Jerseys_4Ever',
         tagline: 'Wear What You Live',
         description: 'Premium authentic jerseys and sportswear from the world\'s greatest clubs and teams.',
         email: 'support@jerseys4ever.com',
@@ -832,11 +839,15 @@ try {
         currency: 'USD',
         freeShippingThreshold: '75',
         socialLinks: {
-          instagram: 'https://instagram.com/jerseys4ever',
-          twitter:   'https://twitter.com/jerseys4ever',
-          facebook:  'https://facebook.com/jerseys4ever',
-          youtube:   'https://youtube.com/jerseys4ever',
+          instagram: 'https://instagram.com/jerseys_4ever',
+          twitter:   'https://twitter.com/jerseys_4ever',
+          facebook:  'https://facebook.com/jerseys_4ever',
+          youtube:   'https://youtube.com/jerseys_4ever',
+          whatsapp:  'https://wa.me/18005550199',
         },
+        // Empty map ⇒ every social visible by default; admins flip a key to
+        // `false` to hide that social everywhere it renders.
+        socialLinksVisible: {},
         heroDesignYourOwnLabel: 'Design Your Own',
         heroDesignYourOwnHref:  '/custom',
         filterMinPrice:         '0',
@@ -844,7 +855,6 @@ try {
         sortOptions: [
           { value: 'newest',     label: 'Newest' },
           { value: 'popular',    label: 'Most Popular' },
-          { value: 'rating',     label: 'Top Rated' },
           { value: 'price-asc',  label: 'Price: Low to High' },
           { value: 'price-desc', label: 'Price: High to Low' },
         ],
@@ -1055,7 +1065,6 @@ try {
       },
       { slot: 'nav-link', sortOrder: 1, payload: { label: 'New Arrivals', href: '/shop?badge=New' } },
       { slot: 'nav-link', sortOrder: 2, payload: { label: 'Sale',         href: '/shop?badge=Sale' } },
-      { slot: 'nav-link', sortOrder: 3, payload: { label: 'Limited',      href: '/shop?badge=Limited' } },
     ])
     .onConflictDoNothing()
 
@@ -1085,7 +1094,6 @@ try {
           links: [
             { label: 'Login',    href: '/login' },
             { label: 'Register', href: '/register' },
-            { label: 'Orders',   href: '/profile' },
             { label: 'Profile',  href: '/profile' },
           ],
         },
@@ -1095,11 +1103,11 @@ try {
         payload: {
           title: 'Support',
           links: [
-            { label: 'FAQ',             href: '#' },
-            { label: 'Shipping Policy', href: '#' },
-            { label: 'Returns',         href: '#' },
-            { label: 'Size Guide',      href: '#' },
-            { label: 'Contact Us',      href: '#' },
+            { label: 'FAQ',             href: '/faq' },
+            { label: 'Shipping Policy', href: '/shipping-policy' },
+            { label: 'Returns',         href: '/returns' },
+            { label: 'Size Guide',      href: '/size-guide' },
+            { label: 'Contact Us',      href: '/contact' },
           ],
         },
       },
@@ -1108,11 +1116,10 @@ try {
         payload: {
           title: 'Company',
           links: [
-            { label: 'About Us',         href: '#' },
-            { label: 'Careers',          href: '#' },
-            { label: 'Press',            href: '#' },
-            { label: 'Privacy Policy',   href: '#' },
-            { label: 'Terms of Service', href: '#' },
+            { label: 'About Us',         href: '/about' },
+            { label: 'Company',          href: '/company' },
+            { label: 'Privacy Policy',   href: '/privacy' },
+            { label: 'Terms of Service', href: '/terms' },
           ],
         },
       },

@@ -17,6 +17,14 @@ export interface CouponPayload {
    * is independent.
    */
   itemsAllowedPerUser?: number | null
+  /**
+   * Optional allowlist of user ids permitted to redeem this coupon. When
+   * omitted/empty, any signed-in customer may use it. When non-empty, only
+   * those accounts can — every other signed-in user is rejected. Coupons
+   * always require sign-in (guests can never redeem), so this further narrows
+   * an already-authenticated audience to a hand-picked set of customers.
+   */
+  allowedUserIds?: string[] | null
 }
 
 export interface ResolvedCoupon {

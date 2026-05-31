@@ -20,7 +20,12 @@ function phoneToWaNumber(phone: string | undefined | null): string | null {
  */
 export function FloatingWhatsApp() {
   const siteConfig = useSiteConfig();
-  const waNumber   = phoneToWaNumber(siteConfig.phone ?? undefined);
+  // Prefer the dedicated WhatsApp social (a number or a wa.me link — digits are
+  // extracted either way); fall back to the store phone. Honour the per-social
+  // visibility toggle so admins can hide the button without clearing the number.
+  const waSource   = siteConfig.socialLinks?.whatsapp || siteConfig.phone;
+  const waNumber   = phoneToWaNumber(waSource ?? undefined);
+  const waVisible  = (siteConfig.socialLinksVisible ?? {}).whatsapp !== false;
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -41,7 +46,7 @@ export function FloatingWhatsApp() {
     };
   }, [open]);
 
-  if (!waNumber) return null;
+  if (!waNumber || !waVisible) return null;
 
   const greeting = `Hi ${siteConfig.name}, I have a question about your store.`;
   const waUrl    = `https://wa.me/${waNumber}?text=${encodeURIComponent(greeting)}`;

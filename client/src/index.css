@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /**
- * Jerseys4Ever — Sport Theme (dark, single-mode).
+ * Jerseys_4Ever — Sport Theme (dark, single-mode).
  *
  * Only typography lives here as a CSS variable; all colors live as hex
  * tokens in tailwind.config.js so they're deterministic.

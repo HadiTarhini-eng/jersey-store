@@ -45,7 +45,7 @@ export function ImageUpload({ value, onChange, label = 'Upload image' }: SingleI
 
   return (
     <div className="flex items-stretch gap-3">
-      <div className="relative w-20 h-20 shrink-0 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden">
+      <div className="relative w-20 h-20 shrink-0 rounded-xl bg-surface-raised border border-stroke overflow-hidden">
         {value ? (
           <img
             src={value}
@@ -54,7 +54,7 @@ export function ImageUpload({ value, onChange, label = 'Upload image' }: SingleI
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
         ) : (
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] uppercase tracking-widest text-gray-400">
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] uppercase tracking-widest text-muted">
             None
           </span>
         )}
@@ -83,13 +83,13 @@ export function ImageUpload({ value, onChange, label = 'Upload image' }: SingleI
             <button
               type="button"
               onClick={clear}
-              className="px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-danger hover:bg-danger/10 transition-colors"
+              className="px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-muted hover:text-danger hover:bg-danger/10 transition-colors"
             >
               Remove
             </button>
           )}
         </div>
-        <p className="text-[10px] text-gray-500">PNG or JPG. Uploaded to the server on save.</p>
+        <p className="text-[10px] text-muted">PNG or JPG. Uploaded to the server on save.</p>
       </div>
     </div>
   );
@@ -173,7 +173,7 @@ export function MultiImageUpload({ values, onChange, max = 6 }: MultiImageUpload
             key={`${i}-${entry.url.slice(-12)}`}
             className={[
               'relative w-20 h-24 rounded-xl overflow-hidden border-2 group',
-              i === 0 ? 'border-accent' : 'border-gray-200',
+              i === 0 ? 'border-accent' : 'border-stroke',
             ].join(' ')}
           >
             <img src={entry.url} alt="" className="w-full h-full object-cover" />
@@ -214,7 +214,7 @@ export function MultiImageUpload({ values, onChange, max = 6 }: MultiImageUpload
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="w-20 h-24 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 hover:text-accent hover:border-accent transition-colors flex flex-col items-center justify-center gap-1"
+            className="w-20 h-24 rounded-xl border-2 border-dashed border-stroke text-muted hover:text-accent hover:border-accent transition-colors flex flex-col items-center justify-center gap-1"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16M4 12h16" />
@@ -224,7 +224,7 @@ export function MultiImageUpload({ values, onChange, max = 6 }: MultiImageUpload
         )}
       </div>
 
-      <p className="text-[10px] text-gray-500">
+      <p className="text-[10px] text-muted">
         {values.length}/{max} images — first one is the primary thumbnail. New picks upload on save.
       </p>
     </div>

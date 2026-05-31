@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../features/auth/hooks/useAuth';
 import { useCart } from '../../features/cart/hooks/useCart';
+import { isNavLinkActive } from '../../utils/navActive';
 import type { NavLink as NavLinkType } from '../../types';
 
 interface MobileNavProps {
@@ -49,7 +50,7 @@ export function MobileNav({ isOpen, onClose, links, siteName: _siteName }: Mobil
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
           <Link to="/" className="font-sport text-xl tracking-wide text-white">
-            JERSEYS<span className="text-accent">4</span>EVER
+            JERSEYS_<span className="text-accent">4</span>EVER
           </Link>
           <button
             onClick={onClose}
@@ -66,36 +67,34 @@ export function MobileNav({ isOpen, onClose, links, siteName: _siteName }: Mobil
         <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
           {links.map((link) => (
             <div key={link.href}>
-              <NavLink
+              <Link
                 to={link.href}
-                className={({ isActive }) =>
-                  [
-                    'flex items-center px-4 py-3.5 rounded-xl text-base font-bold uppercase tracking-wide transition-colors',
-                    isActive
-                      ? 'text-accent bg-white/5'
-                      : 'text-white hover:bg-white/10',
-                  ].join(' ')
-                }
+                className={[
+                  'flex items-center px-4 py-3.5 rounded-xl text-base font-bold uppercase tracking-wide transition-colors',
+                  isNavLinkActive(link.href, location)
+                    ? 'text-accent bg-white/5'
+                    : 'text-white hover:bg-white/10',
+                ].join(' ')}
               >
                 {link.label}
-              </NavLink>
+              </Link>
 
               {/* Sub-links */}
               {link.children && (
                 <div className="ml-4 mt-1 space-y-1 border-l border-white/15 pl-3">
                   {link.children.map((child) => (
-                    <NavLink
+                    <Link
                       key={child.href}
                       to={child.href}
-                      className={({ isActive }) =>
-                        [
-                          'block px-3 py-2 rounded-lg text-sm font-semibold uppercase tracking-wider transition-colors',
-                          isActive ? 'text-accent' : 'text-white/70 hover:text-white',
-                        ].join(' ')
-                      }
+                      className={[
+                        'block px-3 py-2 rounded-lg text-sm font-semibold uppercase tracking-wider transition-colors',
+                        isNavLinkActive(child.href, location)
+                          ? 'text-accent'
+                          : 'text-white/70 hover:text-white',
+                      ].join(' ')}
                     >
                       {child.label}
-                    </NavLink>
+                    </Link>
                   ))}
                 </div>
               )}

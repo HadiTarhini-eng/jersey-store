@@ -294,6 +294,10 @@ export const siteConfig = pgTable('site_config', {
   currency: varchar('currency', { length: 8 }).notNull().default('USD'),
   freeShippingThreshold: numeric('free_shipping_threshold', { precision: 12, scale: 2 }).notNull().default('0'),
   socialLinks: jsonb('social_links').$type<Record<string, string>>().notNull().default({}),
+  // Per-social visibility toggles, keyed by platform (instagram, whatsapp, …).
+  // Missing keys default to "visible" on the client, so admins only flip a
+  // toggle when they want a social hidden everywhere it renders.
+  socialLinksVisible: jsonb('social_links_visible').$type<Record<string, boolean>>().notNull().default({}),
   // Hero CTA ("Design Your Own") — single CTA shown on every hero slide.
   heroDesignYourOwnLabel: varchar('hero_design_your_own_label', { length: 80 }),
   heroDesignYourOwnHref: varchar('hero_design_your_own_href', { length: 255 }),

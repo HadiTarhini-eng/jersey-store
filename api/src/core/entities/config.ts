@@ -31,6 +31,12 @@ export interface SiteConfigEntity extends BusinessEntity {
    * (key: `shop-by-sport`); future sections will reuse the same map.
    */
   homepageSectionsVisible: Record<string, boolean>
+  /**
+   * Per-social visibility toggles, keyed by platform (instagram, twitter,
+   * facebook, youtube, whatsapp, …). Missing keys default to "visible" so a
+   * fresh config shows every configured social without explicit setup.
+   */
+  socialLinksVisible: Record<string, boolean>
 }
 
 export type SiteConfigPayload = BusinessEntityPayload & Omit<SiteConfigEntity, keyof BusinessEntity>
@@ -55,6 +61,7 @@ export class SiteConfig extends BaseEntity implements SiteConfigEntity {
   cartEmptyCtaLabel?: string | null
   cartEmptyCtaHref?: string | null
   homepageSectionsVisible: Record<string, boolean>
+  socialLinksVisible: Record<string, boolean>
 
   constructor(payload: SiteConfigPayload) {
     super(payload)
@@ -77,6 +84,7 @@ export class SiteConfig extends BaseEntity implements SiteConfigEntity {
     this.cartEmptyCtaLabel = payload.cartEmptyCtaLabel ?? null
     this.cartEmptyCtaHref = payload.cartEmptyCtaHref ?? null
     this.homepageSectionsVisible = payload.homepageSectionsVisible ?? {}
+    this.socialLinksVisible = payload.socialLinksVisible ?? {}
   }
 }
 

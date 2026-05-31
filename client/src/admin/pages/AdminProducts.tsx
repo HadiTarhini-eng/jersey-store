@@ -9,8 +9,9 @@ import { useToast } from '../../components/ui/Toast';
 import { useAppSelector } from '../../app/hooks';
 import { extractErrorMessage } from '../../services/api/client';
 import { useAdminProducts } from '../hooks/useAdminProducts';
+import { useUiContentSlot } from '../../hooks/useUiContentSlot';
 import type { AdminProductRow, UpsertProductInput } from '../services/adminProductsApi';
-import type { AdminProduct, Category } from '../../types';
+import type { AdminProduct, Category, Sport, Team } from '../../types';
 import { formatPrice } from '../../utils/formatters';
 
 const totalStock = (p: AdminProduct) => p.variants.reduce((s, v) => s + v.stock, 0);
@@ -359,7 +360,6 @@ interface FormState {
   team:           string;
   categoryId:     string;
   price:          string;
-  originalPrice:  string;
   currency:       string;
   description:    string;
   features:       string;
@@ -377,8 +377,8 @@ function slugify(s: string) {
 function fromProduct(p: AdminProductRow | null): FormState {
   if (!p) {
     return {
-      name: '', slug: '', sport: 'football', team: '', categoryId: '',
-      price: '', originalPrice: '', currency: 'USD',
+      name: '', slug: '', sport: '', team: '', categoryId: '',
+      price: '', currency: 'USD',
       description: '', features: '', tags: '',
       gallery: [], badge: '',
       variants: defaultSizes.map((size) => ({ size, stock: 0, isVisible: true })),
@@ -392,7 +392,6 @@ function fromProduct(p: AdminProductRow | null): FormState {
     team:          p.team,
     categoryId:    p.categoryId,
     price:         String(p.price),
-    originalPrice: p.originalPrice ? String(p.originalPrice) : '',
     currency:      p.currency,
     description:   p.description,
     features:      p.features.join('\n'),
@@ -436,6 +435,23 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
       setForm((prev) => ({ ...prev, categoryId: categories[0].id }));
     }
   }, [categories, form.categoryId]);
+
+  // Sport/team options come from the admin-managed taxonomy (the same lists
+  // edited under Categories → Sports/Teams). Products store the *slug*, which
+  // is also what the storefront filters match against.
+  const { items: sports } = useUiContentSlot<Omit<Sport, 'id'>>('sport', { activeOnly: true });
+  const { items: teams }  = useUiContentSlot<Omit<Team, 'id'>>('team',  { activeOnly: true });
+  // Teams carry their parent sport's *id*; map the selected sport slug back to
+  // its id so the team picker only lists teams for the chosen sport.
+  const selectedSport = sports.find((s) => s.slug === form.sport);
+  const teamOptions   = selectedSport ? teams.filter((t) => t.sport === selectedSport.id) : [];
+
+  // Default the sport to the first available when creating a brand-new product.
+  useEffect(() => {
+    if (!initial && !form.sport && sports.length > 0) {
+      setForm((prev) => ({ ...prev, sport: sports[0].slug }));
+    }
+  }, [initial, sports, form.sport]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -496,7 +512,6 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
       team:          form.team.trim(),
       category:      categories.find((c) => c.id === form.categoryId)?.slug ?? '',
       price:         Number(form.price),
-      originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined,
       currency:      form.currency || 'USD',
       images:        form.gallery.map((g) => g.url),
       description:   form.description.trim(),
@@ -683,16 +698,6 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
                 className={lightInputClass}
               />
             </FormField>
-            <FormField label="Original price (optional)" hint="Shows a strike-through discount when set">
-              <input
-                type="number"
-                step="0.01"
-                value={form.originalPrice}
-                onChange={(e) => set('originalPrice', e.target.value)}
-                placeholder="149.99"
-                className={lightInputClass}
-              />
-            </FormField>
             <FormField label="Currency">
               <select value={form.currency} onChange={(e) => set('currency', e.target.value)} className={lightInputClass}>
                 <option value="USD">USD — $</option>
@@ -704,21 +709,35 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
           </FormSection>
 
           <FormSection title="Taxonomy">
-            <FormField label="Sport">
-              <input
+            <FormField label="Sport" hint="Managed under Categories → Sports">
+              <select
                 value={form.sport}
-                onChange={(e) => set('sport', e.target.value)}
-                placeholder="football"
+                onChange={(e) => {
+                  // Changing the sport invalidates the current team (teams are
+                  // scoped to a sport), so reset it.
+                  set('sport', e.target.value);
+                  set('team', '');
+                }}
                 className={lightInputClass}
-              />
+              >
+                <option value="">Select a sport</option>
+                {sports.map((s) => (
+                  <option key={s.id} value={s.slug}>{s.name}</option>
+                ))}
+              </select>
             </FormField>
-            <FormField label="Team" error={errors.team} required>
-              <input
+            <FormField label="Team" error={errors.team} required hint="Managed under Categories → Teams">
+              <select
                 value={form.team}
                 onChange={(e) => set('team', e.target.value)}
-                placeholder="real-madrid"
+                disabled={!form.sport}
                 className={lightInputClass}
-              />
+              >
+                <option value="">{form.sport ? 'Select a team' : 'Pick a sport first'}</option>
+                {teamOptions.map((t) => (
+                  <option key={t.id} value={t.slug}>{t.name}</option>
+                ))}
+              </select>
             </FormField>
             <FormField label="Category" error={errors.categoryId} required hint="Backend category (required)">
               <select value={form.categoryId} onChange={(e) => set('categoryId', e.target.value)} className={lightInputClass}>

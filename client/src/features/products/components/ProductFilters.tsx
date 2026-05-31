@@ -4,23 +4,38 @@ import { useFilters } from '../hooks/useFilters';
 import { useCategories } from '../hooks/useCategories';
 import { useUiContentSlot } from '../../../hooks/useUiContentSlot';
 import { useSiteConfig } from '../../../contexts/SiteConfigContext';
-import type { Sport, Team } from '../../../types';
+import type { SortOptionConfig, Sport, Team } from '../../../types';
+
+/** Used when the site config provides no sort options of its own. */
+const DEFAULT_SORT_OPTIONS: SortOptionConfig[] = [
+  { value: 'newest',     label: 'Newest' },
+  { value: 'popular',    label: 'Most Popular' },
+  { value: 'price-asc',  label: 'Price: Low to High' },
+  { value: 'price-desc', label: 'Price: High to Low' },
+];
 
 /** Sidebar filter panel — collapses to a modal trigger on mobile. */
 export function ProductFilters() {
-  const { filters, sort, setFilter, clearFilters, setSort, activeFilterCount } = useFilters();
+  const { filters, sort, setFilter, setFilters, clearFilters, setSort, activeFilterCount } = useFilters();
   const [isMobileOpen, setMobileOpen] = useState(false);
 
   const { items: sports } = useUiContentSlot<Omit<Sport, 'id'>>('sport', { activeOnly: true });
   const { items: teams }  = useUiContentSlot<Omit<Team, 'id'>>('team',  { activeOnly: true });
   const { categories }    = useCategories();
 
-  // Only show teams for the selected sport
-  const visibleTeams = filters.sport
-    ? teams.filter((t) => t.sport === filters.sport)
+  // Only show teams for the selected sport. The active sport filter is a
+  // *slug*; teams reference their sport by *id*, so resolve the slug to the
+  // sport id before filtering.
+  const selectedSport = filters.sport ? sports.find((s) => s.slug === filters.sport) : undefined;
+  const visibleTeams = selectedSport
+    ? teams.filter((t) => t.sport === selectedSport.id)
     : teams;
 
   const { filterMinPrice, filterMaxPrice, sortOptions } = useSiteConfig();
+  // Fall back to a sensible default list when the site config ships no sort
+  // options (e.g. an auto-created default config row with an empty array), so
+  // the Sort By section is never blank.
+  const sortChoices = sortOptions.length > 0 ? sortOptions : DEFAULT_SORT_OPTIONS;
   const priceRange = { min: filterMinPrice, max: filterMaxPrice };
   const optionClass = 'w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-white transition-colors';
   const activeOptionClass = 'bg-accent text-black font-bold shadow-lg shadow-accent/30';
@@ -31,7 +46,7 @@ export function ProductFilters() {
       {/* Sort */}
       <FilterSection title="Sort By">
         <div className="space-y-1">
-          {sortOptions.map((opt) => (
+          {sortChoices.map((opt) => (
             <button
               key={opt.value}
               onClick={() => setSort(opt.value as any)}
@@ -54,10 +69,19 @@ export function ProductFilters() {
           {sports.map((sport) => (
             <button
               key={sport.id}
-              onClick={() => setFilter('sport', filters.sport === sport.id ? undefined : sport.id)}
+              onClick={() => {
+                // Toggle the sport filter (by slug). Switching/clearing sport
+                // also clears any team filter, since teams are scoped to a sport.
+                // Both changes go through one `setFilters` so the team-clear
+                // doesn't race and overwrite the sport we just set.
+                setFilters({
+                  sport: filters.sport === sport.slug ? undefined : sport.slug,
+                  team:  undefined,
+                });
+              }}
               className={[
                 `${optionClass} flex items-center gap-2.5`,
-                filters.sport === sport.id
+                filters.sport === sport.slug
                   ? activeOptionClass
                   : idleOptionClass,
               ].join(' ')}
@@ -96,10 +120,10 @@ export function ProductFilters() {
             {visibleTeams.map((team) => (
               <button
                 key={team.id}
-                onClick={() => setFilter('team', filters.team === team.id ? undefined : team.id)}
+                onClick={() => setFilter('team', filters.team === team.slug ? undefined : team.slug)}
                 className={[
                   optionClass,
-                  filters.team === team.id
+                  filters.team === team.slug
                     ? activeOptionClass
                     : idleOptionClass,
                 ].join(' ')}
