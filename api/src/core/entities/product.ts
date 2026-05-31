@@ -56,6 +56,8 @@ export interface ProductVariantEntity extends BusinessEntity {
   priceOverride?: number | null
   stockQuantity: number
   imageUrl?: string | null
+  /** Admin-controlled storefront visibility. Hidden sizes don't render in the picker. */
+  isVisible: boolean
 }
 
 export interface VariantAttributeValueEntity extends BusinessEntity {
@@ -140,7 +142,7 @@ export type ProductAttributePayload = BusinessEntityPayload & Omit<ProductAttrib
 export type ProductAssignedAttributePayload = BusinessEntityPayload & Omit<ProductAssignedAttributeEntity, keyof BusinessEntity>
 export type ProductAttributeOptionPayload = BusinessEntityPayload & Omit<ProductAttributeOptionEntity, keyof BusinessEntity>
 export type ProductSpecificationPayload = BusinessEntityPayload & Omit<ProductSpecificationEntity, keyof BusinessEntity>
-export type ProductVariantPayload = BusinessEntityPayload & Omit<ProductVariantEntity, keyof BusinessEntity>
+export type ProductVariantPayload = BusinessEntityPayload & Omit<ProductVariantEntity, keyof BusinessEntity | 'isVisible'> & { isVisible?: boolean }
 export type VariantAttributeValuePayload = BusinessEntityPayload & Omit<VariantAttributeValueEntity, keyof BusinessEntity>
 
 export class ProductAttribute extends BaseEntity implements ProductAttributeEntity {
@@ -209,6 +211,7 @@ export class ProductVariant extends BaseEntity implements ProductVariantEntity {
   priceOverride?: number | null
   stockQuantity: number
   imageUrl?: string | null
+  isVisible: boolean
 
   constructor(payload: ProductVariantPayload) {
     super(payload)
@@ -217,6 +220,7 @@ export class ProductVariant extends BaseEntity implements ProductVariantEntity {
     this.priceOverride = payload.priceOverride
     this.stockQuantity = payload.stockQuantity
     this.imageUrl = payload.imageUrl ?? null
+    this.isVisible = payload.isVisible ?? true
   }
 
   changeStock(quantity: number): void {

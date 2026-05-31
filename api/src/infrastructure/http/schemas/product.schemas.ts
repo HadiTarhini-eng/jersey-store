@@ -143,6 +143,7 @@ const CreateVariantBody = Type.Object({
   priceOverride: Type.Optional(Type.Union([Type.Number({ minimum: 0 }), Type.Null()])),
   stockQuantity: Type.Optional(Type.Integer({ minimum: 0 })),
   imageId: Type.Optional(Type.String()),
+  isVisible: Type.Optional(Type.Boolean()),
   isActive: Type.Optional(Type.Boolean()),
 })
 export type CreateVariantBodyType = Static<typeof CreateVariantBody>

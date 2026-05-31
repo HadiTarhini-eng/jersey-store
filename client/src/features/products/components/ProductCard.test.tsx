@@ -30,12 +30,12 @@ const mockProduct: Product = {
     {
       id: 'v-m', productId: 'prod-001', sku: 'jersey-M',
       priceOverride: null, stockQuantity: 10, imageUrl: null,
-      isActive: true, createdAt: now, updatedAt: now,
+      isVisible: true, isActive: true, createdAt: now, updatedAt: now,
     },
     {
       id: 'v-l', productId: 'prod-001', sku: 'jersey-L',
       priceOverride: null, stockQuantity: 5, imageUrl: null,
-      isActive: true, createdAt: now, updatedAt: now,
+      isVisible: true, isActive: true, createdAt: now, updatedAt: now,
     },
   ],
 };
@@ -48,7 +48,7 @@ const outOfStockProduct: Product = {
   variants: [{
     id: 'v-m2', productId: 'prod-002', sku: 'jersey-M',
     priceOverride: null, stockQuantity: 0, imageUrl: null,
-    isActive: false, createdAt: now, updatedAt: now,
+    isVisible: true, isActive: false, createdAt: now, updatedAt: now,
   }],
 };
 

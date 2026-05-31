@@ -5,10 +5,10 @@ import type { ValidateCouponBodyType } from '../schemas/coupon.schemas.js'
 
 export const validateCoupon = (service: ICouponService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const { code, subtotal } = request.body as ValidateCouponBodyType
+    const { code, subtotal, itemCount, totalItems } = request.body as ValidateCouponBodyType
     // Coupon validation is unprotected so guests can apply codes too. We still
     // try to verify a JWT (swallowing errors) so signed-in customers get their
-    // per-user redemption cap enforced.
+    // per-user item cap enforced.
     let userId: string | null = null
     try {
       await request.jwtVerify()
@@ -16,5 +16,5 @@ export const validateCoupon = (service: ICouponService) =>
     } catch {
       userId = null
     }
-    sendOk(reply, await service.validate(code, subtotal, userId))
+    sendOk(reply, await service.validate(code, subtotal, itemCount, totalItems, userId))
   }

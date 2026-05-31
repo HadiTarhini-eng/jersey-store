@@ -6,32 +6,67 @@ export interface CouponPayload {
   discountValue: number
   description?: string
   /**
-   * Max times any single authenticated user can redeem this coupon. `null`
-   * or `undefined` = no per-user cap. Guest checkouts are excluded from the
-   * count (we can't tie them to an account); shops that want to gate guests
-   * should disable the coupon or require account creation.
+   * Cap on how many *items* (units, not orders) any single signed-in user can
+   * redeem this coupon against across all their orders. `null` or omitted ⇒
+   * no cap. Guest checkouts bypass the cap because we have no identity to
+   * count against — shops that want to gate guests should disable the coupon
+   * or require account creation.
+   *
+   * Example: cap = 7. User A places an order applying the coupon to 5 items;
+   * 2 items remain on the coupon for User A's future orders. User B's tally
+   * is independent.
    */
-  usageLimitPerUser?: number | null
+  itemsAllowedPerUser?: number | null
 }
 
 export interface ResolvedCoupon {
   code: string
   discountType: CouponDiscountType
   discountValue: number
-  /** Resolved discount amount in the cart currency, computed against the subtotal. Already capped at the subtotal. */
+  /** Resolved discount amount in cart currency, already pro-rated to itemsApplied / totalItems and capped at the subtotal. */
   amount: number
+  /** How many items the coupon would apply to in this validation (always 0..totalItems and 0..itemsRemainingBefore). */
+  itemsApplied: number
+  /** Total items in the cart at validation time. Echoed back so the UI can show "applied to X of Y items". */
+  totalItems: number
+  /** Per-user cap from the coupon definition, or null when uncapped. */
+  itemsAllowedPerUser: number | null
+  /** Items the user has already redeemed on prior orders (0 for guests). */
+  itemsAlreadyUsed: number
+  /** Items left on the coupon for this user *after* this application would settle. `null` when uncapped. */
+  itemsRemainingAfter: number | null
 }
 
 export interface ICouponService {
   /**
-   * Look up a coupon code in the active set and recompute the discount amount
-   * against the server-side subtotal. When `userId` is supplied, also enforces
-   * the coupon's `usageLimitPerUser` cap by counting prior orders the user
-   * placed with this code. Throws NotFoundError when the code is missing /
-   * inactive; ValidationError when the resolved amount is zero OR when the
-   * per-user limit has been reached.
+   * Resolve a coupon against the server-side cart, recompute the per-item
+   * pro-rated discount, and enforce the per-user item cap. Returns the
+   * canonical `ResolvedCoupon` (used by the checkout UI to show the toast
+   * and by the order service to verify totals at submit time).
+   *
+   * - `itemCount` is how many items the buyer wants this coupon applied to.
+   *   Must be ≥ 1 and ≤ `totalItems`. Must also fit within the user's
+   *   remaining cap (when signed in and the coupon is capped).
+   * - `totalItems` is the total number of units in the cart.
+   * - `userId` is optional — when present, the per-user cap is enforced
+   *   against the user's prior orders.
+   *
+   * Throws NotFoundError when the code is unknown/inactive; ValidationError
+   * when the discount resolves to 0, when the cap is exhausted, or when
+   * the requested `itemCount` exceeds the cap remaining or the cart size.
    */
-  validate: (code: string, subtotal: number, userId?: string | null) => Promise<ResolvedCoupon>
-  /** Same lookup, without throwing the limit check — used internally by the order service after auth has been resolved. */
-  resolve: (code: string, subtotal: number) => Promise<ResolvedCoupon | null>
+  validate: (
+    code: string,
+    subtotal: number,
+    itemCount: number,
+    totalItems: number,
+    userId?: string | null,
+  ) => Promise<ResolvedCoupon>
+  /** Same lookup without the cap check — used internally by order submission after auth has been resolved. */
+  resolve: (
+    code: string,
+    subtotal: number,
+    itemCount: number,
+    totalItems: number,
+  ) => Promise<ResolvedCoupon | null>
 }

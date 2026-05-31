@@ -75,6 +75,9 @@ const GuestOrderItemBody = Type.Object({
 const CreateGuestOrderBody = Type.Object({
   guestEmail: Type.Optional(Type.Union([Type.String({ maxLength: 320 }), Type.Null()])),
   couponCode: Type.Optional(Type.Union([Type.String({ maxLength: 80 }), Type.Null()])),
+  // How many items the coupon should be applied to. Required when couponCode
+  // is set; ignored otherwise. Server re-validates against the per-user cap.
+  couponItemsApplied: Type.Optional(Type.Union([Type.Integer({ minimum: 1 }), Type.Null()])),
   shippingAddress: AddressSchema,
   billingAddress: Type.Optional(AddressSchema),
   items: Type.Array(GuestOrderItemBody, { minItems: 1 }),

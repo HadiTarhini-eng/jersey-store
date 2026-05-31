@@ -147,6 +147,9 @@ export const productVariants = pgTable('product_variants', {
   priceOverride: numeric('price_override', { precision: 12, scale: 2 }),
   stockQuantity: integer('stock_quantity').notNull().default(0),
   imageUrl: imageUrl('image_url'),
+  // Admin-controlled storefront visibility. Independent of `isActive`
+  // (soft-delete). Hidden sizes don't render in the variant picker.
+  isVisible: boolean('is_visible').notNull().default(true),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -201,6 +204,10 @@ export const orders = pgTable('orders', {
   // coupon slot at submit time). Optional. Stored alongside discountAmount so
   // fulfillment / receipts have the redemption history without joins.
   couponCode: varchar('coupon_code', { length: 80 }),
+  // Number of items the coupon was applied to on this order. Used by the
+  // coupon service to enforce the per-user item cap across multiple orders
+  // (`itemsAllowedPerUser` on the coupon payload). 0 when no coupon was used.
+  couponItemsApplied: integer('coupon_items_applied').notNull().default(0),
   shippingAmount: numeric('shipping_amount', { precision: 12, scale: 2 }).notNull().default('0'),
   totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
   shippingAddress: jsonb('shipping_address').$type<Record<string, unknown>>().notNull(),

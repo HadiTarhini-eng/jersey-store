@@ -243,12 +243,15 @@ export interface ProductVariant extends BusinessEntity {
   priceOverride?: number | null;
   stockQuantity:  number;
   imageUrl?:      string | null;
+  /** Admin-controlled storefront visibility. Hidden sizes don't render in the variant picker. */
+  isVisible:      boolean;
 }
 
 export interface CreateVariantPayload {
   sku:             string;
   priceOverride?:  number | null;
   stockQuantity?:  number;
+  isVisible?:      boolean;
 }
 
 export interface VariantAttributeValue extends BusinessEntity {
@@ -326,6 +329,8 @@ export interface Order extends BusinessEntity {
   discountAmount:  number;
   /** Coupon code applied to this order, persisted on the orders row. */
   couponCode?:     string | null;
+  /** Number of items the coupon was applied to on this order. 0 when no coupon was used. */
+  couponItemsApplied?: number;
   shippingAmount:  number;
   totalAmount:     number;
   shippingAddress: AddressSnapshot;
@@ -355,6 +360,8 @@ export interface OrderItem extends BusinessEntity {
 export interface CreateGuestOrderPayload {
   guestEmail?:     string | null;
   couponCode?:     string | null;
+  /** How many items the coupon should be applied to. Required when couponCode is set; server revalidates the cap. */
+  couponItemsApplied?: number | null;
   shippingAddress: AddressSnapshot;
   billingAddress?: AddressSnapshot;
   items: {
@@ -376,7 +383,18 @@ export interface ResolvedCouponResponse {
   code:          string;
   discountType:  'percentage' | 'fixed';
   discountValue: number;
+  /** Pro-rated discount amount = full discount × itemsApplied / totalItems. */
   amount:        number;
+  /** How many items the coupon would apply to in this validation (≤ totalItems and ≤ remainingForUser). */
+  itemsApplied:  number;
+  /** Total units across all cart line items at validation time. */
+  totalItems:    number;
+  /** Per-user item cap from the coupon definition, or null when uncapped. */
+  itemsAllowedPerUser: number | null;
+  /** Items the signed-in user has already redeemed against this coupon (0 for guests). */
+  itemsAlreadyUsed: number;
+  /** Items left on the coupon for this user *after* this application would settle. Null when uncapped. */
+  itemsRemainingAfter: number | null;
 }
 
 export interface CreateOrderItemPayload {
@@ -669,16 +687,18 @@ export type UiContentSlot =
  */
 export interface CouponPayload {
   code:          string;
-  /** 'percentage' subtracts `discountValue`% from subtotal; 'fixed' subtracts a flat currency amount. */
+  /** 'percentage' is X% off each selected item; 'fixed' is a flat currency amount off each selected item (capped at item price). */
   discountType:  'percentage' | 'fixed';
   discountValue: number;
   description?:  string;
   /**
-   * Cap on how many times any single signed-in user can redeem this code.
-   * `null` or omitted = no cap. Guest checkouts bypass the cap entirely
-   * because we have no identity to count against.
+   * Cap on how many *items* (units, not orders) any single signed-in user
+   * can redeem this coupon against across all their orders. `null` or
+   * omitted ⇒ no cap. Guest checkouts bypass the cap because we have no
+   * identity to count against. Example: cap = 7, a user redeems 5 items on
+   * one order ⇒ 2 items remain for a future order.
    */
-  usageLimitPerUser?: number | null;
+  itemsAllowedPerUser?: number | null;
   [key: string]: unknown;
 }
 
@@ -689,6 +709,14 @@ export interface AppliedCoupon {
   discountValue: number;
   /** Resolved discount amount in the cart's currency, computed at apply time. */
   amount:        number;
+  /** How many items this coupon is being applied to in the current cart. */
+  itemsApplied:  number;
+  /** Total units across cart line items when the coupon was applied. */
+  totalItems:    number;
+  /** Per-user item cap from the coupon definition, or null when uncapped. */
+  itemsAllowedPerUser: number | null;
+  /** Items left on the coupon for this user after this order settles. Null when uncapped. */
+  itemsRemainingAfter: number | null;
 }
 
 export interface UiContentItem<TPayload extends Record<string, unknown> = Record<string, unknown>> extends BusinessEntity {
@@ -808,7 +836,7 @@ export interface AdminProduct {
   images:         string[];
   description:    string;
   features:       string[];
-  variants:       { size: string; stock: number }[];
+  variants:       { size: string; stock: number; isVisible: boolean }[];
   tags:           string[];
   badge?:         string;
   inStock:        boolean;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { uiContentApi } from '../services/api';
 import { extractErrorMessage } from '../services/api/client';
 import type { UiContentItem, UiContentSlot } from '../types';
@@ -126,8 +126,13 @@ export function useUiContentSlot<T extends AnyPayload>(slot: UiContentSlot, opti
     setRaw((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
+  const items = useMemo(
+    () => raw.map((item) => flatten<T>(item, slot)),
+    [raw, slot],
+  );
+
   return {
-    items: raw.map((item) => flatten<T>(item, slot)),
+    items,
     raw,
     loading,
     error,

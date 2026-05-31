@@ -27,10 +27,18 @@ interface HeroSectionProps {
   designYourOwn: { label: string; href: string };
 }
 
+// Gradient anchors keyed by per-slide `overlay`. Lifted out of the component
+// so we don't rebuild this lookup on every render.
+const OVERLAY_GRADIENT: Record<NonNullable<HeroSlide['overlay']>, string> = {
+  left:   'bg-gradient-to-r from-background via-background/80 to-transparent',
+  right:  'bg-gradient-to-l from-background via-background/80 to-transparent',
+  center: 'bg-gradient-to-t from-background via-background/70 to-background/40',
+  bottom: 'bg-gradient-to-t from-background via-background/85 to-transparent',
+};
+
 function HeroSection({ slide, slides, currentSlide, onSelectSlide, designYourOwn }: HeroSectionProps) {
   const accent  = slide.accent  ?? 'rgb(var(--accent))';
   const align   = slide.align   ?? 'left';
-  const overlay = slide.overlay ?? 'left';
 
   // Where the legible-content block sits horizontally
   const blockAlign = {
@@ -39,25 +47,27 @@ function HeroSection({ slide, slides, currentSlide, onSelectSlide, designYourOwn
     right:  'ml-auto text-right items-end',
   }[align];
 
-  // Dark gradient anchor — keeps headline area readable regardless of image
-  const overlayGradient = {
-    left:   'bg-gradient-to-r from-background via-background/80 to-transparent',
-    right:  'bg-gradient-to-l from-background via-background/80 to-transparent',
-    center: 'bg-gradient-to-t from-background via-background/70 to-background/40',
-    bottom: 'bg-gradient-to-t from-background via-background/85 to-transparent',
-  }[overlay];
-
   return (
     <section className="relative min-h-[55vh] sm:min-h-[65vh] md:min-h-screen flex items-center overflow-hidden">
-      {/* Background image */}
-      <div
-        key={slide.id}
-        className="absolute inset-0 bg-cover bg-center animate-fade-in"
-        style={{ backgroundImage: `url(${slide.image})` }}
-      />
-
-      {/* Dark gradient — anchored per slide */}
-      <div className={`absolute inset-0 ${overlayGradient}`} />
+      {/* Layered slide backgrounds — each slide's image + gradient is mounted
+          exactly once and we crossfade by toggling opacity. Avoids the
+          `key={slide.id}` remount-and-refetch on every auto-advance. */}
+      {slides.map((s, i) => {
+        const active = i === currentSlide;
+        return (
+          <div
+            key={s.id}
+            aria-hidden={!active}
+            className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${active ? 'opacity-100' : 'opacity-0'}`}
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${s.image})` }}
+            />
+            <div className={`absolute inset-0 ${OVERLAY_GRADIENT[s.overlay ?? 'left']}`} />
+          </div>
+        );
+      })}
 
       {/* Bottom fade into the page background */}
       <div className="absolute inset-x-0 bottom-0 h-24 md:h-32 gradient-to-bg" />

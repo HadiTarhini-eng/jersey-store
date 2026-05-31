@@ -39,6 +39,7 @@ export const createGuestOrder = (service: IOrderService) =>
       userId,
       guestEmail: body.guestEmail ?? null,
       couponCode: body.couponCode ?? null,
+      couponItemsApplied: body.couponItemsApplied ?? null,
       shippingAddress: body.shippingAddress,
       billingAddress: body.billingAddress,
       items: body.items,

@@ -17,6 +17,12 @@ export interface CreateGuestOrderInput {
   userId?: Guid | null
   guestEmail?: string | null
   couponCode?: string | null
+  /**
+   * How many items the buyer wants the coupon applied to. Required when
+   * `couponCode` is set; ignored otherwise. The order service revalidates
+   * this against the coupon's per-user item cap before charging.
+   */
+  couponItemsApplied?: number | null
   shippingAddress: AddressSnapshot
   billingAddress?: AddressSnapshot
   items: GuestOrderItemInput[]

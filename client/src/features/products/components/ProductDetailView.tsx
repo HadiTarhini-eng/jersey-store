@@ -37,7 +37,10 @@ function variantSize(v: ProductVariant, slug: string): string {
 const LOW_STOCK_THRESHOLD = 5;
 
 export function ProductDetailView({ product, specs = [], offers = [], attachments = [] }: ProductDetailViewProps) {
-  const variants  = product.variants ?? [];
+  // Only render variants the admin has marked visible. Hidden sizes are
+  // excluded from the picker entirely. Older variants without the column
+  // default to visible.
+  const variants  = (product.variants ?? []).filter((v) => v.isVisible !== false);
   const fallbackImages = product.images ?? [];
   // Prefer attachments (carry both fileUrl and compressedFileUrl for srcSet); fall back to flat URLs.
   const images: GalleryImage[] = attachments.length > 0
@@ -52,7 +55,10 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
   const meta      = useMemo(() => decodeProductTags(product.tags ?? []), [product.tags]);
   const rating    = product.rating ?? 0;
   const reviewCount = product.reviewCount ?? 0;
-  const inStock   = product.inStock ?? variants.some((v) => v.stockQuantity > 0);
+  // Derived from visible variants only — visibility is admin-controlled and
+  // independent of stock. A product is "in stock" iff at least one visible
+  // size has stock > 0.
+  const inStock   = variants.some((v) => v.stockQuantity > 0);
   const description = product.fullDescription ?? product.shortDescription ?? '';
   const currency  = meta.currency || 'USD';
   const totalStock = variants.reduce((sum, v) => sum + Math.max(0, v.stockQuantity), 0);
@@ -164,9 +170,16 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
       <div className="flex flex-col gap-5">
         <BrandKicker brand={product.brand ?? undefined} team={meta.team} sport={meta.sport} />
 
-        <h1 className="font-sport text-4xl md:text-5xl text-primary leading-tight">
-          {product.title}
-        </h1>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <h1 className="font-sport text-4xl md:text-5xl text-primary leading-tight">
+            {product.title}
+          </h1>
+          {!inStock && (
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest bg-danger/15 text-danger border border-danger/40 shrink-0">
+              Out of stock
+            </span>
+          )}
+        </div>
 
         {/* Rating row — always reserved so layout doesn't shift when reviews load */}
         <div className="min-h-[20px]">
@@ -228,6 +241,13 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
               setSelectedVariantId(id);
               setVariantError(false);
               setQuantity(1);
+            }}
+            onOutOfStock={(label) => {
+              toast.push({
+                variant: 'warning',
+                title:   'Out of stock',
+                message: `Size ${label} is currently out of stock.`,
+              });
             }}
             onOpenSizeGuide={() => setSizeGuideOpen(true)}
           />
@@ -436,11 +456,13 @@ function StockLine({ tone, text }: { tone: string; text: string }) {
 }
 
 function VariantSelector({
-  variants, slug, selectedId, error, onSelect, onOpenSizeGuide,
+  variants, slug, selectedId, error, onSelect, onOutOfStock, onOpenSizeGuide,
 }: {
   variants: ProductVariant[]; slug: string;
   selectedId: string; error: boolean;
   onSelect: (id: string) => void;
+  /** Called when the user clicks a size that is visible but has 0 stock. */
+  onOutOfStock: (label: string) => void;
   onOpenSizeGuide: () => void;
 }) {
   return (
@@ -469,13 +491,13 @@ function VariantSelector({
               role="radio"
               aria-checked={selected}
               aria-pressed={selected}
-              disabled={out}
-              onClick={() => onSelect(v.id)}
+              aria-disabled={out}
+              onClick={() => out ? onOutOfStock(label) : onSelect(v.id)}
               className={[
                 'min-w-[3rem] px-3 py-2 rounded-lg border-2 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer',
                 'focus-accent',
                 out
-                  ? 'border-stroke text-muted opacity-40 cursor-not-allowed line-through'
+                  ? 'border-stroke text-muted opacity-40 line-through hover:opacity-60'
                   : selected
                   ? 'border-accent bg-accent text-white shadow-lg shadow-accent/30'
                   : 'border-stroke text-secondary hover:border-white hover:text-white',

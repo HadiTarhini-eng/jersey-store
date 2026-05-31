@@ -205,6 +205,10 @@ function StockEditorModal({ product, onClose, onSave }: StockEditorModalProps) {
     setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, stock: Math.max(0, value) } : v)));
   };
 
+  const toggleVisible = (idx: number) => {
+    setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, isVisible: !v.isVisible } : v)));
+  };
+
   return (
     <Modal isOpen={!!product} onClose={onClose} title={`Stock — ${product.name}`} maxWidth="max-w-lg">
       <div className="space-y-3">
@@ -212,6 +216,15 @@ function StockEditorModal({ product, onClose, onSave }: StockEditorModalProps) {
           <div key={`${v.size}-${i}`} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-stroke bg-surface">
             <span className="font-sport text-xl tracking-wide text-primary uppercase w-12 text-center">{v.size}</span>
             <div className="flex-1 flex items-center gap-2 justify-end">
+              <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-secondary cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={v.isVisible}
+                  onChange={() => toggleVisible(i)}
+                  className="w-4 h-4 accent-accent"
+                />
+                Visible
+              </label>
               <button
                 type="button"
                 onClick={() => setStock(i, v.stock - 1)}
@@ -353,7 +366,7 @@ interface FormState {
   tags:           string;
   gallery:        GalleryEntry[];
   badge:          string;
-  variants:       { size: string; stock: number }[];
+  variants:       { size: string; stock: number; isVisible: boolean }[];
   printable:      boolean;
 }
 
@@ -368,7 +381,7 @@ function fromProduct(p: AdminProductRow | null): FormState {
       price: '', originalPrice: '', currency: 'USD',
       description: '', features: '', tags: '',
       gallery: [], badge: '',
-      variants: defaultSizes.map((size) => ({ size, stock: 0 })),
+      variants: defaultSizes.map((size) => ({ size, stock: 0, isVisible: true })),
       printable: false,
     };
   }
@@ -388,7 +401,11 @@ function fromProduct(p: AdminProductRow | null): FormState {
     badge:         p.badge ?? '',
     variants:      defaultSizes.map((size) => {
       const existing = p.variants.find((v) => v.size === size);
-      return { size, stock: existing?.stock ?? 0 };
+      return {
+        size,
+        stock:     existing?.stock ?? 0,
+        isVisible: existing?.isVisible ?? true,
+      };
     }),
     printable:     p.printable ?? false,
   };
@@ -429,6 +446,13 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
     setForm((prev) => ({
       ...prev,
       variants: prev.variants.map((v) => (v.size === size ? { ...v, stock: Math.max(0, stock) } : v)),
+    }));
+  };
+
+  const toggleVariantVisible = (size: string) => {
+    setForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((v) => (v.size === size ? { ...v, isVisible: !v.isVisible } : v)),
     }));
   };
 
@@ -480,7 +504,7 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
       tags:          form.tags.split(',').map((s) => s.trim()).filter(Boolean),
       variants:      form.variants,
       badge:         form.badge.trim() || undefined,
-      inStock:       form.variants.some((v) => v.stock > 0),
+      inStock:       form.variants.some((v) => v.isVisible && v.stock > 0),
       rating:        initial?.rating ?? 0,
       reviewCount:   initial?.reviewCount ?? 0,
       createdAt:     initial?.createdAt ?? new Date().toISOString(),
@@ -590,10 +614,18 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
           </FormSection>
 
           <FormSection title="Variants & Stock">
-            <p className="text-xs text-secondary mb-2">Set stock per size. Sizes with 0 stock will be marked unavailable on the storefront.</p>
+            <p className="text-xs text-secondary mb-2">
+              Toggle <span className="font-bold">Visible</span> to control which sizes appear on the storefront.
+              Visible sizes with 0 stock are shown disabled with an "out of stock" message; hidden sizes are removed from the picker.
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
               {form.variants.map((v) => (
-                <div key={v.size} className="bg-surface-raised border border-stroke rounded-xl p-3">
+                <div
+                  key={v.size}
+                  className={`border rounded-xl p-3 transition-colors ${
+                    v.isVisible ? 'bg-surface-raised border-stroke' : 'bg-surface-raised/40 border-stroke/40 opacity-60'
+                  }`}
+                >
                   <p className="font-sport text-lg text-center text-primary uppercase tracking-wide">{v.size}</p>
                   <input
                     type="number"
@@ -602,6 +634,15 @@ function ProductForm({ initial, categories, existingSlugs, onSubmit, onCancel, s
                     onChange={(e) => setVariantStock(v.size, Number(e.target.value) || 0)}
                     className={`${lightInputClass} mt-2 text-center text-sm`}
                   />
+                  <label className="mt-2 flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-secondary cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={v.isVisible}
+                      onChange={() => toggleVariantVisible(v.size)}
+                      className="w-3.5 h-3.5 accent-accent"
+                    />
+                    Visible
+                  </label>
                 </div>
               ))}
             </div>

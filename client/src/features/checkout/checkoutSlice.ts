@@ -24,10 +24,11 @@ export const submitOrder = createAsyncThunk<Order, AddressSnapshot, { state: Roo
 
     try {
       const result = await orderApi.createGuest({
-        guestEmail:      null,
-        couponCode:      coupon?.code ?? null,
+        guestEmail:        null,
+        couponCode:        coupon?.code ?? null,
+        couponItemsApplied: coupon?.itemsApplied ?? null,
         shippingAddress,
-        billingAddress:  shippingAddress,
+        billingAddress:    shippingAddress,
         items: items.map((it) => ({
           productVariantId: it.productVariantId,
           quantity:         it.quantity,

@@ -966,16 +966,16 @@ function OfferStripSection() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface CouponRowDraft {
-  code:              string;
-  discountType:      'percentage' | 'fixed';
-  discountValue:     string;
-  description:       string;
-  /** Blank = no cap. Any positive integer caps redemptions for a single user. */
-  usageLimitPerUser: string;
+  code:                string;
+  discountType:        'percentage' | 'fixed';
+  discountValue:       string;
+  description:         string;
+  /** Blank = no cap. Any positive integer caps how many *items* a single user can redeem this coupon against across all their orders. */
+  itemsAllowedPerUser: string;
 }
 
 const emptyDraft: CouponRowDraft = {
-  code: '', discountType: 'percentage', discountValue: '', description: '', usageLimitPerUser: '',
+  code: '', discountType: 'percentage', discountValue: '', description: '', itemsAllowedPerUser: '',
 };
 
 function CouponsSection() {
@@ -991,15 +991,15 @@ function CouponsSection() {
     const value = Number(editing.draft.discountValue);
     if (!code || !Number.isFinite(value) || value <= 0) return;
 
-    // Parse the optional per-user cap. Blank ⇒ no cap (null). Non-positive
+    // Parse the optional per-user item cap. Blank ⇒ no cap (null). Non-positive
     // values are rejected here so the admin can't accidentally save "0" and
     // lock the coupon out for everyone.
-    const limitRaw = editing.draft.usageLimitPerUser.trim();
-    let usageLimitPerUser: number | null = null;
+    const limitRaw = editing.draft.itemsAllowedPerUser.trim();
+    let itemsAllowedPerUser: number | null = null;
     if (limitRaw.length > 0) {
       const parsed = Number(limitRaw);
       if (!Number.isFinite(parsed) || parsed < 1 || !Number.isInteger(parsed)) return;
-      usageLimitPerUser = parsed;
+      itemsAllowedPerUser = parsed;
     }
 
     const payload: CouponPayload = {
@@ -1007,7 +1007,7 @@ function CouponsSection() {
       discountType:  editing.draft.discountType,
       discountValue: value,
       description:   editing.draft.description.trim() || undefined,
-      usageLimitPerUser,
+      itemsAllowedPerUser,
     };
     try {
       if (editing.id) {
@@ -1072,9 +1072,9 @@ function CouponsSection() {
               <div className="flex-1 min-w-0">
                 <p className="font-mono font-bold text-primary tracking-wider flex items-center gap-2">
                   {c.code}
-                  {c.usageLimitPerUser != null && (
+                  {c.itemsAllowedPerUser != null && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-accent/15 text-accent border border-accent/30">
-                      Max {c.usageLimitPerUser}/user
+                      Max {c.itemsAllowedPerUser} item{c.itemsAllowedPerUser === 1 ? '' : 's'}/user
                     </span>
                   )}
                 </p>
@@ -1089,11 +1089,11 @@ function CouponsSection() {
                   setEditing({
                     id: c.id,
                     draft: {
-                      code:              c.code,
-                      discountType:      c.discountType,
-                      discountValue:     String(c.discountValue),
-                      description:       c.description ?? '',
-                      usageLimitPerUser: c.usageLimitPerUser != null ? String(c.usageLimitPerUser) : '',
+                      code:                c.code,
+                      discountType:        c.discountType,
+                      discountValue:       String(c.discountValue),
+                      description:         c.description ?? '',
+                      itemsAllowedPerUser: c.itemsAllowedPerUser != null ? String(c.itemsAllowedPerUser) : '',
                     },
                   })
                 }
@@ -1162,16 +1162,16 @@ function CouponsSection() {
               />
             </EditorField>
             <EditorField
-              label="Usage limit per user (optional)"
-              hint="Leave blank for no cap. Only enforced for signed-in customers — guests bypass the limit."
+              label="Items allowed per user (optional)"
+              hint="Total items a single signed-in customer can apply this coupon to across all orders (a cap of 7 lets them redeem 5 now and 2 later). Leave blank for no cap. Guests bypass the limit."
             >
               <input
                 type="number"
                 min="1"
                 step="1"
-                value={editing.draft.usageLimitPerUser}
-                onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, usageLimitPerUser: e.target.value } })}
-                placeholder="e.g. 1 for a one-time welcome code"
+                value={editing.draft.itemsAllowedPerUser}
+                onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, itemsAllowedPerUser: e.target.value } })}
+                placeholder="e.g. 7 — redeemable on 7 items total per user"
                 className={editorInput}
               />
             </EditorField>

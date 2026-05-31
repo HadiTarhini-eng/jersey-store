@@ -41,6 +41,8 @@ export interface OrderEntity extends BusinessEntity {
   discountAmount: number
   /** Coupon code denormalized from the ui-content coupon slot at submit time. */
   couponCode?: string | null
+  /** How many items the coupon applied to on this order. 0 when no coupon was used. Drives the per-user item cap. */
+  couponItemsApplied?: number
   shippingAmount: number
   totalAmount: number
   shippingAddress: AddressSnapshot
@@ -76,7 +78,7 @@ export interface ReviewEntity extends BusinessEntity {
 
 export type CartPayload = BusinessEntityPayload & Omit<CartEntity, keyof BusinessEntity | 'status'> & { status?: CartStatus }
 export type CartItemPayload = BusinessEntityPayload & Omit<CartItemEntity, keyof BusinessEntity>
-export type OrderPayload = BusinessEntityPayload & Omit<OrderEntity, keyof BusinessEntity | 'status' | 'paymentStatus' | 'discountAmount' | 'shippingAmount' | 'totalAmount' | 'rejectionReason' | 'adminMessageReadAt'> & {
+export type OrderPayload = BusinessEntityPayload & Omit<OrderEntity, keyof BusinessEntity | 'status' | 'paymentStatus' | 'discountAmount' | 'shippingAmount' | 'totalAmount' | 'rejectionReason' | 'adminMessageReadAt' | 'couponItemsApplied'> & {
   status?: OrderStatus
   paymentStatus?: PaymentStatus
   discountAmount?: number
@@ -84,6 +86,7 @@ export type OrderPayload = BusinessEntityPayload & Omit<OrderEntity, keyof Busin
   totalAmount?: number
   rejectionReason?: string | null
   adminMessageReadAt?: Date | null
+  couponItemsApplied?: number
 }
 export type OrderItemPayload = BusinessEntityPayload & Omit<OrderItemEntity, keyof BusinessEntity | 'totalPrice'> & { totalPrice?: number }
 export type ReviewPayload = BusinessEntityPayload & Omit<ReviewEntity, keyof BusinessEntity | 'isVerifiedPurchase'> & { isVerifiedPurchase?: boolean }
@@ -143,6 +146,7 @@ export class Order extends BaseEntity implements OrderEntity {
   subtotal: number
   discountAmount: number
   couponCode?: string | null
+  couponItemsApplied: number
   shippingAmount: number
   totalAmount: number
   shippingAddress: AddressSnapshot
@@ -161,6 +165,7 @@ export class Order extends BaseEntity implements OrderEntity {
     this.subtotal = payload.subtotal
     this.discountAmount = payload.discountAmount ?? 0
     this.couponCode = payload.couponCode ?? null
+    this.couponItemsApplied = payload.couponItemsApplied ?? 0
     this.shippingAmount = payload.shippingAmount ?? 0
     this.totalAmount = payload.totalAmount ?? this.calculateTotal()
     this.shippingAddress = payload.shippingAddress

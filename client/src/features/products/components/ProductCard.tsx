@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { formatPrice, discountPercent } from '../../../utils/formatters';
 import { productPath } from '../../../config/routes';
@@ -24,8 +25,13 @@ function StarIcon({ filled }: { filled: boolean }) {
 /**
  * Product tile — pure navigation. Clicking opens the detail page where the
  * customer picks a size and adds to cart. No quick-add overlay.
+ *
+ * Memoized so that high-frequency parent re-renders (e.g. ProductSlider's
+ * scroll handler updating arrow/progress state) don't re-reconcile every
+ * card's <img>. The default shallow equality on `product` is what we want:
+ * upstream hooks now hand us stable references.
  */
-export function ProductCard({ product }: ProductCardProps) {
+function ProductCardImpl({ product }: ProductCardProps) {
   const primaryImage = product.images?.[0];
   const rating       = product.rating ?? 0;
   const reviewCount  = product.reviewCount ?? 0;
@@ -96,3 +102,5 @@ export function ProductCard({ product }: ProductCardProps) {
     </Link>
   );
 }
+
+export const ProductCard = memo(ProductCardImpl);

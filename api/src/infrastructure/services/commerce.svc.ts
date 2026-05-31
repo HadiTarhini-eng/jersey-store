@@ -228,9 +228,14 @@ export class OrderService implements IOrderService {
     // Resolve each line: pull the variant, its parent product, snapshot the
     // current sell price, and enforce the printable guardrail. One DB hit per
     // distinct variant — fine for the small carts this storefront sees.
+    //
+    // We also sum the requested quantity per variant so we can validate that
+    // total demand (across multiple cart lines for the same SKU + different
+    // print options) doesn't exceed available stock.
     const orderId = crypto.randomUUID()
     let subtotal = 0
     const resolvedItems: OrderItem[] = []
+    const demandByVariant = new Map<Guid, number>()
     for (const entry of input.items) {
       assertGuid(entry.productVariantId, 'productVariantId')
       assertInteger(entry.quantity, 'quantity')
@@ -242,6 +247,13 @@ export class OrderService implements IOrderService {
       if ((customName || customNumber) && !product.printable) {
         throw new ValidationError(`Product "${product.title}" does not support custom name/number`)
       }
+      const totalForVariant = (demandByVariant.get(variant.id) ?? 0) + entry.quantity
+      if (totalForVariant > variant.stockQuantity) {
+        throw new ValidationError(
+          `Insufficient stock for "${product.title}" (${variant.sku}): requested ${totalForVariant}, available ${variant.stockQuantity}`,
+        )
+      }
+      demandByVariant.set(variant.id, totalForVariant)
       const unitPrice = roundCents(variant.priceOverride ?? product.basePrice)
       const totalPrice = roundCents(unitPrice * entry.quantity)
       subtotal = roundCents(subtotal + totalPrice)
@@ -260,14 +272,32 @@ export class OrderService implements IOrderService {
 
     // Resolve coupon: a missing/inactive code is a hard error so the customer
     // sees a clear "coupon invalid" message rather than a silently-dropped
-    // discount. Zero-amount resolutions are also rejected upstream.
+    // discount. Zero-amount resolutions are also rejected upstream. We
+    // re-validate with the caller's identity (when present) so the per-user
+    // item cap is enforced server-side — the client toast was advisory only.
     let discountAmount = 0
     let couponCode: string | null = null
+    let couponItemsApplied = 0
     if (input.couponCode && input.couponCode.trim().length > 0) {
       if (!this.couponService) throw new ValidationError('Coupon validation is unavailable')
-      const resolved = await this.couponService.validate(input.couponCode, subtotal)
+      const totalItems = resolvedItems.reduce((sum, item) => sum + item.quantity, 0)
+      const requestedItems = input.couponItemsApplied ?? totalItems
+      if (!Number.isInteger(requestedItems) || requestedItems < 1) {
+        throw new ValidationError('couponItemsApplied must be a positive integer when applying a coupon')
+      }
+      if (requestedItems > totalItems) {
+        throw new ValidationError(`Cannot apply coupon to ${requestedItems} items — cart only has ${totalItems}`)
+      }
+      const resolved = await this.couponService.validate(
+        input.couponCode,
+        subtotal,
+        requestedItems,
+        totalItems,
+        input.userId ?? null,
+      )
       discountAmount = resolved.amount
       couponCode = resolved.code
+      couponItemsApplied = resolved.itemsApplied
     }
 
     const totalAmount = roundCents(Math.max(0, subtotal - discountAmount))
@@ -283,6 +313,7 @@ export class OrderService implements IOrderService {
       subtotal,
       discountAmount,
       couponCode,
+      couponItemsApplied,
       shippingAmount: 0,
       totalAmount,
       shippingAddress: input.shippingAddress,
@@ -294,6 +325,12 @@ export class OrderService implements IOrderService {
     }
     await this.orderRepository.create(order)
     await Promise.all(resolvedItems.map((item) => this.orderItemRepository.create(item)))
+
+    // Deduct stock immediately at checkout so concurrent shoppers see the
+    // accurate available count and can't double-claim the same units. The
+    // stock is restored if the admin later cancels the order — see
+    // `updateOrderStatus` / `cancelOrder`.
+    await this.adjustStockForOrder(order.id, 'deduct')
 
     // New orders enter the admin workflow at `pending`. The admin's "Confirm
     // order" action is what moves them forward to `processing`; previously this
@@ -361,20 +398,13 @@ export class OrderService implements IOrderService {
 
     // ── Stock adjustments tied to the workflow ────────────────────────────
     //
-    // Inventory is held during creation (status = pending) but NOT deducted
-    // until the admin confirms the order — that's the pending → processing
-    // transition. If the admin then cancels a confirmed/processing/shipped
-    // order, we restore the stock so the catalog reflects reality.
-    //
-    // delivered → no stock change (already deducted on confirm).
-    // pending → cancelled → no stock change (never deducted).
+    // Stock is deducted at checkout (see `createGuestOrder`) so concurrent
+    // shoppers see accurate availability. The only workflow-driven stock
+    // change is the restore that happens when the admin cancels an order
+    // that hadn't already been cancelled — that releases the held units
+    // back to the catalog.
     const moving = status !== order.status
-    if (moving && order.status === 'pending' && status === 'processing') {
-      await this.adjustStockForOrder(id, 'deduct')
-    } else if (
-      moving && status === 'cancelled' &&
-      (order.status === 'processing' || order.status === 'shipped' || order.status === 'confirmed')
-    ) {
+    if (moving && status === 'cancelled' && order.status !== 'cancelled') {
       await this.adjustStockForOrder(id, 'restore')
     }
 
@@ -431,6 +461,11 @@ export class OrderService implements IOrderService {
     assertGuid(id)
     const order = await this.orderRepository.require(id, 'Order')
     if (order.status === 'shipped' || order.status === 'delivered') throw new ValidationError('Shipped or delivered orders cannot be cancelled')
+    // Already-cancelled orders had their stock restored on the first cancel —
+    // don't double-restore.
+    if (order.status !== 'cancelled') {
+      await this.adjustStockForOrder(id, 'restore')
+    }
     return this.orderRepository.update(id, { status: 'cancelled', isActive: false } as Partial<Order>)
   }
 

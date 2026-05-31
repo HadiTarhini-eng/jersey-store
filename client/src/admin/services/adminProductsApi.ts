@@ -37,7 +37,11 @@ function productToAdmin(product: Product, variants: ProductVariant[], images: st
     tags:          meta.tags,
     badge:         meta.badge,
     printable,
-    variants:      variants.map((v) => ({ size: variantSize(v, product.slug), stock: v.stockQuantity })),
+    variants:      variants.map((v) => ({
+      size:      variantSize(v, product.slug),
+      stock:     v.stockQuantity,
+      isVisible: v.isVisible ?? true,
+    })),
     inStock:       variants.some((v) => v.stockQuantity > 0),
     rating:        0,
     reviewCount:   0,
@@ -146,10 +150,14 @@ export const adminProductsApi = {
     const payload = adminToProductPayload(input, input.categoryId, createdBy);
     const product = await productApi.create(payload, input.newImageFiles);
 
-    for (const variant of input.variants.filter((v) => v.stock > 0)) {
+    // Materialise every size as a variant so visibility can be toggled
+    // independently of stock. Stock can be 0; visibility defaults to true
+    // when the admin hasn't explicitly hidden it.
+    for (const variant of input.variants) {
       await productApi.variants.create(product.id, {
         sku:           `${input.slug}-${variant.size}`,
         stockQuantity: variant.stock,
+        isVisible:     variant.isVisible,
       });
     }
 
@@ -172,22 +180,22 @@ export const adminProductsApi = {
       await productApi.images.create(id, file, sortOrder).catch(() => undefined);
     }
 
-    // Variant deltas: update existing sizes, create new ones, deactivate removed sizes
-    const wantSizes = new Set(input.variants.filter((v) => v.stock > 0).map((v) => v.size));
+    // Variant deltas: stock + visibility are now independent. Materialise
+    // every size as a variant; toggle `isVisible` for storefront visibility.
+    // Out-of-stock sizes stay around so the admin can flip visibility later.
     for (const variant of input.variants) {
       const variantId = existing.variantIdsBySize[variant.size];
       if (variantId) {
-        await productApi.variants.setStock(variantId, variant.stock).catch(() => undefined);
-      } else if (variant.stock > 0) {
+        await productApi.variants.update(variantId, {
+          stockQuantity: variant.stock,
+          isVisible:     variant.isVisible,
+        }).catch(() => undefined);
+      } else {
         await productApi.variants.create(id, {
           sku:           `${input.slug}-${variant.size}`,
           stockQuantity: variant.stock,
+          isVisible:     variant.isVisible,
         }).catch(() => undefined);
-      }
-    }
-    for (const [size, variantId] of Object.entries(existing.variantIdsBySize)) {
-      if (!wantSizes.has(size)) {
-        await productApi.variants.deactivate(variantId).catch(() => undefined);
       }
     }
 
@@ -202,11 +210,15 @@ export const adminProductsApi = {
     for (const variant of variants) {
       const variantId = existing.variantIdsBySize[variant.size];
       if (variantId) {
-        await productApi.variants.setStock(variantId, variant.stock).catch(() => undefined);
-      } else if (variant.stock > 0) {
+        await productApi.variants.update(variantId, {
+          stockQuantity: variant.stock,
+          isVisible:     variant.isVisible,
+        }).catch(() => undefined);
+      } else {
         await productApi.variants.create(productId, {
           sku:           `${existing.slug}-${variant.size}`,
           stockQuantity: variant.stock,
+          isVisible:     variant.isVisible,
         }).catch(() => undefined);
       }
     }

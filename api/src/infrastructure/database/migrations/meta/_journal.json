@@ -36,6 +36,20 @@
       "when": 1780055130000,
       "tag": "20260529102530_homepage_section_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780228800000,
+      "tag": "20260531120000_product_variant_visibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780315200000,
+      "tag": "20260601000000_coupon_items_applied",
+      "breakpoints": true
     }
   ]
 }

@@ -27,20 +27,37 @@ export function isCouponPayload(payload: unknown): payload is CouponPayload {
   if (typeof p.code !== 'string' || p.code.trim().length === 0) return false
   if (typeof p.discountType !== 'string' || !COUPON_DISCOUNT_TYPES.includes(p.discountType as CouponDiscountType)) return false
   if (typeof p.discountValue !== 'number' || !Number.isFinite(p.discountValue) || p.discountValue < 0) return false
-  // usageLimitPerUser is optional; if present it must be a positive number or null.
-  if (p.usageLimitPerUser !== undefined && p.usageLimitPerUser !== null) {
-    if (typeof p.usageLimitPerUser !== 'number' || !Number.isFinite(p.usageLimitPerUser) || p.usageLimitPerUser < 1) return false
+  // itemsAllowedPerUser is optional; if present must be a positive integer or null.
+  if (p.itemsAllowedPerUser !== undefined && p.itemsAllowedPerUser !== null) {
+    if (typeof p.itemsAllowedPerUser !== 'number' || !Number.isFinite(p.itemsAllowedPerUser) || p.itemsAllowedPerUser < 1) return false
   }
   return true
 }
 
-export function computeCouponAmount(payload: CouponPayload, subtotal: number): number {
-  if (subtotal <= 0) return 0
+/**
+ * Pro-rated per-item discount. The coupon's nominal discount (full subtotal
+ * basis) is scaled by itemsApplied / totalItems so that applying to fewer
+ * items yields a proportionally smaller discount. Both branches are bounded
+ * at the (scaled) subtotal so the amount never exceeds what the customer
+ * actually owes for those items.
+ */
+export function computeCouponAmount(
+  payload: CouponPayload,
+  subtotal: number,
+  itemsApplied: number,
+  totalItems: number,
+): number {
+  if (subtotal <= 0 || totalItems <= 0 || itemsApplied <= 0) return 0
+  const ratio = Math.min(1, Math.max(0, itemsApplied / totalItems))
+  const eligibleSubtotal = subtotal * ratio
   if (payload.discountType === 'percentage') {
     const pct = Math.min(100, Math.max(0, payload.discountValue))
-    return roundCents((subtotal * pct) / 100)
+    return roundCents((eligibleSubtotal * pct) / 100)
   }
-  return roundCents(Math.min(subtotal, Math.max(0, payload.discountValue)))
+  // Fixed-amount coupons treat `discountValue` as a per-item amount and cap
+  // at the eligible subtotal so the customer can't be paid to take items.
+  const fixedTotal = Math.max(0, payload.discountValue) * itemsApplied
+  return roundCents(Math.min(eligibleSubtotal, fixedTotal))
 }
 
 export class CouponService implements ICouponService {
@@ -51,8 +68,8 @@ export class CouponService implements ICouponService {
 
   /**
    * Look up the coupon row + payload by code. Internal helper — both resolve()
-   * and validate() use it. Returns the row so the per-user-limit check can
-   * read `usageLimitPerUser` from the payload.
+   * and validate() use it. Returns the payload so the per-user-cap check can
+   * read `itemsAllowedPerUser` from it.
    */
   private async findActivePayload(code: string): Promise<CouponPayload | null> {
     const trimmed = code.trim().toUpperCase()
@@ -67,62 +84,102 @@ export class CouponService implements ICouponService {
     return null
   }
 
-  async resolve(code: string, subtotal: number): Promise<ResolvedCoupon | null> {
+  async resolve(code: string, subtotal: number, itemCount: number, totalItems: number): Promise<ResolvedCoupon | null> {
     if (!code || typeof code !== 'string') return null
     if (!Number.isFinite(subtotal) || subtotal < 0) return null
+    if (!Number.isInteger(itemCount) || itemCount < 1) return null
+    if (!Number.isInteger(totalItems) || totalItems < itemCount) return null
     const payload = await this.findActivePayload(code)
     if (!payload) return null
-    const amount = computeCouponAmount(payload, subtotal)
+    const amount = computeCouponAmount(payload, subtotal, itemCount, totalItems)
     return {
       code: payload.code,
       discountType: payload.discountType,
       discountValue: payload.discountValue,
       amount,
+      itemsApplied: itemCount,
+      totalItems,
+      itemsAllowedPerUser: payload.itemsAllowedPerUser ?? null,
+      itemsAlreadyUsed: 0,
+      itemsRemainingAfter: payload.itemsAllowedPerUser != null
+        ? Math.max(0, payload.itemsAllowedPerUser - itemCount)
+        : null,
     }
   }
 
-  async validate(code: string, subtotal: number, userId?: string | null): Promise<ResolvedCoupon> {
+  async validate(
+    code: string,
+    subtotal: number,
+    itemCount: number,
+    totalItems: number,
+    userId?: string | null,
+  ): Promise<ResolvedCoupon> {
     if (!Number.isFinite(subtotal) || subtotal < 0) {
       throw new ValidationError('subtotal cannot be negative')
+    }
+    if (!Number.isInteger(itemCount) || itemCount < 1) {
+      throw new ValidationError('itemCount must be a positive integer')
+    }
+    if (!Number.isInteger(totalItems) || totalItems < 1) {
+      throw new ValidationError('totalItems must be a positive integer')
+    }
+    if (itemCount > totalItems) {
+      throw new ValidationError(`Cannot apply coupon to ${itemCount} items — cart only has ${totalItems}`)
     }
     const payload = await this.findActivePayload(code)
     if (!payload) throw new NotFoundError('Coupon')
 
-    const amount = computeCouponAmount(payload, subtotal)
-    if (amount <= 0) throw new ValidationError('Coupon resolves to zero discount')
-
-    // Per-user redemption cap. Only enforced when:
-    //  - the coupon explicitly sets `usageLimitPerUser`, AND
+    // Per-user item cap. Only enforced when:
+    //  - the coupon explicitly sets `itemsAllowedPerUser`, AND
     //  - the caller is authenticated (we can identify them by userId).
-    // Guests bypass the cap because we have no reliable identity to count
-    // against — shops that want to gate guests should disable the coupon.
-    if (payload.usageLimitPerUser && userId) {
-      const used = await this.countRedemptionsForUser(payload.code, userId)
-      if (used >= payload.usageLimitPerUser) {
-        throw new ValidationError(`Coupon ${payload.code} has already been used the maximum number of times by this account`)
+    // Guests bypass the cap entirely — we have no reliable identity to count
+    // against — so for them itemsAlreadyUsed stays 0.
+    let itemsAlreadyUsed = 0
+    if (payload.itemsAllowedPerUser && userId) {
+      itemsAlreadyUsed = await this.countItemsUsedByUser(payload.code, userId)
+      const remaining = Math.max(0, payload.itemsAllowedPerUser - itemsAlreadyUsed)
+      if (remaining <= 0) {
+        throw new ValidationError(`You've used all ${payload.itemsAllowedPerUser} items available on ${payload.code}.`)
+      }
+      if (itemCount > remaining) {
+        throw new ValidationError(
+          `Only ${remaining} item${remaining === 1 ? '' : 's'} left on ${payload.code} for this account — try applying it to ${remaining} item${remaining === 1 ? '' : 's'} instead.`,
+        )
       }
     }
+
+    const amount = computeCouponAmount(payload, subtotal, itemCount, totalItems)
+    if (amount <= 0) throw new ValidationError('Coupon resolves to zero discount')
+
+    const itemsRemainingAfter = payload.itemsAllowedPerUser != null
+      ? Math.max(0, payload.itemsAllowedPerUser - itemsAlreadyUsed - itemCount)
+      : null
 
     return {
       code: payload.code,
       discountType: payload.discountType,
       discountValue: payload.discountValue,
       amount,
+      itemsApplied: itemCount,
+      totalItems,
+      itemsAllowedPerUser: payload.itemsAllowedPerUser ?? null,
+      itemsAlreadyUsed,
+      itemsRemainingAfter,
     }
   }
 
   /**
-   * Count this user's orders that successfully redeemed the given coupon.
-   * Both cancelled and successful orders count toward the limit — once a code
-   * is used at submit time, that redemption sticks. If a shop wants to allow
-   * re-use after cancel, swap this to exclude `status = 'cancelled'`.
+   * Sum up the items this user has previously applied this coupon to.
+   * Cancelled orders count too — once a code redemption is recorded, the
+   * units are spent. If a shop wants to refund the units on cancel, swap
+   * this to exclude `status = 'cancelled'`.
    */
-  private async countRedemptionsForUser(code: string, userId: string): Promise<number> {
+  private async countItemsUsedByUser(code: string, userId: string): Promise<number> {
     const { db } = await import('../database/db.js')
     const rows = await db
-      .select({ count: sql<number>`count(*)::int` })
+      .select({ used: sql<number>`coalesce(sum(${orders.couponItemsApplied}), 0)::int` })
       .from(orders)
       .where(and(eq(orders.userId, userId), eq(orders.couponCode, code)))
-    return Number(rows[0]?.count ?? 0)
+    return Number(rows[0]?.used ?? 0)
   }
 }

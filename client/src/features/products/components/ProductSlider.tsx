@@ -12,26 +12,47 @@ export function ProductSlider({ products }: ProductSliderProps) {
   const [canRight, setCanRight]     = React.useState(false);
   const [progress, setProgress]     = React.useState(0);
 
-  const sync = React.useCallback(() => {
-    const el = trackRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setCanLeft(el.scrollLeft > 4);
-    setCanRight(el.scrollLeft < max - 4);
-    setProgress(max > 0 ? el.scrollLeft / max : 0);
-  }, []);
-
+  // rAF-coalesced: native scroll fires far more often than the browser
+  // paints, so we schedule one read+commit per frame and bail when neither
+  // the arrow visibility nor the progress bucket actually changed. Skipping
+  // identical commits keeps memoized ProductCards out of React's render path
+  // and prevents image elements from being touched on every scroll tick.
   React.useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
-    sync();
-    el.addEventListener('scroll', sync, { passive: true });
-    window.addEventListener('resize', sync, { passive: true });
-    return () => {
-      el.removeEventListener('scroll', sync);
-      window.removeEventListener('resize', sync);
+
+    let rafId = 0;
+    let scheduled = false;
+
+    const commit = () => {
+      scheduled = false;
+      const node = trackRef.current;
+      if (!node) return;
+      const max = node.scrollWidth - node.clientWidth;
+      const nextLeft  = node.scrollLeft > 4;
+      const nextRight = node.scrollLeft < max - 4;
+      // Bucket progress to ~1% steps so we don't re-render on every pixel.
+      const nextProgress = max > 0 ? Math.round((node.scrollLeft / max) * 100) / 100 : 0;
+      setCanLeft((prev)   => (prev === nextLeft  ? prev : nextLeft));
+      setCanRight((prev)  => (prev === nextRight ? prev : nextRight));
+      setProgress((prev)  => (prev === nextProgress ? prev : nextProgress));
     };
-  }, [sync, products.length]);
+
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      rafId = requestAnimationFrame(commit);
+    };
+
+    commit();
+    el.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule, { passive: true });
+    return () => {
+      cancelAnimationFrame(rafId);
+      el.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [products.length]);
 
   const scroll = (dir: 'left' | 'right') => {
     const el = trackRef.current;
