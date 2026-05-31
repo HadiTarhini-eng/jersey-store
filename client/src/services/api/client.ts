@@ -2,13 +2,14 @@
  * Single Axios instance for the entire app.
  * Every API module under services/api/* imports from here.
  *
- * Backend: Fastify @ http://localhost:3000 (no /api prefix).
+ * Backend: Fastify served same-origin under /api.
+ * In dev, Vite proxies /api -> http://localhost:3000 (see vite.config.ts).
  * Auth: single JWT bearer token — no refresh-token flow.
  */
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { getAccessToken, clearAccessToken } from '../../utils/storage';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 export const api = axios.create({
   baseURL: BASE_URL,

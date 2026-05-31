@@ -49,6 +49,7 @@ import { mappers } from "../../repositories/mappers.js"
 import config from "../plugins/config.js"
 import jwt from "../plugins/jwt.js"
 import docs from "../plugins/docs.js"
+import staticClient from "../plugins/static-client.js"
 import "dotenv/config"
 
 export const createServer = async (): Promise<FastifyInstance> => {
@@ -168,15 +169,19 @@ export const createServer = async (): Promise<FastifyInstance> => {
     }
 
     const applicationRoutes = routes(userService, storeServices)
-    applicationRoutes.forEach((route) => {
-        if (route.protected != false) {
-            route.preValidation = route.roles
-                ? [server.authenticate, server.authorize(route.roles)]
-                : [server.authenticate]
-        }
+    await server.register(async (apiScope) => {
+        applicationRoutes.forEach((route) => {
+            if (route.protected != false) {
+                route.preValidation = route.roles
+                    ? [server.authenticate, server.authorize(route.roles)]
+                    : [server.authenticate]
+            }
 
-        server.route(route)
-    })
+            apiScope.route(route)
+        })
+    }, { prefix: "/api" })
+
+    await server.register(staticClient)
 
     await server.ready()
     return server

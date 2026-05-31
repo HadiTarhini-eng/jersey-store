@@ -1,0 +1,17 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: jersey-store
+    container_name: jersey-store
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 3000
+      CLIENT_DIST_PATH: /app/client/dist
+    restart: unless-stopped
