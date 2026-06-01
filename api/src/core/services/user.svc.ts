@@ -7,7 +7,7 @@ export interface IUserService {
   updateUser: (id: Guid, user: Partial<User>) => Promise<User>
   activateUser: (id: Guid) => Promise<User>
   deactivateUser: (id: Guid) => Promise<User>
-  changePassword: (id: Guid, password: string) => Promise<User>
+  changePassword: (id: Guid, currentPassword: string, newPassword: string) => Promise<User>
   changeRole: (id: Guid, role: UserRole | string) => Promise<User>
   setProfileImage: (id: Guid, file: ImageFile) => Promise<User>
   removeProfileImage: (id: Guid) => Promise<User>

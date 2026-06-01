@@ -2,9 +2,9 @@ import { type Guid } from '../../core/entities/base.js'
 import { User, type UserRole } from '../../core/entities/user.js'
 import { type ImageFile, type IStorageService } from '../../core/services/storage.svc.js'
 import { type IUserService } from '../../core/services/user.svc.js'
-import { HashPassword } from '../../utils/hash.js'
+import { HashPassword, VerifyPassword } from '../../utils/hash.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
-import { ConflictError, ValidationError } from './errors.js'
+import { ConflictError, ServiceError, ValidationError } from './errors.js'
 import { deleteInlineImage, uploadInlineImage } from './image.svc.js'
 import { assertEmail, assertGuid, assertRequiredString } from './validators.js'
 
@@ -47,10 +47,16 @@ export class UserService implements IUserService {
     return this.userRepository.update(id, { isActive: false } as Partial<User>)
   }
 
-  async changePassword(id: Guid, password: string): Promise<User> {
+  async changePassword(id: Guid, currentPassword: string, newPassword: string): Promise<User> {
     assertGuid(id)
-    this.assertPassword(password)
-    return this.userRepository.update(id, { passwordHash: HashPassword(password) } as Partial<User>)
+    assertRequiredString(currentPassword, 'currentPassword', 128)
+    this.assertPassword(newPassword)
+    const user = await this.userRepository.require(id, 'User')
+    // Must prove knowledge of the existing password before changing it.
+    if (!VerifyPassword({ password: currentPassword, hash: user.passwordHash })) {
+      throw new ServiceError('Current password is incorrect', 401)
+    }
+    return this.userRepository.update(id, { passwordHash: HashPassword(newPassword) } as Partial<User>)
   }
 
   async changeRole(id: Guid, role: UserRole | string): Promise<User> {

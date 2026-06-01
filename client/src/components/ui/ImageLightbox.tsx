@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
 
 export interface LightboxImage {
-  src:     string;
-  srcSet?: string;
-  alt?:    string;
+  src:   string;
+  /** Original (full-res) URL — preferred for the zoom view; falls back to `src`. */
+  full?: string;
+  alt?:  string;
 }
 
 interface ImageLightboxProps {
@@ -89,10 +90,14 @@ export function ImageLightbox({ images, index, onClose, onChange }: ImageLightbo
       )}
 
       <img
-        src={active.src}
-        srcSet={active.srcSet}
+        src={active.full ?? active.src}
         alt={active.alt ?? `Image ${index + 1} of ${images.length}`}
         className="max-w-[92vw] max-h-[88vh] object-contain"
+        onError={(e) => {
+          // Fall back to the compressed src if the original fails to load.
+          const img = e.target as HTMLImageElement;
+          if (img.src !== active.src) img.src = active.src;
+        }}
       />
 
       <span className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-muted bg-surface/80 px-3 py-1 rounded-full">

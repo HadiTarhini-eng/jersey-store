@@ -210,6 +210,11 @@ export function Header() {
                       <NavLink to="/orders"    role="menuitem" className={({ isActive }) => `block px-4 py-2.5 text-sm font-semibold uppercase tracking-wider transition-colors ${isActive ? 'text-accent bg-white/5' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>My Orders</NavLink>
                       <NavLink to="/favorites" role="menuitem" className={({ isActive }) => `block px-4 py-2.5 text-sm font-semibold uppercase tracking-wider transition-colors ${isActive ? 'text-accent bg-white/5' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>Favorites</NavLink>
                       <NavLink to="/profile"   role="menuitem" className={({ isActive }) => `block px-4 py-2.5 text-sm font-semibold uppercase tracking-wider transition-colors ${isActive ? 'text-accent bg-white/5' : 'text-white/80 hover:text-white hover:bg-white/10'}`}>Profile</NavLink>
+                      {user?.role === 'Admin' && (
+                        <NavLink to="/admin" role="menuitem" className="block px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-accent hover:bg-white/10 transition-colors border-t border-white/10">
+                          Admin Dashboard
+                        </NavLink>
+                      )}
                       <button
                         type="button"
                         onClick={() => { setAccountOpen(false); logout(); }}

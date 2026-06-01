@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { useAppDispatch } from '../app/hooks';
 import { setUser } from '../features/auth/authSlice';
@@ -41,11 +42,131 @@ export function ProfilePage() {
         {/* Saved shipping address */}
         <ShippingAddressSection user={user} />
 
+        {/* Change password */}
+        <ChangePasswordSection userId={user.id} />
+
+        {/* Admin shortcut — only for admins */}
+        {user.role === 'Admin' && (
+          <Link
+            to="/admin"
+            className="flex items-center justify-between gap-3 bg-surface rounded-2xl border border-accent/40 p-5 hover:border-accent transition-colors group"
+          >
+            <div>
+              <p className="font-semibold text-primary">Admin dashboard</p>
+              <p className="text-sm text-muted">Manage products, orders, offers and settings.</p>
+            </div>
+            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-white text-sm font-bold uppercase tracking-wider group-hover:bg-accent-light transition-colors shrink-0">
+              Open
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </span>
+          </Link>
+        )}
+
         {/* Sign out */}
         <Button variant="danger" onClick={logout}>
           Sign Out
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ── Change password ────────────────────────────────────────────────────────────
+
+function ChangePasswordSection({ userId }: { userId: string }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm]   = useState('');
+  const [busy, setBusy]         = useState(false);
+
+  const reset = () => { setCurrent(''); setPassword(''); setConfirm(''); setEditing(false); };
+
+  const save = async () => {
+    if (!current) {
+      toast.push({ variant: 'warning', message: 'Enter your current password.' });
+      return;
+    }
+    if (password.length < 8) {
+      toast.push({ variant: 'warning', message: 'New password must be at least 8 characters.' });
+      return;
+    }
+    if (password !== confirm) {
+      toast.push({ variant: 'warning', message: 'Passwords don’t match.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      await userApi.changePassword(userId, current, password);
+      toast.push({ variant: 'success', message: 'Password updated.' });
+      reset();
+    } catch (err) {
+      toast.push({ variant: 'error', message: extractErrorMessage(err, 'Could not update password.') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface rounded-2xl border border-stroke p-6 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-primary">Password</h2>
+        {!editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-xs font-bold uppercase tracking-wider text-accent hover:text-accent-light transition-colors"
+          >
+            Change
+          </button>
+        )}
+      </div>
+
+      {!editing ? (
+        <p className="text-sm text-muted">Set a new password for your account.</p>
+      ) : (
+        <div className="space-y-4">
+          <Input
+            label="Current password"
+            type="password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            autoComplete="current-password"
+            placeholder="Your current password"
+          />
+          <Input
+            label="New password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            placeholder="At least 8 characters"
+          />
+          <Input
+            label="Confirm new password"
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            autoComplete="new-password"
+            error={confirm.length > 0 && confirm !== password ? 'Passwords don’t match' : undefined}
+            placeholder="Re-enter your new password"
+          />
+          <div className="flex items-center gap-3 pt-1">
+            <Button
+              variant="primary"
+              onClick={save}
+              loading={busy}
+              disabled={!current || password.length < 8 || password !== confirm}
+            >
+              Update password
+            </Button>
+            <Button variant="ghost" onClick={reset} disabled={busy}>Cancel</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

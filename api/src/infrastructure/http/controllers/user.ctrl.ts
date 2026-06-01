@@ -63,8 +63,8 @@ export const changePassword = (service: IUserService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const { id } = request.params as IdParams
     assertOwner(request, id)
-    const { password } = request.body as ChangePasswordBodyType
-    sendOk(reply, await service.changePassword(id, password))
+    const { currentPassword, password } = request.body as ChangePasswordBodyType
+    sendOk(reply, await service.changePassword(id, currentPassword, password))
   }
 
 export const changeRole = (service: IUserService) =>

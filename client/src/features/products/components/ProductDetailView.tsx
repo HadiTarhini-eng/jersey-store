@@ -14,9 +14,11 @@ import type { Attachment, Product, ProductPerk, ProductVariant, SpecialOffer } f
 export interface ProductSpec { id: string; label: string; value: string; }
 
 interface GalleryImage {
-  src:     string;
-  srcSet?: string;
-  alt?:    string;
+  /** Compressed URL — used for the small thumbnails and the cart line image. */
+  src:  string;
+  /** Original (full-res) URL — used for the large main image and the zoom viewer. */
+  full: string;
+  alt?: string;
 }
 
 interface ProductDetailViewProps {
@@ -69,16 +71,17 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
     .slice()
     .sort(bySize);
   const fallbackImages = product.images ?? [];
-  // Prefer attachments (carry both fileUrl and compressedFileUrl for srcSet); fall back to flat URLs.
+  // Attachments carry both the original (`fileUrl`) and the compressed
+  // (`compressedFileUrl`) URLs. Thumbnails/cart use the compressed `src`; the
+  // main image + zoom use the original `full`. Flat fallback URLs are already
+  // compressed, so both point at the same string.
   const images: GalleryImage[] = attachments.length > 0
     ? attachments.map((a) => ({
-        src:    a.compressedFileUrl ?? a.fileUrl,
-        srcSet: a.compressedFileUrl
-                  ? `${a.compressedFileUrl} 600w, ${a.fileUrl} 1200w`
-                  : undefined,
-        alt:    a.fileName,
+        src:  a.compressedFileUrl ?? a.fileUrl,
+        full: a.fileUrl ?? a.compressedFileUrl,
+        alt:  a.fileName,
       }))
-    : fallbackImages.map((src) => ({ src }));
+    : fallbackImages.map((src) => ({ src, full: src }));
   const meta      = useMemo(() => decodeProductTags(product.tags ?? []), [product.tags]);
   const rating    = product.rating ?? 0;
   const reviewCount = product.reviewCount ?? 0;
@@ -122,7 +125,7 @@ export function ProductDetailView({ product, specs = [], offers = [], attachment
   // ─── Gallery prepends variant.imageUrl when one is set on the active variant ──
   const galleryImages = useMemo<GalleryImage[]>(() => {
     if (selectedVariant?.imageUrl) {
-      const variantImg: GalleryImage = { src: selectedVariant.imageUrl };
+      const variantImg: GalleryImage = { src: selectedVariant.imageUrl, full: selectedVariant.imageUrl };
       return [variantImg, ...images.filter((img) => img.src !== selectedVariant.imageUrl)];
     }
     return images;
@@ -401,21 +404,17 @@ function ProductGallery({
           {active && (
             <img
               key={active.src}
-              src={active.src}
-              srcSet={active.srcSet}
-              sizes="(min-width: 1024px) 55vw, 100vw"
+              src={active.full}
               alt={active.alt ?? `${title} — view ${selectedIndex + 1}`}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               onError={(e) => {
-                // The srcSet offers a full-res `fileUrl` (1200w) candidate that
-                // browsers prefer on wide/retina laptop viewports. If that
-                // original is broken/missing, drop the srcSet so the browser
-                // falls back to the known-good compressed `src` instead of
-                // leaving an empty box. Only hide if that also fails.
+                // Main image loads the original (full-res). If the original is
+                // broken/missing, fall back once to the compressed `src`; only
+                // hide if that also fails.
                 const img = e.target as HTMLImageElement;
-                if (img.srcset) {
-                  img.srcset = '';
-                  img.sizes = '';
+                if (img.src !== active.src && !img.dataset.fellBack) {
+                  img.dataset.fellBack = '1';
+                  img.src = active.src;
                 } else {
                   img.style.display = 'none';
                 }

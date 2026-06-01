@@ -44,6 +44,7 @@ export const LoginBody = Type.Object({
 export type LoginBodyType = Static<typeof LoginBody>
 
 const ChangePasswordBody = Type.Object({
+  currentPassword: Type.String({ minLength: 1, maxLength: 128 }),
   password: Type.String({ minLength: 8, maxLength: 128 }),
 })
 export type ChangePasswordBodyType = Static<typeof ChangePasswordBody>

@@ -17,7 +17,8 @@ export const userApi = {
   list:          ()                              => http.get<User[]>(endpoints.users.list()),
   byId:          (id: string)                    => http.get<User>(endpoints.users.byId(id)),
   update:        (id: string, body: UpdateUserPayload) => http.patch<User>(endpoints.users.update(id), body),
-  changePassword:(id: string, password: string)  => http.patch<User>(endpoints.users.changePassword(id), { password }),
+  changePassword:(id: string, currentPassword: string, password: string) =>
+                   http.patch<User>(endpoints.users.changePassword(id), { currentPassword, password }),
   changeRole:    (id: string, role: UserRole)    => http.patch<User>(endpoints.users.changeRole(id), { role }),
   setProfileImage:(id: string, file: File | Blob, fileName = 'profile-image') =>
     http.post<User>(
