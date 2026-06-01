@@ -2,7 +2,7 @@ import { BaseEntity, type BusinessEntity, type BusinessEntityPayload, type Guid 
 
 export type CartStatus = 'active' | 'converted' | 'abandoned'
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
-export type PaymentStatus = 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded'
+export type PaymentStatus = 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded' | 'cancelled'
 
 export interface AddressSnapshot {
   fullName: string

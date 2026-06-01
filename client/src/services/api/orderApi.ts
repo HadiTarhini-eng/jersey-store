@@ -26,5 +26,6 @@ export const orderApi = {
                    http.patch<Order>(endpoints.orders.payment(id), { paymentStatus }),
   updateAddresses:(id: string, addresses: { shippingAddress: AddressSnapshot; billingAddress: AddressSnapshot }) =>
                    http.patch<Order>(endpoints.orders.addresses(id), addresses),
-  cancel:        (id: string)                      => http.post<Order>(endpoints.orders.cancel(id)),
+  /** Cancel an order (customer or admin). Optional message shown to the customer, like a reject. */
+  cancel:        (id: string, reason?: string | null) => http.post<Order>(endpoints.orders.cancel(id), { reason: reason ?? null }),
 };

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useUiContentSlot } from '../../hooks/useUiContentSlot';
+import { useSwipe } from '../../hooks/useSwipe';
 import type { OfferBanner } from '../../types';
 
 export function OffersBanner() {
@@ -9,6 +10,12 @@ export function OffersBanner() {
 
   // Clamp index so admin-side deletes don't blow up the carousel.
   const safeIndex = banners.length === 0 ? 0 : current % banners.length;
+
+  // Manual swipe — runs alongside the 4s auto-advance, which keeps cycling.
+  const swipe = useSwipe({
+    onSwipeLeft:  () => banners.length > 1 && setCurrent((i) => (i + 1) % banners.length),
+    onSwipeRight: () => banners.length > 1 && setCurrent((i) => (i - 1 + banners.length) % banners.length),
+  });
 
   // Auto-advance every 4s — re-arm when banner count changes. The crossfade
   // is a pure CSS opacity transition on the layered banners below, so no
@@ -24,7 +31,11 @@ export function OffersBanner() {
   if (banners.length === 0) return null;
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden" style={{ height: 'clamp(180px, 25vw, 220px)' }}>
+    <div
+      className="relative w-full rounded-2xl overflow-hidden touch-pan-y select-none"
+      style={{ height: 'clamp(180px, 25vw, 220px)' }}
+      {...(banners.length > 1 ? swipe : {})}
+    >
       {/* Each banner is mounted once and crossfaded by opacity — image
           requests fire on first mount only, never on cycle. */}
       {banners.map((banner, i) => {

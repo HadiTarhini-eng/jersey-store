@@ -11,6 +11,7 @@ import { KitCategories } from '../components/sections/KitCategories';
 import { useUiContentSlot } from '../hooks/useUiContentSlot';
 import { useFeaturedSections } from '../hooks/useFeaturedSections';
 import { useSiteConfig } from '../contexts/SiteConfigContext';
+import { useSwipe } from '../hooks/useSwipe';
 import type { HeroSlide, Product } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,6 +41,13 @@ function HeroSection({ slide, slides, currentSlide, onSelectSlide, designYourOwn
   const accent  = slide.accent  ?? 'rgb(var(--accent))';
   const align   = slide.align   ?? 'left';
 
+  // Manual swipe navigation — runs alongside the auto-advance interval in
+  // HomePage (which keeps cycling regardless).
+  const swipe = useSwipe({
+    onSwipeLeft:  () => slides.length > 1 && onSelectSlide((currentSlide + 1) % slides.length),
+    onSwipeRight: () => slides.length > 1 && onSelectSlide((currentSlide - 1 + slides.length) % slides.length),
+  });
+
   // Where the legible-content block sits horizontally
   const blockAlign = {
     left:   'mr-auto text-left items-start',
@@ -48,7 +56,10 @@ function HeroSection({ slide, slides, currentSlide, onSelectSlide, designYourOwn
   }[align];
 
   return (
-    <section className="relative min-h-[55vh] sm:min-h-[65vh] md:min-h-screen flex items-center overflow-hidden">
+    <section
+      className="relative min-h-[55vh] sm:min-h-[65vh] md:min-h-screen flex items-center overflow-hidden touch-pan-y"
+      {...(slides.length > 1 ? swipe : {})}
+    >
       {/* Layered slide backgrounds — each slide's image + gradient is mounted
           exactly once and we crossfade by toggling opacity. Avoids the
           `key={slide.id}` remount-and-refetch on every auto-advance. */}

@@ -1,4 +1,5 @@
 import { HashPassword } from '../../utils/hash.js'
+import { type AddressSnapshot } from './commerce.js'
 import { BaseEntity, type BusinessEntity, type BusinessEntityPayload } from './base.js'
 
 export type UserRole = 'Admin' | 'User'
@@ -11,6 +12,8 @@ export interface UserEntity extends BusinessEntity {
   phone?: string | null
   role: UserRole | string
   profileImageUrl?: string | null
+  /** Saved default shipping address, or null when the user hasn't set one. */
+  shippingAddress?: AddressSnapshot | null
 }
 
 export interface UserCreatePayload extends BusinessEntityPayload {
@@ -22,6 +25,7 @@ export interface UserCreatePayload extends BusinessEntityPayload {
   phone?: string | null
   role: UserRole | string
   profileImageUrl?: string | null
+  shippingAddress?: AddressSnapshot | null
 }
 
 export class User extends BaseEntity implements UserEntity {
@@ -32,6 +36,7 @@ export class User extends BaseEntity implements UserEntity {
   phone?: string | null
   role: UserRole | string
   profileImageUrl?: string | null
+  shippingAddress?: AddressSnapshot | null
 
   constructor(userPayload: UserCreatePayload) {
     super(userPayload)
@@ -43,6 +48,7 @@ export class User extends BaseEntity implements UserEntity {
     this.passwordHash = userPayload.passwordHash ?? HashPassword(userPayload.password ?? '')
     this.role = userPayload.role
     this.profileImageUrl = userPayload.profileImageUrl ?? null
+    this.shippingAddress = userPayload.shippingAddress ?? null
   }
 
   rename(firstName: string, lastName: string): void {

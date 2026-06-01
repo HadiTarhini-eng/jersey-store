@@ -125,6 +125,7 @@ export const mappers = {
     toDomain: (data: any): SiteConfig => new SiteConfig({
       ...data,
       freeShippingThreshold: numberOrZero(data.freeShippingThreshold),
+      shippingFee: numberOrZero(data.shippingFee),
       socialLinks: data.socialLinks ?? {},
       socialLinksVisible: data.socialLinksVisible ?? {},
       filterMinPrice: numberOrZero(data.filterMinPrice),

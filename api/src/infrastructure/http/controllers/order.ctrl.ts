@@ -4,7 +4,7 @@ import type { IOrderService } from '../../../core/services/commerce.svc.js'
 import { NotFoundError } from '../../services/errors.js'
 import { assertOwner, sendCreated, sendOk } from '../routes/route-utils.js'
 import type {
-  CreateGuestOrderBodyType, CreateOrderBodyType, UpdateAddressesBodyType, UpdatePaymentBodyType, UpdateStatusBodyType,
+  CancelOrderBodyType, CreateGuestOrderBodyType, CreateOrderBodyType, UpdateAddressesBodyType, UpdatePaymentBodyType, UpdateStatusBodyType,
 } from '../schemas/order.schemas.js'
 
 type IdParams = { id: string }
@@ -131,5 +131,6 @@ export const cancelOrder = (service: IOrderService) =>
     const order = await service.getOrderById(id)
     if (!order) throw new NotFoundError('Order')
     assertOwner(request, order.userId)
-    sendOk(reply, await service.cancelOrder(id))
+    const { reason } = (request.body ?? {}) as CancelOrderBodyType
+    sendOk(reply, await service.cancelOrder(id, reason ?? null))
   }

@@ -123,7 +123,7 @@ export class AnalyticsService implements IAnalyticsService {
     const rows = await db
       .select({
         day: dayExpr,
-        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
+        revenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.paymentStatus} = 'paid' THEN ${orders.totalAmount} ELSE 0 END), 0)`,
         orders: sql<number>`COUNT(*)`,
       })
       .from(orders)
@@ -145,7 +145,7 @@ export class AnalyticsService implements IAnalyticsService {
     const rows = await db
       .select({
         month: monthExpr,
-        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
+        revenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.paymentStatus} = 'paid' THEN ${orders.totalAmount} ELSE 0 END), 0)`,
       })
       .from(orders)
       .where(and(
@@ -161,8 +161,8 @@ export class AnalyticsService implements IAnalyticsService {
   /**
    * Live aggregate of a date range straight from orders/order_items/users — no
    * precomputed snapshot, so the dashboard always reflects the real database.
-   * Revenue/orders/units exclude cancelled orders; "customers" counts user
-   * signups in the window (independent of orders).
+   * Revenue counts ONLY paid orders; order/unit counts exclude cancelled;
+   * "customers" counts user signups in the window (independent of orders).
    */
   private async aggregateRange(from: Date, to: Date): Promise<{ revenue: number; orders: number; units: number; customers: number }> {
     const db = await this.getDb()
@@ -172,7 +172,8 @@ export class AnalyticsService implements IAnalyticsService {
 
     const [orderAgg, unitAgg, customerAgg] = await Promise.all([
       db.select({
-        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
+        // Revenue is realised only once the order is marked paid.
+        revenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.paymentStatus} = 'paid' THEN ${orders.totalAmount} ELSE 0 END), 0)`,
         count: sql<number>`COUNT(*)`,
       }).from(orders).where(inWindow),
       db.select({

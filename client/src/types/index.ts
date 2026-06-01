@@ -33,6 +33,8 @@ export interface User extends BusinessEntity {
   phone?:           string | null;
   role:             UserRole;
   profileImageUrl?: string | null;
+  /** Saved default shipping address, prefilled at checkout and editable in profile. */
+  shippingAddress?: AddressSnapshot | null;
 }
 
 export interface CreateUserPayload {
@@ -50,6 +52,8 @@ export interface UpdateUserPayload {
   lastName?:  string;
   email?:     string;
   phone?:     string;
+  /** Saved default shipping address; null clears it. */
+  shippingAddress?: AddressSnapshot | null;
 }
 
 export interface LoginCredentials {
@@ -307,7 +311,7 @@ export type OrderStatus =
   | 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 export type PaymentStatus =
-  | 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded';
+  | 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded' | 'cancelled';
 
 export interface AddressSnapshot {
   fullName:      string;
@@ -383,8 +387,14 @@ export interface GuestOrderResponse {
 /** Response shape for /coupons/validate. */
 export interface ResolvedCouponResponse {
   code:          string;
-  discountType:  'percentage' | 'fixed';
+  discountType:  'percentage' | 'fixed' | 'free_shipping';
   discountValue: number;
+  /** True for free-delivery coupons — the shipping fee is waived (amount is 0). */
+  freeShipping?: boolean;
+  /** Per-user order cap (free-shipping), or null when uncapped. */
+  ordersAllowedPerUser?: number | null;
+  /** Orders left on the coupon for this user after this one settles. Null when uncapped. */
+  ordersRemainingAfter?: number | null;
   /** Pro-rated discount amount = full discount × itemsApplied / totalItems. */
   amount:        number;
   /** How many items the coupon would apply to in this validation (≤ totalItems and ≤ remainingForUser). */
@@ -607,6 +617,8 @@ export interface SiteConfig extends Partial<BusinessEntity> {
   phone?:                  string | null;
   currency:                string;
   freeShippingThreshold:   number;
+  /** Flat delivery fee charged at checkout below the free-shipping threshold. */
+  shippingFee:             number;
   socialLinks:             Record<string, string>;
   heroDesignYourOwnLabel?: string | null;
   heroDesignYourOwnHref?:  string | null;
@@ -639,6 +651,7 @@ export interface UpdateSiteConfigPayload {
   phone?:                  string | null;
   currency?:               string;
   freeShippingThreshold?:  number;
+  shippingFee?:            number;
   socialLinks?:            Record<string, string>;
   heroDesignYourOwnLabel?: string | null;
   heroDesignYourOwnHref?:  string | null;
@@ -687,7 +700,19 @@ export type UiContentSlot =
   | 'nav-link'
   | 'footer-column'
   | 'featured-section'
+  | 'product-perk'
   | 'coupon';
+
+/**
+ * Shape stored under the `product-perk` slot — the small trust badges shown
+ * under the Add-to-Cart button on the product page (e.g. Free shipping,
+ * Returns, Authentic). Index signature satisfies useUiContentSlot's generic.
+ */
+export interface ProductPerk extends Record<string, unknown> {
+  icon:   string;
+  label:  string;
+  detail: string;
+}
 
 /**
  * Shape stored under the `coupon` ui-content slot. The index signature is
@@ -696,9 +721,15 @@ export type UiContentSlot =
  */
 export interface CouponPayload {
   code:          string;
-  /** 'percentage' is X% off each selected item; 'fixed' is a flat currency amount off each selected item (capped at item price). */
-  discountType:  'percentage' | 'fixed';
+  /**
+   * 'percentage' = X% off each selected item; 'fixed' = flat amount off each
+   * selected item (capped at item price); 'free_shipping' = waives the
+   * delivery fee (capped per *order*, not per item).
+   */
+  discountType:  'percentage' | 'fixed' | 'free_shipping';
   discountValue: number;
+  /** Per-user cap on how many *orders* a free-shipping coupon applies to. Null = uncapped. */
+  ordersAllowedPerUser?: number | null;
   description?:  string;
   /**
    * Cap on how many *items* (units, not orders) any single signed-in user
@@ -720,9 +751,9 @@ export interface CouponPayload {
 /** A coupon that has been validated and applied to the current checkout. */
 export interface AppliedCoupon {
   code:          string;
-  discountType:  'percentage' | 'fixed';
+  discountType:  'percentage' | 'fixed' | 'free_shipping';
   discountValue: number;
-  /** Resolved discount amount in the cart's currency, computed at apply time. */
+  /** Resolved discount amount in the cart's currency, computed at apply time (0 for free shipping). */
   amount:        number;
   /** How many items this coupon is being applied to in the current cart. */
   itemsApplied:  number;
@@ -732,6 +763,12 @@ export interface AppliedCoupon {
   itemsAllowedPerUser: number | null;
   /** Items left on the coupon for this user after this order settles. Null when uncapped. */
   itemsRemainingAfter: number | null;
+  /** True for free-delivery coupons — the shipping fee is waived. */
+  freeShipping: boolean;
+  /** Per-user order cap (free-shipping), or null when uncapped. */
+  ordersAllowedPerUser: number | null;
+  /** Orders left on the coupon for this user after this one settles. Null when uncapped. */
+  ordersRemainingAfter: number | null;
 }
 
 export interface UiContentItem<TPayload extends Record<string, unknown> = Record<string, unknown>> extends BusinessEntity {
@@ -825,7 +862,7 @@ export interface AdminOrder {
   shipping:     number;
   total:        number;
   status:       'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  paymentStatus:'pending' | 'paid' | 'refunded' | 'failed';
+  paymentStatus:'pending' | 'paid' | 'refunded' | 'failed' | 'cancelled';
   /** Admin's rejection / explanation — set only when status is `cancelled`. */
   rejectionReason?:    string | null;
   /** When the customer last viewed the rejection message. Null = unread. */

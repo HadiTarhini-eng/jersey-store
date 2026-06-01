@@ -24,6 +24,7 @@ const UpdateSiteConfigBody = Type.Partial(Type.Object({
   heroDesignYourOwnHref: Type.Union([Type.String(), Type.Null()]),
   filterMinPrice: Type.Number({ minimum: 0 }),
   filterMaxPrice: Type.Number({ minimum: 0 }),
+  shippingFee: Type.Number({ minimum: 0 }),
   sortOptions: Type.Array(SortOption),
   cartEmptyMessage: Type.Union([Type.String(), Type.Null()]),
   cartEmptyCtaLabel: Type.Union([Type.String(), Type.Null()]),

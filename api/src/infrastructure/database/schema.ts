@@ -27,6 +27,9 @@ export const users = pgTable('users', {
   phone: varchar('phone', { length: 40 }),
   role: varchar('role', { length: 50 }).notNull().default('User'),
   profileImageUrl: imageUrl('profile_image_url'),
+  // Saved default shipping address (AddressSnapshot shape). Optional — set by
+  // the customer at checkout ("save my info") or from their profile.
+  shippingAddress: jsonb('shipping_address').$type<Record<string, unknown>>(),
   isActive: active(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -293,6 +296,9 @@ export const siteConfig = pgTable('site_config', {
   phone: varchar('phone', { length: 40 }),
   currency: varchar('currency', { length: 8 }).notNull().default('USD'),
   freeShippingThreshold: numeric('free_shipping_threshold', { precision: 12, scale: 2 }).notNull().default('0'),
+  // Flat delivery fee charged at checkout when the order is below the free
+  // shipping threshold. Admin-configurable; waived by a free-delivery coupon.
+  shippingFee: numeric('shipping_fee', { precision: 12, scale: 2 }).notNull().default('0'),
   socialLinks: jsonb('social_links').$type<Record<string, string>>().notNull().default({}),
   // Per-social visibility toggles, keyed by platform (instagram, whatsapp, …).
   // Missing keys default to "visible" on the client, so admins only flip a

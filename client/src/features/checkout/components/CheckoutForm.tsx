@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../app/hooks';
 import { setShippingAddress } from '../checkoutSlice';
+import { setUser } from '../../auth/authSlice';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { useToast } from '../../../components/ui/Toast';
+import { userApi, extractErrorMessage } from '../../../services/api';
 import { validate, validators } from '../../../utils/validators';
 import type { AddressSnapshot } from '../../../types';
 
@@ -32,10 +34,6 @@ function loadSavedInfo(): FormState | null {
   }
 }
 
-function persistSavedInfo(info: FormState): void {
-  try { localStorage.setItem(SAVED_INFO_KEY, JSON.stringify(info)); } catch { /* noop */ }
-}
-
 const empty: FormState = {
   firstName: '', lastName: '', country: '',
   addressLine1: '', addressLine2: '',
@@ -49,21 +47,48 @@ export function CheckoutForm() {
   const user     = useAppSelector((s) => s.auth.user);
   const isAuthed = !!user;
 
-  // Prefill from authenticated user OR saved info — auth takes precedence.
+  // Prefill from authenticated user (name + saved profile address) OR, for
+  // guests, the last locally-saved info. Auth takes precedence.
   const [form, setForm] = useState<FormState>(() => {
-    if (user) return { ...empty, firstName: user.firstName ?? '', lastName: user.lastName ?? '' };
+    if (user) {
+      const a = user.shippingAddress;
+      return {
+        ...empty,
+        firstName:    user.firstName ?? '',
+        lastName:     user.lastName ?? '',
+        country:      a?.country ?? '',
+        addressLine1: a?.addressLine1 ?? '',
+        addressLine2: a?.addressLine2 ?? '',
+        city:         a?.city ?? '',
+        state:        a?.state ?? '',
+        postalCode:   a?.postalCode ?? '',
+        phone:        a?.phone ?? '',
+      };
+    }
     return loadSavedInfo() ?? empty;
   });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [saveForNextTime, setSaveForNextTime] = useState<boolean>(false);
+  // Default the toggle on when the user already has a saved address, so an
+  // edit re-saves by default; off otherwise.
+  const [saveForNextTime, setSaveForNextTime] = useState<boolean>(!!user?.shippingAddress);
+  const [saving, setSaving] = useState(false);
 
-  // Re-prefill name fields if the user signs in mid-flow.
+  // Re-prefill from the account if the user signs in mid-flow (only fills
+  // blank fields so we don't clobber anything they've already typed).
   useEffect(() => {
     if (user) {
+      const a = user.shippingAddress;
       setForm((prev) => ({
         ...prev,
-        firstName: prev.firstName || user.firstName || '',
-        lastName:  prev.lastName  || user.lastName  || '',
+        firstName:    prev.firstName    || user.firstName || '',
+        lastName:     prev.lastName     || user.lastName  || '',
+        country:      prev.country      || a?.country      || '',
+        addressLine1: prev.addressLine1 || a?.addressLine1 || '',
+        addressLine2: prev.addressLine2 || a?.addressLine2 || '',
+        city:         prev.city         || a?.city         || '',
+        state:        prev.state        || a?.state        || '',
+        postalCode:   prev.postalCode   || a?.postalCode   || '',
+        phone:        prev.phone        || a?.phone        || '',
       }));
     }
   }, [user]);
@@ -87,7 +112,7 @@ export function CheckoutForm() {
     setSaveForNextTime(e.target.checked);
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const next: FormErrors = {
@@ -109,12 +134,6 @@ export function CheckoutForm() {
       return;
     }
 
-    // Persist for next time when allowed.
-    if (saveForNextTime && isAuthed) {
-      persistSavedInfo(form);
-      toast.push({ variant: 'success', message: 'Shipping info saved for next time.' });
-    }
-
     const address: AddressSnapshot = {
       fullName:     `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
       phone:        form.phone.trim(),
@@ -125,6 +144,24 @@ export function CheckoutForm() {
       country:      form.country.trim(),
       postalCode:   form.postalCode.trim() || null,
     };
+
+    // Persist to the signed-in user's profile when opted in. Best-effort —
+    // a save failure never blocks the order from continuing.
+    if (saveForNextTime && isAuthed && user) {
+      setSaving(true);
+      try {
+        const updated = await userApi.update(user.id, { shippingAddress: address });
+        dispatch(setUser(updated));
+        toast.push({ variant: 'success', message: 'Shipping info saved to your profile.' });
+      } catch (err) {
+        toast.push({
+          variant: 'warning',
+          message: extractErrorMessage(err, "Couldn't save to your profile — continuing with your order."),
+        });
+      } finally {
+        setSaving(false);
+      }
+    }
 
     dispatch(setShippingAddress(address));
   };
@@ -245,7 +282,7 @@ export function CheckoutForm() {
         </div>
       </label>
 
-      <Button type="submit" variant="primary" size="lg" fullWidth>
+      <Button type="submit" variant="primary" size="lg" fullWidth loading={saving}>
         Continue to review
       </Button>
     </form>

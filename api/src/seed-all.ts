@@ -838,6 +838,7 @@ try {
         phone: '+1 (800) 555-0199',
         currency: 'USD',
         freeShippingThreshold: '75',
+        shippingFee: '9.99',
         socialLinks: {
           instagram: 'https://instagram.com/jerseys_4ever',
           twitter:   'https://twitter.com/jerseys_4ever',

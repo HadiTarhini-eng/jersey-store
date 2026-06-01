@@ -6,9 +6,10 @@ import { StarRating } from '../../../components/ui/StarRating';
 import { ImageLightbox } from '../../../components/ui/ImageLightbox';
 import { useWishlist } from '../../wishlist/useWishlist';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { useUiContentSlot } from '../../../hooks/useUiContentSlot';
 import { decodeProductTags } from '../lib/productMeta';
 import { formatPrice, discountPercent } from '../../../utils/formatters';
-import type { Attachment, Product, ProductVariant, SpecialOffer } from '../../../types';
+import type { Attachment, Product, ProductPerk, ProductVariant, SpecialOffer } from '../../../types';
 
 export interface ProductSpec { id: string; label: string; value: string; }
 
@@ -40,11 +41,33 @@ function variantSize(v: ProductVariant): string {
 
 const LOW_STOCK_THRESHOLD = 5;
 
+/**
+ * Canonical size ordering for the variant picker. Sizes always render in this
+ * fixed ascending order — never reordered by stock/availability/usage — so the
+ * picker is predictable. Unknown labels (e.g. numeric sizes) sort after the
+ * known ones, then naturally (numeric-aware).
+ */
+const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+function sizeRank(label: string): number {
+  const i = SIZE_ORDER.indexOf(label.toUpperCase());
+  return i === -1 ? SIZE_ORDER.length : i;
+}
+function bySize(a: ProductVariant, b: ProductVariant): number {
+  const ra = sizeRank(variantSize(a));
+  const rb = sizeRank(variantSize(b));
+  if (ra !== rb) return ra - rb;
+  return variantSize(a).localeCompare(variantSize(b), undefined, { numeric: true });
+}
+
 export function ProductDetailView({ product, specs = [], offers = [], attachments = [] }: ProductDetailViewProps) {
   // Only render variants the admin has marked visible. Hidden sizes are
   // excluded from the picker entirely. Older variants without the column
   // default to visible.
-  const variants  = (product.variants ?? []).filter((v) => v.isVisible !== false);
+  // Visible variants, always in fixed ascending size order (XS → XXXL …).
+  const variants  = (product.variants ?? [])
+    .filter((v) => v.isVisible !== false)
+    .slice()
+    .sort(bySize);
   const fallbackImages = product.images ?? [];
   // Prefer attachments (carry both fileUrl and compressedFileUrl for srcSet); fall back to flat URLs.
   const images: GalleryImage[] = attachments.length > 0
@@ -606,15 +629,22 @@ function BuyPanel({
   );
 }
 
+/** Default perk badges used when an admin hasn't configured any in the CMS. */
+const DEFAULT_PERKS: ProductPerk[] = [
+  { icon: '🚚', label: 'Free shipping',   detail: 'On qualifying orders' },
+  { icon: '↩️', label: '7-day returns',   detail: 'Unworn & in original packaging' },
+  { icon: '🔒', label: 'Premium Quality', detail: 'Authentic.' },
+];
+
 function ShippingPreview() {
+  // Admin-managed trust badges (CMS `product-perk` slot). Falls back to sensible
+  // defaults so the section is never empty on a fresh install.
+  const { items } = useUiContentSlot<ProductPerk>('product-perk', { activeOnly: true });
+  const perks = items.length > 0 ? items : DEFAULT_PERKS;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-      {[
-        { icon: '🚚', label: 'Free shipping', detail: 'On orders over $75' },
-        { icon: '↩️', label: '7-day returns', detail: 'Unworn & in original packaging' },
-        { icon: '🔒', label: 'Premium Quality', detail: 'Authentic.' },
-      ].map((row) => (
-        <div key={row.label} className="flex items-start gap-2 p-3 rounded-xl bg-surface-raised border border-stroke">
+      {perks.map((row, i) => (
+        <div key={`${row.label}-${i}`} className="flex items-start gap-2 p-3 rounded-xl bg-surface-raised border border-stroke">
           <span className="text-base leading-none" aria-hidden="true">{row.icon}</span>
           <div className="min-w-0">
             <p className="font-semibold text-primary leading-tight">{row.label}</p>

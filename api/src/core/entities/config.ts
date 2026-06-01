@@ -15,6 +15,8 @@ export interface SiteConfigEntity extends BusinessEntity {
   phone?: string | null
   currency: string
   freeShippingThreshold: number
+  /** Flat delivery fee charged below the free-shipping threshold (waived by a free-delivery coupon). */
+  shippingFee: number
   socialLinks: Record<string, string>
   heroDesignYourOwnLabel?: string | null
   heroDesignYourOwnHref?: string | null
@@ -51,6 +53,8 @@ export class SiteConfig extends BaseEntity implements SiteConfigEntity {
   phone?: string | null
   currency: string
   freeShippingThreshold: number
+  /** Flat delivery fee charged below the free-shipping threshold (waived by a free-delivery coupon). */
+  shippingFee: number
   socialLinks: Record<string, string>
   heroDesignYourOwnLabel?: string | null
   heroDesignYourOwnHref?: string | null
@@ -74,6 +78,7 @@ export class SiteConfig extends BaseEntity implements SiteConfigEntity {
     this.phone = payload.phone ?? null
     this.currency = payload.currency
     this.freeShippingThreshold = payload.freeShippingThreshold ?? 0
+    this.shippingFee = payload.shippingFee ?? 0
     this.socialLinks = payload.socialLinks ?? {}
     this.heroDesignYourOwnLabel = payload.heroDesignYourOwnLabel ?? null
     this.heroDesignYourOwnHref = payload.heroDesignYourOwnHref ?? null

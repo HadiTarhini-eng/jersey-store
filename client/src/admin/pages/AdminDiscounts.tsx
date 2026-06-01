@@ -32,7 +32,12 @@ export function AdminDiscounts() {
     return items.filter((p) => {
       if (categoryId !== 'all' && p.categoryId !== categoryId) return false;
       if (onlyOnSale && !(typeof p.originalPrice === 'number' && p.originalPrice > p.price)) return false;
-      if (q && !p.name.toLowerCase().includes(q) && !p.slug.toLowerCase().includes(q)) return false;
+      if (
+        q &&
+        !p.name.toLowerCase().includes(q) &&
+        !p.slug.toLowerCase().includes(q) &&
+        !(p.tags ?? []).some((t) => t.toLowerCase().includes(q))
+      ) return false;
       return true;
     });
   }, [items, categoryId, onlyOnSale, search]);
@@ -136,7 +141,7 @@ export function AdminDiscounts() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name…"
+          placeholder="Search by name, slug or tag…"
           className="flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-surface-raised border border-stroke text-primary text-sm outline-none focus:border-accent placeholder:text-muted"
         />
         <select

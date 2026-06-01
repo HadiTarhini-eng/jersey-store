@@ -157,7 +157,7 @@ export const createServer = async (): Promise<FastifyInstance> => {
         ),
         productVariantService: new ProductVariantService(productVariantRepository, variantAttributeValueRepository, server.storage),
         cartService: new CartService(cartRepository, cartItemRepository, productVariantRepository, productRepository),
-        orderService: new OrderService(orderRepository, orderItemRepository, productVariantRepository, productRepository, couponService),
+        orderService: new OrderService(orderRepository, orderItemRepository, productVariantRepository, productRepository, couponService, siteConfigRepository),
         reviewService: new ReviewService(reviewRepository),
         specialOfferService: new SpecialOfferService(specialOfferRepository, offerProductRepository, server.storage),
         siteConfigService: new SiteConfigService(siteConfigRepository, server.storage),

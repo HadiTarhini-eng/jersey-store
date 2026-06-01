@@ -57,6 +57,20 @@
       "when": 1780401600000,
       "tag": "20260602000000_social_links_visible",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780488000000,
+      "tag": "20260603000000_shipping_fee",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780574400000,
+      "tag": "20260604000000_user_shipping_address",
+      "breakpoints": true
     }
   ]
 }

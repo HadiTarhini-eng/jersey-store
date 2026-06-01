@@ -5,11 +5,16 @@ import { useAppSelector } from '../../../app/hooks';
 
 export function OrderSummary() {
   const { items, subtotal } = useCart();
-  const { freeShippingThreshold, currency } = useSiteConfig();
+  const { freeShippingThreshold, shippingFee, currency } = useSiteConfig();
   const coupon = useAppSelector((s) => s.checkout.coupon);
 
-  const shipping       = subtotal >= freeShippingThreshold ? 0 : 9.99;
-  const discountAmount = coupon ? Math.min(subtotal, coupon.amount) : 0;
+  // Shipping fee is admin-configured and only applied here at checkout. Waived
+  // when the order clears the free-shipping threshold, or by a free-delivery
+  // coupon.
+  const qualifiesFree  = freeShippingThreshold > 0 && subtotal >= freeShippingThreshold;
+  const freeByCoupon   = !!coupon?.freeShipping;
+  const shipping       = (qualifiesFree || freeByCoupon) ? 0 : (shippingFee ?? 0);
+  const discountAmount = coupon && !coupon.freeShipping ? Math.min(subtotal, coupon.amount) : 0;
   const total          = Math.max(0, subtotal - discountAmount) + shipping;
 
   return (
@@ -60,7 +65,10 @@ export function OrderSummary() {
           </div>
         )}
         <div className="flex justify-between text-sm text-secondary">
-          <span>Shipping</span>
+          <span>
+            Shipping
+            {freeByCoupon && <span className="text-muted ml-2 font-mono text-xs">({coupon!.code})</span>}
+          </span>
           <span className={shipping === 0 ? 'text-ok' : ''}>
             {shipping === 0 ? 'Free' : formatPrice(shipping, currency)}
           </span>

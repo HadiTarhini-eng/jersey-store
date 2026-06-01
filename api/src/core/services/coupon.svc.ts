@@ -1,4 +1,4 @@
-export type CouponDiscountType = 'percentage' | 'fixed'
+export type CouponDiscountType = 'percentage' | 'fixed' | 'free_shipping'
 
 export interface CouponPayload {
   code: string
@@ -17,6 +17,12 @@ export interface CouponPayload {
    * is independent.
    */
   itemsAllowedPerUser?: number | null
+  /**
+   * Cap on how many *orders* a single signed-in user may apply this coupon to.
+   * Used by `free_shipping` coupons (which aren't item-priced). `null`/omitted
+   * ⇒ no cap. Independent of `itemsAllowedPerUser`.
+   */
+  ordersAllowedPerUser?: number | null
   /**
    * Optional allowlist of user ids permitted to redeem this coupon. When
    * omitted/empty, any signed-in customer may use it. When non-empty, only
@@ -43,6 +49,12 @@ export interface ResolvedCoupon {
   itemsAlreadyUsed: number
   /** Items left on the coupon for this user *after* this application would settle. `null` when uncapped. */
   itemsRemainingAfter: number | null
+  /** True for `free_shipping` coupons — the order's delivery fee is waived. */
+  freeShipping: boolean
+  /** Per-user *order* cap (free-shipping coupons), or null when uncapped. */
+  ordersAllowedPerUser: number | null
+  /** Orders left on the coupon for this user after this one settles. Null when uncapped. */
+  ordersRemainingAfter: number | null
 }
 
 export interface ICouponService {

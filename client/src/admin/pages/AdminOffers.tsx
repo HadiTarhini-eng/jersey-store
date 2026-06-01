@@ -8,7 +8,7 @@ import { extractErrorMessage } from '../../services/api/client';
 import { formatPrice } from '../../utils/formatters';
 import { ShopFilterPicker, buildShopUrl, parseShopUrl, type ShopFilterValue } from '../components/ShopFilterPicker';
 import { adminApi } from '../services/adminApi';
-import type { AdminCustomer, CouponPayload, HeroSlide, OfferBanner } from '../../types';
+import type { AdminCustomer, CouponPayload, HeroSlide, OfferBanner, ProductPerk } from '../../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hero-slide themes
@@ -80,6 +80,7 @@ export function AdminOffers() {
       <HeroSlidesSection />
       <OfferBannersSection />
       <OfferStripSection />
+      <ProductPerksSection />
       <CouponsSection />
     </div>
   );
@@ -968,17 +969,19 @@ function OfferStripSection() {
 
 interface CouponRowDraft {
   code:                string;
-  discountType:        'percentage' | 'fixed';
+  discountType:        'percentage' | 'fixed' | 'free_shipping';
   discountValue:       string;
   description:         string;
   /** Blank = no cap. Any positive integer caps how many *items* a single user can redeem this coupon against across all their orders. */
   itemsAllowedPerUser: string;
+  /** Blank = no cap. Free-shipping coupons: caps how many *orders* a single user can use it on. */
+  ordersAllowedPerUser: string;
   /** Empty = available to every signed-in customer. Non-empty = only these customer ids. */
   allowedUserIds:      string[];
 }
 
 const emptyDraft: CouponRowDraft = {
-  code: '', discountType: 'percentage', discountValue: '', description: '', itemsAllowedPerUser: '', allowedUserIds: [],
+  code: '', discountType: 'percentage', discountValue: '', description: '', itemsAllowedPerUser: '', ordersAllowedPerUser: '', allowedUserIds: [],
 };
 
 /**
@@ -1072,19 +1075,28 @@ function CouponsSection() {
   const onSave = async () => {
     if (!editing) return;
     const code  = editing.draft.code.trim().toUpperCase();
-    const value = Number(editing.draft.discountValue);
-    if (!code || !Number.isFinite(value) || value <= 0) return;
+    if (!code) return;
+    const freeShipping = editing.draft.discountType === 'free_shipping';
 
-    // Parse the optional per-user item cap. Blank ⇒ no cap (null). Non-positive
-    // values are rejected here so the admin can't accidentally save "0" and
-    // lock the coupon out for everyone.
-    const limitRaw = editing.draft.itemsAllowedPerUser.trim();
-    let itemsAllowedPerUser: number | null = null;
-    if (limitRaw.length > 0) {
-      const parsed = Number(limitRaw);
-      if (!Number.isFinite(parsed) || parsed < 1 || !Number.isInteger(parsed)) return;
-      itemsAllowedPerUser = parsed;
+    // Discount value only applies to percentage/fixed coupons; free-shipping
+    // stores 0.
+    let value = 0;
+    if (!freeShipping) {
+      value = Number(editing.draft.discountValue);
+      if (!Number.isFinite(value) || value <= 0) return;
     }
+
+    // Parse the optional per-user caps. Blank ⇒ no cap (null). Non-positive
+    // values are rejected so the admin can't save "0" and lock everyone out.
+    const parseCap = (raw: string): number | null | false => {
+      const trimmed = raw.trim();
+      if (!trimmed) return null;
+      const n = Number(trimmed);
+      return Number.isFinite(n) && Number.isInteger(n) && n >= 1 ? n : false;
+    };
+    const itemsAllowedPerUser  = freeShipping ? null : parseCap(editing.draft.itemsAllowedPerUser);
+    const ordersAllowedPerUser = freeShipping ? parseCap(editing.draft.ordersAllowedPerUser) : null;
+    if (itemsAllowedPerUser === false || ordersAllowedPerUser === false) return; // invalid cap
 
     const payload: CouponPayload = {
       code,
@@ -1092,6 +1104,7 @@ function CouponsSection() {
       discountValue: value,
       description:   editing.draft.description.trim() || undefined,
       itemsAllowedPerUser,
+      ordersAllowedPerUser,
       // Empty selection ⇒ no restriction (available to every signed-in customer).
       allowedUserIds: editing.draft.allowedUserIds.length > 0 ? editing.draft.allowedUserIds : undefined,
     };
@@ -1147,9 +1160,11 @@ function CouponsSection() {
           </div>
         )}
         {items.map((c) => {
-          const valueLabel = c.discountType === 'percentage'
-            ? `${c.discountValue}% off`
-            : `${formatPrice(c.discountValue)} off`;
+          const valueLabel = c.discountType === 'free_shipping'
+            ? 'Free delivery'
+            : c.discountType === 'percentage'
+              ? `${c.discountValue}% off`
+              : `${formatPrice(c.discountValue)} off`;
           return (
             <div
               key={c.id}
@@ -1185,6 +1200,7 @@ function CouponsSection() {
                       discountValue:       String(c.discountValue),
                       description:         c.description ?? '',
                       itemsAllowedPerUser: c.itemsAllowedPerUser != null ? String(c.itemsAllowedPerUser) : '',
+                      ordersAllowedPerUser: c.ordersAllowedPerUser != null ? String(c.ordersAllowedPerUser) : '',
                       allowedUserIds:      c.allowedUserIds ?? [],
                     },
                   })
@@ -1228,22 +1244,25 @@ function CouponsSection() {
                 >
                   <option value="percentage">Percentage (%)</option>
                   <option value="fixed">Fixed amount</option>
+                  <option value="free_shipping">Free delivery</option>
                 </select>
               </EditorField>
-              <EditorField
-                label={editing.draft.discountType === 'percentage' ? 'Discount %' : 'Discount amount'}
-                required
-              >
-                <input
-                  type="number"
-                  min="0"
-                  step={editing.draft.discountType === 'percentage' ? '1' : '0.01'}
-                  value={editing.draft.discountValue}
-                  onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, discountValue: e.target.value } })}
-                  placeholder={editing.draft.discountType === 'percentage' ? '10' : '15.00'}
-                  className={editorInput}
-                />
-              </EditorField>
+              {editing.draft.discountType !== 'free_shipping' && (
+                <EditorField
+                  label={editing.draft.discountType === 'percentage' ? 'Discount %' : 'Discount amount'}
+                  required
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    step={editing.draft.discountType === 'percentage' ? '1' : '0.01'}
+                    value={editing.draft.discountValue}
+                    onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, discountValue: e.target.value } })}
+                    placeholder={editing.draft.discountType === 'percentage' ? '10' : '15.00'}
+                    className={editorInput}
+                  />
+                </EditorField>
+              )}
             </div>
             <EditorField label="Description (optional)" hint="Shown to admins only — won't appear to customers">
               <input
@@ -1253,20 +1272,37 @@ function CouponsSection() {
                 className={editorInput}
               />
             </EditorField>
-            <EditorField
-              label="Items allowed per user (optional)"
-              hint="Total items a single signed-in customer can apply this coupon to across all orders (a cap of 7 lets them redeem 5 now and 2 later). Leave blank for no cap. Guests bypass the limit."
-            >
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={editing.draft.itemsAllowedPerUser}
-                onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, itemsAllowedPerUser: e.target.value } })}
-                placeholder="e.g. 7 — redeemable on 7 items total per user"
-                className={editorInput}
-              />
-            </EditorField>
+            {editing.draft.discountType === 'free_shipping' ? (
+              <EditorField
+                label="Orders allowed per user (optional)"
+                hint="How many separate orders a single signed-in customer can use this free-delivery coupon on. Leave blank for no limit."
+              >
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={editing.draft.ordersAllowedPerUser}
+                  onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, ordersAllowedPerUser: e.target.value } })}
+                  placeholder="e.g. 1 — one free-delivery order per customer"
+                  className={editorInput}
+                />
+              </EditorField>
+            ) : (
+              <EditorField
+                label="Items allowed per user (optional)"
+                hint="Total items a single signed-in customer can apply this coupon to across all orders (a cap of 7 lets them redeem 5 now and 2 later). Leave blank for no cap."
+              >
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={editing.draft.itemsAllowedPerUser}
+                  onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, itemsAllowedPerUser: e.target.value } })}
+                  placeholder="e.g. 7 — redeemable on 7 items total per user"
+                  className={editorInput}
+                />
+              </EditorField>
+            )}
             <EditorField
               label="Restrict to specific customers (optional)"
               hint="Leave empty so any signed-in customer can redeem it. Pick customers to limit redemption to those accounts only. Coupons always require sign-in."
@@ -1286,6 +1322,177 @@ function CouponsSection() {
         isOpen={!!pendingDelete}
         title="Delete coupon"
         message={pendingDelete ? `Remove coupon "${pendingDelete.code}"? Customers who try to use it will get an invalid-code error.` : ''}
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={onDelete}
+      />
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Product perks — trust badges under Add-to-Cart on every product page
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PerkDraft { icon: string; label: string; detail: string }
+const emptyPerk: PerkDraft = { icon: '🚚', label: '', detail: '' };
+
+function ProductPerksSection() {
+  const hook = useUiContentSlot<ProductPerk>('product-perk');
+  const items = hook.items;
+  const [editing, setEditing] = useState<{ id: string | null; draft: PerkDraft } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
+  const { push, promise } = useToast();
+  const move = useMove(items, hook, 'perk');
+
+  const onSave = async () => {
+    if (!editing) return;
+    const label = editing.draft.label.trim();
+    if (!label) return;
+    const payload: ProductPerk = {
+      icon:   editing.draft.icon.trim() || '⭐',
+      label,
+      detail: editing.draft.detail.trim(),
+    };
+    try {
+      if (editing.id) {
+        await promise(hook.update(editing.id, payload), {
+          success: `${label} saved`,
+          error:   (err) => extractErrorMessage(err, 'Could not save perk'),
+        });
+      } else {
+        await promise(hook.add(payload), {
+          success: `${label} created`,
+          error:   (err) => extractErrorMessage(err, 'Could not create perk'),
+        });
+      }
+      setEditing(null);
+    } catch { /* toast already shown */ }
+  };
+
+  const onToggle = async (p: ProductPerk & { id: string; isActive: boolean }) => {
+    try {
+      await hook.setActive(p.id, !p.isActive);
+      push({ variant: 'success', message: `${p.label} ${p.isActive ? 'hidden' : 'shown'}` });
+    } catch (err) {
+      push({ variant: 'error', message: extractErrorMessage(err, 'Could not toggle perk') });
+    }
+  };
+
+  const onDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    await promise(hook.remove(target.id), {
+      success: `${target.label} deleted`,
+      error:   (err) => extractErrorMessage(err, 'Could not delete perk'),
+    }).catch(() => undefined);
+  };
+
+  return (
+    <section className="space-y-5">
+      <SectionHeader
+        title="Product Perks"
+        subtitle="Trust badges shown under the Add-to-Cart button on every product page. Leave empty to fall back to defaults."
+        action={
+          <button type="button" onClick={() => setEditing({ id: null, draft: { ...emptyPerk } })} className={addButtonClass}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+            </svg>
+            Add Perk
+          </button>
+        }
+      />
+
+      <div className="space-y-2">
+        {items.length === 0 && (
+          <div className="px-4 py-6 rounded-xl border border-dashed border-stroke text-center text-sm text-muted">
+            No perks set — the product page shows default badges (Free shipping, Returns, Authentic).
+          </div>
+        )}
+        {items.map((p, idx) => (
+          <div
+            key={p.id}
+            className={['flex items-center gap-3 px-4 py-3 rounded-xl border border-stroke bg-surface', !p.isActive && 'opacity-60'].filter(Boolean).join(' ')}
+          >
+            <span className="text-xl shrink-0" aria-hidden="true">{p.icon}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-primary truncate">{p.label}</p>
+              {p.detail && <p className="text-xs text-secondary truncate">{p.detail}</p>}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button type="button" onClick={() => move(p.id, -1)} disabled={idx === 0} aria-label="Move up"
+                className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed">↑</button>
+              <button type="button" onClick={() => move(p.id, 1)} disabled={idx === items.length - 1} aria-label="Move down"
+                className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed">↓</button>
+              <button
+                type="button"
+                onClick={() => onToggle(p)}
+                className={[
+                  'ml-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border transition-colors',
+                  p.isActive ? 'border-delivered/40 text-delivered hover:bg-delivered/10' : 'border-stroke text-muted hover:text-primary hover:border-white/50',
+                ].join(' ')}
+              >
+                {p.isActive ? 'Shown' : 'Hidden'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing({ id: p.id, draft: { icon: p.icon, label: p.label, detail: p.detail } })}
+                className="px-3 py-1.5 rounded-lg bg-black text-white text-xs font-bold uppercase tracking-wider border-2 border-power hover:bg-black transition-colors"
+              >
+                Edit
+              </button>
+              <button type="button" onClick={() => setPendingDelete({ id: p.id, label: p.label })} aria-label="Delete"
+                className="p-2 rounded-lg text-muted hover:text-danger hover:bg-danger/10 transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Modal isOpen={editing !== null} onClose={() => setEditing(null)} title={editing?.id ? 'Edit perk' : 'New perk'} maxWidth="max-w-md">
+        {editing && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-[auto_1fr] gap-3 items-end">
+              <EditorField label="Icon">
+                <input
+                  value={editing.draft.icon}
+                  onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, icon: e.target.value } })}
+                  className={editorInput + ' w-20 text-center text-lg'}
+                  maxLength={4}
+                  placeholder="🚚"
+                />
+              </EditorField>
+              <EditorField label="Label" required>
+                <input
+                  value={editing.draft.label}
+                  onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, label: e.target.value } })}
+                  className={editorInput}
+                  placeholder="Free shipping"
+                />
+              </EditorField>
+            </div>
+            <EditorField label="Detail" hint="Short supporting line shown under the label">
+              <input
+                value={editing.draft.detail}
+                onChange={(e) => setEditing({ ...editing, draft: { ...editing.draft, detail: e.target.value } })}
+                className={editorInput}
+                placeholder="On orders over $75"
+              />
+            </EditorField>
+          </div>
+        )}
+        <EditorFooter onCancel={() => setEditing(null)} onSave={onSave} />
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        title="Delete perk"
+        message={pendingDelete ? `Remove "${pendingDelete.label}" from product pages?` : ''}
         confirmLabel="Delete"
         destructive
         onCancel={() => setPendingDelete(null)}

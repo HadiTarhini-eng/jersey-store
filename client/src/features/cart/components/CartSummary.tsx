@@ -31,10 +31,11 @@ function CheckoutArrow() {
 export function CartSummary({ onCheckout, compact = false }: CartSummaryProps) {
   const navigate = useNavigate();
   const { subtotal, items } = useCart();
-  const { freeShippingThreshold, currency } = useSiteConfig();
+  const { currency } = useSiteConfig();
 
-  const shipping = subtotal >= freeShippingThreshold ? 0 : 9.99;
-  const total    = subtotal + shipping;
+  // Shipping isn't charged in the cart — it's computed at checkout once a
+  // delivery address is entered (and can be waived by a free-delivery coupon).
+  const total    = subtotal;
   const disabled = items.length === 0;
 
   const goToCheckout = () => {
@@ -85,12 +86,10 @@ export function CartSummary({ onCheckout, compact = false }: CartSummaryProps) {
             </div>
             <div className="flex justify-between text-sm text-secondary">
               <span>Shipping</span>
-              <span className={shipping === 0 ? 'text-ok font-bold uppercase tracking-wider text-xs' : 'text-primary font-medium'}>
-                {shipping === 0 ? 'Free' : formatPrice(shipping, currency)}
-              </span>
+              <span className="text-muted text-xs">Calculated at checkout</span>
             </div>
             <div className="flex justify-between text-base font-bold uppercase tracking-wider text-primary pt-3 border-t border-stroke">
-              <span>Total</span>
+              <span>Subtotal</span>
               <span className="text-xl font-black">{formatPrice(total, currency)}</span>
             </div>
           </div>

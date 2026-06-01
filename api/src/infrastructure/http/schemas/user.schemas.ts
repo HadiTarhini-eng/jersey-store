@@ -16,11 +16,24 @@ export const CreateUserBody = Type.Object({
 })
 export type CreateUserBodyType = Static<typeof CreateUserBody>
 
+const AddressBody = Type.Object({
+  fullName: Type.String({ minLength: 1, maxLength: 200 }),
+  phone: Type.String({ minLength: 1, maxLength: 40 }),
+  addressLine1: Type.String({ minLength: 1, maxLength: 300 }),
+  addressLine2: Type.Optional(Type.Union([Type.String({ maxLength: 300 }), Type.Null()])),
+  city: Type.String({ minLength: 1, maxLength: 150 }),
+  state: Type.Optional(Type.Union([Type.String({ maxLength: 150 }), Type.Null()])),
+  country: Type.String({ minLength: 1, maxLength: 150 }),
+  postalCode: Type.Optional(Type.Union([Type.String({ maxLength: 40 }), Type.Null()])),
+})
+
 const UpdateUserBody = Type.Object({
   firstName: Type.Optional(Type.String({ minLength: 1 })),
   lastName: Type.Optional(Type.String({ minLength: 1 })),
   email: Type.Optional(Type.String({ minLength: 1 })),
   phone: Type.Optional(Type.String({ maxLength: 40 })),
+  // Saved default shipping address; null clears it.
+  shippingAddress: Type.Optional(Type.Union([AddressBody, Type.Null()])),
 })
 export type UpdateUserBodyType = Static<typeof UpdateUserBody>
 

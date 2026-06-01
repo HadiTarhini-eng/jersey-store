@@ -26,7 +26,9 @@ export const submitOrder = createAsyncThunk<Order, AddressSnapshot, { state: Roo
       const result = await orderApi.createGuest({
         guestEmail:        null,
         couponCode:        coupon?.code ?? null,
-        couponItemsApplied: coupon?.itemsApplied ?? null,
+        // Free-shipping coupons aren't item-priced — send null so the server
+        // defaults to the full cart count instead of tripping the ≥1 guard on 0.
+        couponItemsApplied: coupon && !coupon.freeShipping ? coupon.itemsApplied : null,
         shippingAddress,
         billingAddress:    shippingAddress,
         items: items.map((it) => ({

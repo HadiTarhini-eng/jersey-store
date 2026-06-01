@@ -44,19 +44,31 @@ export function CouponField() {
         totalItems:          resolved.totalItems,
         itemsAllowedPerUser: resolved.itemsAllowedPerUser,
         itemsRemainingAfter: resolved.itemsRemainingAfter,
+        freeShipping:         !!resolved.freeShipping,
+        ordersAllowedPerUser: resolved.ordersAllowedPerUser ?? null,
+        ordersRemainingAfter: resolved.ordersRemainingAfter ?? null,
       }));
-      // Two-line toast: confirm the discount, then surface remaining-items so
-      // the buyer knows how much of the coupon is left for next time.
-      const remainingMsg = resolved.itemsRemainingAfter == null
-        ? 'No item limit on this coupon.'
-        : resolved.itemsRemainingAfter === 0
-          ? "You've used up this coupon — no items left for future orders."
-          : `${resolved.itemsRemainingAfter} item${resolved.itemsRemainingAfter === 1 ? '' : 's'} left on this coupon for future orders.`;
-      toast.push({
-        variant: 'success',
-        title:   'Coupon applied',
-        message: `${formatPrice(resolved.amount)} off — applied to ${resolved.itemsApplied} of ${resolved.totalItems} item${resolved.totalItems === 1 ? '' : 's'}. ${remainingMsg}`,
-      });
+      if (resolved.freeShipping) {
+        const ordersMsg = resolved.ordersRemainingAfter == null
+          ? 'No order limit on this coupon.'
+          : resolved.ordersRemainingAfter === 0
+            ? "That's the last order this coupon covers for you."
+            : `${resolved.ordersRemainingAfter} more order${resolved.ordersRemainingAfter === 1 ? '' : 's'} covered by this coupon.`;
+        toast.push({ variant: 'success', title: 'Free delivery applied', message: `Shipping waived on this order. ${ordersMsg}` });
+      } else {
+        // Two-line toast: confirm the discount, then surface remaining-items so
+        // the buyer knows how much of the coupon is left for next time.
+        const remainingMsg = resolved.itemsRemainingAfter == null
+          ? 'No item limit on this coupon.'
+          : resolved.itemsRemainingAfter === 0
+            ? "You've used up this coupon — no items left for future orders."
+            : `${resolved.itemsRemainingAfter} item${resolved.itemsRemainingAfter === 1 ? '' : 's'} left on this coupon for future orders.`;
+        toast.push({
+          variant: 'success',
+          title:   'Coupon applied',
+          message: `${formatPrice(resolved.amount)} off — applied to ${resolved.itemsApplied} of ${resolved.totalItems} item${resolved.totalItems === 1 ? '' : 's'}. ${remainingMsg}`,
+        });
+      }
       setDraft('');
     } catch (err) {
       // 404 → unknown code; 400 → zero discount / cap exhausted; else bubble.
@@ -100,20 +112,37 @@ export function CouponField() {
         <div className="flex items-center justify-between p-3 rounded-xl bg-ok/10 border border-ok/30 text-sm">
           <div>
             <p className="font-mono font-bold text-ok">{applied.code}</p>
-            <p className="text-xs text-secondary mt-0.5">
-              {applied.discountType === 'percentage'
-                ? `${applied.discountValue}% off`
-                : `${formatPrice(applied.discountValue)} off per item`}
-              {' — '}
-              <span className="text-ok font-semibold">{formatPrice(applied.amount)}</span>{' '}
-              on {applied.itemsApplied} of {applied.totalItems} item{applied.totalItems === 1 ? '' : 's'}
-            </p>
-            {applied.itemsRemainingAfter != null && (
-              <p className="text-[11px] text-muted mt-0.5">
-                {applied.itemsRemainingAfter === 0
-                  ? 'No items left on this coupon for future orders.'
-                  : `${applied.itemsRemainingAfter} item${applied.itemsRemainingAfter === 1 ? '' : 's'} left on this coupon for future orders.`}
-              </p>
+            {applied.freeShipping ? (
+              <>
+                <p className="text-xs text-secondary mt-0.5">
+                  Free delivery — <span className="text-ok font-semibold">shipping waived</span>
+                </p>
+                {applied.ordersRemainingAfter != null && (
+                  <p className="text-[11px] text-muted mt-0.5">
+                    {applied.ordersRemainingAfter === 0
+                      ? 'Last order this coupon covers for you.'
+                      : `${applied.ordersRemainingAfter} more order${applied.ordersRemainingAfter === 1 ? '' : 's'} covered.`}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-secondary mt-0.5">
+                  {applied.discountType === 'percentage'
+                    ? `${applied.discountValue}% off`
+                    : `${formatPrice(applied.discountValue)} off per item`}
+                  {' — '}
+                  <span className="text-ok font-semibold">{formatPrice(applied.amount)}</span>{' '}
+                  on {applied.itemsApplied} of {applied.totalItems} item{applied.totalItems === 1 ? '' : 's'}
+                </p>
+                {applied.itemsRemainingAfter != null && (
+                  <p className="text-[11px] text-muted mt-0.5">
+                    {applied.itemsRemainingAfter === 0
+                      ? 'No items left on this coupon for future orders.'
+                      : `${applied.itemsRemainingAfter} item${applied.itemsRemainingAfter === 1 ? '' : 's'} left on this coupon for future orders.`}
+                  </p>
+                )}
+              </>
             )}
           </div>
           <svg className="w-5 h-5 text-ok shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>

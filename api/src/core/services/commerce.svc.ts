@@ -65,7 +65,7 @@ export interface IOrderService {
   updateOrderStatus: (id: Guid, status: OrderStatus, rejectionReason?: string | null) => Promise<Order>
   updatePaymentStatus: (id: Guid, paymentStatus: PaymentStatus) => Promise<Order>
   updateAddresses: (id: Guid, shippingAddress: AddressSnapshot, billingAddress: AddressSnapshot) => Promise<Order>
-  cancelOrder: (id: Guid) => Promise<Order>
+  cancelOrder: (id: Guid, reason?: string | null) => Promise<Order>
   /** Customer dismisses the rejection notification — stamps `adminMessageReadAt`. Owner-checked at the controller. */
   markAdminMessageRead: (id: Guid) => Promise<Order>
 }

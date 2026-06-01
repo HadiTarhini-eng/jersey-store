@@ -106,7 +106,17 @@ function SiteTab() {
             onChange={(e) => set('freeShippingThreshold', Number(e.target.value))}
           />
         </Field>
+        <Field label="Shipping fee">
+          <input
+            type="number" min="0" step="0.01" className={inputClass}
+            value={(value('shippingFee') as number) ?? 0}
+            onChange={(e) => set('shippingFee', Number(e.target.value))}
+          />
+        </Field>
       </div>
+      <p className="text-[11px] text-muted -mt-2">
+        Flat delivery fee charged at checkout when the order is below the free-shipping threshold. Waived by a free-delivery coupon.
+      </p>
       <fieldset className="space-y-3">
         <legend className="text-xs uppercase tracking-widest text-muted mb-2">Social links</legend>
         <p className="text-xs text-muted mb-3">

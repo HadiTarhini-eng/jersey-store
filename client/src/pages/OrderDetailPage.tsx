@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { customerOrderService, type CustomerOrder } from '../services/customerOrderService';
-import { orderApi } from '../services/api';
+import { orderApi, extractErrorMessage } from '../services/api';
 import { formatPrice, formatDate } from '../utils/formatters';
 import { theme } from '../config/theme';
+import { Modal } from '../components/ui/Modal';
+import { Button } from '../components/ui/Button';
+import { useToast } from '../components/ui/Toast';
 import { OrderStatusBadge } from '../features/orders/OrderStatusBadge';
 import type { OrderStatus } from '../types';
 
@@ -36,7 +39,10 @@ function timelineIndex(status: OrderStatus): number {
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const toast = useToast();
   const [order, setOrder] = useState<CustomerOrder | null | undefined>(undefined);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +83,28 @@ export function OrderDetailPage() {
 
   const itemsCount = order.items.reduce((sum, i) => sum + i.quantity, 0);
   const isCancelled = order.status === 'cancelled';
+  // Customers can cancel any time before the order is delivered (or already
+  // cancelled). The cancelled state then shows as a message banner, never a
+  // tracking step.
+  const canCancel = !isCancelled && order.status !== 'delivered';
+
+  const onCancelOrder = async () => {
+    setCancelling(true);
+    try {
+      const updated = await orderApi.cancel(order.id, 'You cancelled this order.');
+      setOrder((current) => current ? {
+        ...current,
+        status: updated.status,
+        rejectionReason: updated.rejectionReason ?? 'You cancelled this order.',
+      } : current);
+      setConfirmCancel(false);
+      toast.push({ variant: 'success', title: 'Order cancelled', message: 'Your order has been cancelled.' });
+    } catch (err) {
+      toast.push({ variant: 'error', title: 'Could not cancel', message: extractErrorMessage(err, 'Please try again.') });
+    } finally {
+      setCancelling(false);
+    }
+  };
   // Where we are along the happy-path timeline (confirmed → processing).
   const stepIndex = timelineIndex(order.status as OrderStatus);
 
@@ -94,12 +122,17 @@ export function OrderDetailPage() {
               Placed {formatDate(order.createdAt)} · {itemsCount} item{itemsCount !== 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Single status badge — payment status is intentionally hidden
-                from the customer view since order workflow is the only signal
-                that matters here. `confirmed` displays as "Processing" via
-                OrderStatusBadge's label map. */}
+          <div className="flex items-center gap-3">
             <OrderStatusBadge status={order.status} />
+            {canCancel && (
+              <button
+                type="button"
+                onClick={() => setConfirmCancel(true)}
+                className="text-xs font-bold uppercase tracking-wider text-danger hover:text-danger/80 transition-colors"
+              >
+                Cancel order
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -190,6 +223,16 @@ export function OrderDetailPage() {
           </div>
         </aside>
       </div>
+
+      <Modal isOpen={confirmCancel} onClose={() => setConfirmCancel(false)} title="Cancel this order?" maxWidth="max-w-md">
+        <p className="text-sm text-secondary">
+          This will cancel your order{order.status === 'shipped' ? ' — it may already be on its way, so please contact us if you have questions' : ''}. This can&apos;t be undone.
+        </p>
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-stroke">
+          <Button variant="ghost" onClick={() => setConfirmCancel(false)} disabled={cancelling}>Keep order</Button>
+          <Button variant="danger" onClick={onCancelOrder} loading={cancelling}>Cancel order</Button>
+        </div>
+      </Modal>
     </main>
   );
 }

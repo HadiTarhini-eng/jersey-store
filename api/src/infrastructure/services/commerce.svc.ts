@@ -1,6 +1,7 @@
 import { type Guid } from '../../core/entities/base.js'
 import { type AddressSnapshot, type Cart, type CartItem, Order, OrderItem, type OrderStatus, type PaymentStatus, type Review } from '../../core/entities/commerce.js'
 import { type Product, type ProductVariant } from '../../core/entities/product.js'
+import { type SiteConfig } from '../../core/entities/config.js'
 import { type CreateGuestOrderInput, type ICartService, type IOrderService, type IReviewService } from '../../core/services/commerce.svc.js'
 import { type ICouponService } from '../../core/services/coupon.svc.js'
 import { type EntityRepository } from '../repositories/entity.repository.js'
@@ -49,7 +50,7 @@ async function assertPrintableAllowed(
 
 const cartStatuses = ['active', 'converted', 'abandoned'] as const
 const orderStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const
-const paymentStatuses = ['pending', 'authorized', 'paid', 'failed', 'refunded'] as const
+const paymentStatuses = ['pending', 'authorized', 'paid', 'failed', 'refunded', 'cancelled'] as const
 
 /**
  * The order-status workflow the admin walks an order through. Strict — the
@@ -72,10 +73,12 @@ const paymentStatuses = ['pending', 'authorized', 'paid', 'failed', 'refunded'] 
  * `shipped` on the wire so older orders don't need migration.
  */
 const ALLOWED_TRANSITIONS: Record<OrderStatus, ReadonlyArray<OrderStatus>> = {
+  // Cancellation is allowed from every non-cancelled state — including
+  // shipped and delivered — so the shop can always cancel (with a message).
   pending:    ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
-  shipped:    ['delivered'],
-  delivered:  [],
+  shipped:    ['delivered', 'cancelled'],
+  delivered:  ['cancelled'],
   cancelled:  [],
   confirmed:  ['processing', 'shipped', 'cancelled'],
 }
@@ -192,6 +195,8 @@ export class OrderService implements IOrderService {
     private readonly variantRepository: EntityRepository<ProductVariant>,
     private readonly productRepository: EntityRepository<Product>,
     private readonly couponService?: ICouponService,
+    /** Optional — used to read the configurable flat shipping fee + free-shipping threshold. */
+    private readonly siteConfigRepository?: EntityRepository<SiteConfig>,
   ) {}
 
   async createOrder(order: Order, items: OrderItem[]): Promise<Order> {
@@ -270,11 +275,21 @@ export class OrderService implements IOrderService {
       }))
     }
 
+    // ── Shipping fee ─────────────────────────────────────────────────────────
+    // Flat fee from site config, waived when the order clears the free-shipping
+    // threshold. A free-delivery coupon (below) waives it too. The fee is only
+    // computed/charged here at order time — never in the cart.
+    const config = this.siteConfigRepository ? await this.siteConfigRepository.findBy('slug', 'default') : null
+    const freeThreshold = config?.freeShippingThreshold ?? 0
+    const flatShipping  = config?.shippingFee ?? 0
+    const qualifiesFreeShipping = freeThreshold > 0 && subtotal >= freeThreshold
+    let shippingAmount = roundCents(qualifiesFreeShipping ? 0 : flatShipping)
+
     // Resolve coupon: a missing/inactive code is a hard error so the customer
     // sees a clear "coupon invalid" message rather than a silently-dropped
-    // discount. Zero-amount resolutions are also rejected upstream. We
-    // re-validate with the caller's identity (when present) so the per-user
-    // item cap is enforced server-side — the client toast was advisory only.
+    // discount. We re-validate with the caller's identity so per-user caps and
+    // the customer allowlist are enforced server-side (the client toast was
+    // advisory only).
     let discountAmount = 0
     let couponCode: string | null = null
     let couponItemsApplied = 0
@@ -295,12 +310,18 @@ export class OrderService implements IOrderService {
         totalItems,
         input.userId ?? null,
       )
-      discountAmount = resolved.amount
       couponCode = resolved.code
-      couponItemsApplied = resolved.itemsApplied
+      if (resolved.freeShipping) {
+        // Free-delivery coupon waives the shipping fee; no subtotal discount.
+        shippingAmount = 0
+        couponItemsApplied = 0
+      } else {
+        discountAmount = resolved.amount
+        couponItemsApplied = resolved.itemsApplied
+      }
     }
 
-    const totalAmount = roundCents(Math.max(0, subtotal - discountAmount))
+    const totalAmount = roundCents(Math.max(0, subtotal - discountAmount) + shippingAmount)
     const order = new Order({
       id: orderId,
       // If the caller was authenticated, attribute the order to them.
@@ -314,7 +335,7 @@ export class OrderService implements IOrderService {
       discountAmount,
       couponCode,
       couponItemsApplied,
-      shippingAmount: 0,
+      shippingAmount,
       totalAmount,
       shippingAddress: input.shippingAddress,
       billingAddress,
@@ -394,6 +415,9 @@ export class OrderService implements IOrderService {
       patch.rejectionReason = trimmed
       // Force the message to "unread" so the customer is re-notified.
       patch.adminMessageReadAt = null
+      // A cancelled order is never a realised sale — flag its payment as
+      // cancelled so it drops out of revenue (which only counts `paid`).
+      patch.paymentStatus = 'cancelled'
     }
 
     // ── Stock adjustments tied to the workflow ────────────────────────────
@@ -457,16 +481,30 @@ export class OrderService implements IOrderService {
     return this.orderRepository.update(id, { shippingAddress, billingAddress } as Partial<Order>)
   }
 
-  async cancelOrder(id: Guid): Promise<Order> {
+  /**
+   * Cancel an order from ANY stage (including shipped/delivered) — used by both
+   * the customer ("cancel my order") and the admin. Stores a customer-facing
+   * message (defaults when none supplied) and flips it to "unread" so the
+   * customer is notified, mirroring the admin-reject behaviour. Restores held
+   * stock on the first cancel only. Idempotent: a no-op if already cancelled.
+   */
+  async cancelOrder(id: Guid, reason?: string | null): Promise<Order> {
     assertGuid(id)
     const order = await this.orderRepository.require(id, 'Order')
-    if (order.status === 'shipped' || order.status === 'delivered') throw new ValidationError('Shipped or delivered orders cannot be cancelled')
-    // Already-cancelled orders had their stock restored on the first cancel —
-    // don't double-restore.
-    if (order.status !== 'cancelled') {
-      await this.adjustStockForOrder(id, 'restore')
+    if (order.status === 'cancelled') return order
+
+    const trimmed = (reason ?? '').trim()
+    if (trimmed.length > MAX_REJECTION_REASON_LENGTH) {
+      throw new ValidationError(`reason must be ${MAX_REJECTION_REASON_LENGTH} characters or fewer`)
     }
-    return this.orderRepository.update(id, { status: 'cancelled', isActive: false } as Partial<Order>)
+    await this.adjustStockForOrder(id, 'restore')
+    return this.orderRepository.update(id, {
+      status: 'cancelled',
+      // Cancelled orders are not realised revenue — mark payment cancelled.
+      paymentStatus: 'cancelled',
+      rejectionReason: trimmed.length > 0 ? trimmed : 'This order has been cancelled.',
+      adminMessageReadAt: null,
+    } as Partial<Order>)
   }
 
   private validateOrder(order: Order): void {

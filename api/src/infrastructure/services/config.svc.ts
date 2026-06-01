@@ -32,6 +32,7 @@ export class SiteConfigService implements ISiteConfigService {
       name: 'Jersey Store',
       currency: 'USD',
       freeShippingThreshold: 0,
+      shippingFee: 0,
       socialLinks: {},
       filterMinPrice: 0,
       filterMaxPrice: 1000,
@@ -47,6 +48,7 @@ export class SiteConfigService implements ISiteConfigService {
     if (data.name !== undefined) assertRequiredString(data.name, 'name')
     if (data.currency !== undefined) assertRequiredString(data.currency, 'currency', 8)
     if (data.freeShippingThreshold !== undefined) assertNonNegativeNumber(data.freeShippingThreshold, 'freeShippingThreshold')
+    if (data.shippingFee !== undefined) assertNonNegativeNumber(data.shippingFee, 'shippingFee')
     if (data.filterMinPrice !== undefined) assertNonNegativeNumber(data.filterMinPrice, 'filterMinPrice')
     if (data.filterMaxPrice !== undefined) assertNonNegativeNumber(data.filterMaxPrice, 'filterMaxPrice')
     return this.repository.update(existing.id, data)

@@ -23,7 +23,7 @@ const OrderStatusEnum = Type.Union([
 
 const PaymentStatusEnum = Type.Union([
   Type.Literal('pending'), Type.Literal('authorized'), Type.Literal('paid'),
-  Type.Literal('failed'), Type.Literal('refunded'),
+  Type.Literal('failed'), Type.Literal('refunded'), Type.Literal('cancelled'),
 ])
 
 const OrderItemBody = Type.Object({
@@ -98,6 +98,12 @@ export type UpdateStatusBodyType = Static<typeof UpdateStatusBody>
 const UpdatePaymentBody = Type.Object({ paymentStatus: PaymentStatusEnum })
 export type UpdatePaymentBodyType = Static<typeof UpdatePaymentBody>
 
+// Optional customer-facing message shown on the cancelled order (like a reject).
+const CancelOrderBody = Type.Object({
+  reason: Type.Optional(Type.Union([Type.String({ maxLength: 1000 }), Type.Null()])),
+})
+export type CancelOrderBodyType = Static<typeof CancelOrderBody>
+
 const UpdateAddressesBody = Type.Object({
   shippingAddress: AddressSchema,
   billingAddress: AddressSchema,
@@ -114,5 +120,5 @@ export const placeOrderSchema: FastifySchema = { tags: ['Orders'], params: IdPar
 export const updateOrderStatusSchema: FastifySchema = { tags: ['Orders'], params: IdParams, body: UpdateStatusBody }
 export const updatePaymentStatusSchema: FastifySchema = { tags: ['Orders'], params: IdParams, body: UpdatePaymentBody }
 export const updateOrderAddressesSchema: FastifySchema = { tags: ['Orders'], params: IdParams, body: UpdateAddressesBody }
-export const cancelOrderSchema: FastifySchema = { tags: ['Orders'], params: IdParams }
+export const cancelOrderSchema: FastifySchema = { tags: ['Orders'], params: IdParams, body: CancelOrderBody }
 export const markAdminMessageReadSchema: FastifySchema = { tags: ['Orders'], params: IdParams, description: "Customer dismisses the admin's rejection message — stamps adminMessageReadAt." }

@@ -10,7 +10,7 @@ import { type EntityRepository } from '../repositories/entity.repository.js'
 import { orders } from '../database/schema.js'
 import { NotFoundError, ValidationError } from './errors.js'
 
-const COUPON_DISCOUNT_TYPES: readonly CouponDiscountType[] = ['percentage', 'fixed']
+const COUPON_DISCOUNT_TYPES: readonly CouponDiscountType[] = ['percentage', 'fixed', 'free_shipping']
 
 function roundCents(n: number): number {
   return Math.round(n * 100) / 100
@@ -30,6 +30,10 @@ export function isCouponPayload(payload: unknown): payload is CouponPayload {
   // itemsAllowedPerUser is optional; if present must be a positive integer or null.
   if (p.itemsAllowedPerUser !== undefined && p.itemsAllowedPerUser !== null) {
     if (typeof p.itemsAllowedPerUser !== 'number' || !Number.isFinite(p.itemsAllowedPerUser) || p.itemsAllowedPerUser < 1) return false
+  }
+  // ordersAllowedPerUser is optional (free-shipping per-order cap); same rules.
+  if (p.ordersAllowedPerUser !== undefined && p.ordersAllowedPerUser !== null) {
+    if (typeof p.ordersAllowedPerUser !== 'number' || !Number.isFinite(p.ordersAllowedPerUser) || p.ordersAllowedPerUser < 1) return false
   }
   // allowedUserIds is optional; if present must be an array of non-empty strings.
   if (p.allowedUserIds !== undefined && p.allowedUserIds !== null) {
@@ -96,18 +100,24 @@ export class CouponService implements ICouponService {
     if (!Number.isInteger(totalItems) || totalItems < itemCount) return null
     const payload = await this.findActivePayload(code)
     if (!payload) return null
-    const amount = computeCouponAmount(payload, subtotal, itemCount, totalItems)
+    const freeShipping = payload.discountType === 'free_shipping'
+    const amount = freeShipping ? 0 : computeCouponAmount(payload, subtotal, itemCount, totalItems)
     return {
       code: payload.code,
       discountType: payload.discountType,
       discountValue: payload.discountValue,
       amount,
-      itemsApplied: itemCount,
+      itemsApplied: freeShipping ? 0 : itemCount,
       totalItems,
-      itemsAllowedPerUser: payload.itemsAllowedPerUser ?? null,
+      itemsAllowedPerUser: freeShipping ? null : (payload.itemsAllowedPerUser ?? null),
       itemsAlreadyUsed: 0,
-      itemsRemainingAfter: payload.itemsAllowedPerUser != null
+      itemsRemainingAfter: !freeShipping && payload.itemsAllowedPerUser != null
         ? Math.max(0, payload.itemsAllowedPerUser - itemCount)
+        : null,
+      freeShipping,
+      ordersAllowedPerUser: freeShipping ? (payload.ordersAllowedPerUser ?? null) : null,
+      ordersRemainingAfter: freeShipping && payload.ordersAllowedPerUser != null
+        ? Math.max(0, payload.ordersAllowedPerUser - 1)
         : null,
     }
   }
@@ -149,6 +159,35 @@ export class CouponService implements ICouponService {
       }
     }
 
+    // ── Free-delivery coupons ───────────────────────────────────────────────
+    // These waive the shipping fee (computed by the order service) rather than
+    // discounting the subtotal, and are capped per *order* (not per item).
+    if (payload.discountType === 'free_shipping') {
+      let ordersAlreadyUsed = 0
+      if (payload.ordersAllowedPerUser) {
+        ordersAlreadyUsed = await this.countOrdersUsedByUser(payload.code, userId)
+        if (ordersAlreadyUsed >= payload.ordersAllowedPerUser) {
+          throw new ValidationError(`You've already used ${payload.code} on ${payload.ordersAllowedPerUser} order${payload.ordersAllowedPerUser === 1 ? '' : 's'}.`)
+        }
+      }
+      return {
+        code: payload.code,
+        discountType: 'free_shipping',
+        discountValue: 0,
+        amount: 0,                 // shipping waiver applied by the order service
+        itemsApplied: 0,
+        totalItems,
+        itemsAllowedPerUser: null,
+        itemsAlreadyUsed: 0,
+        itemsRemainingAfter: null,
+        freeShipping: true,
+        ordersAllowedPerUser: payload.ordersAllowedPerUser ?? null,
+        ordersRemainingAfter: payload.ordersAllowedPerUser != null
+          ? Math.max(0, payload.ordersAllowedPerUser - ordersAlreadyUsed - 1)
+          : null,
+      }
+    }
+
     // Per-user item cap. Only enforced when:
     //  - the coupon explicitly sets `itemsAllowedPerUser`, AND
     //  - the caller is authenticated (we can identify them by userId).
@@ -185,6 +224,9 @@ export class CouponService implements ICouponService {
       itemsAllowedPerUser: payload.itemsAllowedPerUser ?? null,
       itemsAlreadyUsed,
       itemsRemainingAfter,
+      freeShipping: false,
+      ordersAllowedPerUser: null,
+      ordersRemainingAfter: null,
     }
   }
 
@@ -198,6 +240,20 @@ export class CouponService implements ICouponService {
     const { db } = await import('../database/db.js')
     const rows = await db
       .select({ used: sql<number>`coalesce(sum(${orders.couponItemsApplied}), 0)::int` })
+      .from(orders)
+      .where(and(eq(orders.userId, userId), eq(orders.couponCode, code)))
+    return Number(rows[0]?.used ?? 0)
+  }
+
+  /**
+   * Count how many orders this user has already applied a coupon code to —
+   * the per-order cap for free-delivery coupons. Counts every recorded
+   * redemption (cancelled orders included), matching the item-cap policy.
+   */
+  private async countOrdersUsedByUser(code: string, userId: string): Promise<number> {
+    const { db } = await import('../database/db.js')
+    const rows = await db
+      .select({ used: sql<number>`count(*)::int` })
       .from(orders)
       .where(and(eq(orders.userId, userId), eq(orders.couponCode, code)))
     return Number(rows[0]?.used ?? 0)

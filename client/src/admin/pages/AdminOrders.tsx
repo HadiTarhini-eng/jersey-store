@@ -31,8 +31,8 @@ type OrderStatus = Exclude<StatusFilter, 'all'>;
 const ALLOWED_NEXT: Record<OrderStatus, OrderStatus[]> = {
   pending:    ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
-  shipped:    ['delivered'],
-  delivered:  [],
+  shipped:    ['delivered', 'cancelled'],
+  delivered:  ['cancelled'],
   cancelled:  [],
   confirmed:  ['processing', 'shipped', 'cancelled'],
 };
@@ -58,7 +58,7 @@ const ACTION_LABEL: Record<OrderStatus, string> = {
   processing: 'Confirm order',
   shipped:    'Mark on route',
   delivered:  'Mark delivered',
-  cancelled:  'Reject order',
+  cancelled:  'Cancel order',
 };
 
 const ACTION_VARIANT: Record<OrderStatus, 'primary' | 'success' | 'danger'> = {
@@ -69,6 +69,22 @@ const ACTION_VARIANT: Record<OrderStatus, 'primary' | 'success' | 'danger'> = {
   delivered:  'success',
   cancelled:  'danger',
 };
+
+/** Small colour-coded badge for payment status (Paid / Pending / Refunded / Failed). */
+function PaymentBadge({ status }: { status: AdminOrder['paymentStatus'] }) {
+  const styles: Record<string, string> = {
+    paid:      'bg-delivered/15 text-delivered border-delivered/40',
+    pending:   'bg-caution/15 text-caution border-caution/40',
+    refunded:  'bg-muted/15 text-muted border-stroke',
+    failed:    'bg-danger/15 text-danger border-danger/40',
+    cancelled: 'bg-danger/15 text-danger border-danger/40',
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${styles[status] ?? styles.pending}`}>
+      {status}
+    </span>
+  );
+}
 
 export function AdminOrders() {
   const navigate = useNavigate();
@@ -143,6 +159,11 @@ export function AdminOrders() {
       key: 'status',
       label: 'Status',
       render: (order) => <StatusBadge status={order.status} />,
+    },
+    {
+      key: 'payment',
+      label: 'Payment',
+      render: (order) => <PaymentBadge status={order.paymentStatus} />,
     },
   ];
 
@@ -250,14 +271,23 @@ export function AdminOrderDetail() {
   const onReject = async (reason: string) => {
     try {
       await promise(orderApi.updateStatus(order.id, 'cancelled', reason), {
-        success: 'Order rejected — customer will see your message',
-        error:   (err) => extractErrorMessage(err, 'Could not reject order'),
+        success: 'Order cancelled — customer will see your message',
+        error:   (err) => extractErrorMessage(err, 'Could not cancel order'),
       });
       setOrder((current) => current ? { ...current, status: 'cancelled', rejectionReason: reason, adminMessageReadAt: null } : current);
       setRejectOpen(false);
     } catch {
       /* toast already shown */
     }
+  };
+
+  const onSetPayment = (paymentStatus: AdminOrder['paymentStatus']) => {
+    void promise(orderApi.updatePayment(order.id, paymentStatus), {
+      success: `Payment marked ${paymentStatus}`,
+      error:   (err) => extractErrorMessage(err, 'Could not update payment'),
+    }).then(() => {
+      setOrder((current) => current ? { ...current, paymentStatus } : current);
+    }).catch(() => undefined);
   };
 
   return (
@@ -273,9 +303,8 @@ export function AdminOrderDetail() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Payment status intentionally hidden — order workflow is the only
-              status the admin acts on in this flow. */}
           <StatusBadge status={order.status} />
+          <PaymentBadge status={order.paymentStatus} />
         </div>
       </div>
 
@@ -417,6 +446,34 @@ export function AdminOrderDetail() {
             )}
           </section>
 
+          {/* Payment status — admin marks an order paid/pending. Hidden once
+              cancelled (the backend locks payment changes on cancelled orders). */}
+          {order.status !== 'cancelled' && (
+            <section className="bg-surface border border-stroke rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted">Payment</h3>
+                <PaymentBadge status={order.paymentStatus} />
+              </div>
+              {order.paymentStatus !== 'paid' ? (
+                <button
+                  type="button"
+                  onClick={() => onSetPayment('paid')}
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-delivered bg-delivered text-white text-sm font-bold uppercase tracking-wider hover:bg-delivered/90 transition-colors"
+                >
+                  Mark as paid
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSetPayment('pending')}
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-stroke text-secondary text-sm font-bold uppercase tracking-wider hover:text-primary hover:border-white/50 transition-colors"
+                >
+                  Mark as pending
+                </button>
+              )}
+            </section>
+          )}
+
           {order.rejectionReason && (
             <section className="bg-danger/10 border border-danger/40 rounded-2xl p-5 space-y-2">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-danger">Rejection message sent to customer</h3>
@@ -448,11 +505,11 @@ function RejectOrderModal({ isOpen, onClose, onSubmit }: { isOpen: boolean; onCl
   const canSubmit = trimmed.length > 0 && trimmed.length <= 1000;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Reject order" maxWidth="max-w-md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Cancel order" maxWidth="max-w-md">
       <div className="space-y-3">
         <p className="text-sm text-secondary">
           The customer will see this message on their order page. Use it to explain why
-          you can&apos;t fulfil the order, or to suggest alternatives.
+          the order is being cancelled, or to suggest alternatives.
         </p>
         <label className="block">
           <span className="block text-[10px] font-bold uppercase tracking-widest text-muted mb-1">
@@ -484,7 +541,7 @@ function RejectOrderModal({ isOpen, onClose, onSubmit }: { isOpen: boolean; onCl
           onClick={() => void onSubmit(trimmed)}
           className="px-5 py-2.5 rounded-xl bg-danger text-white font-bold text-sm uppercase tracking-wider hover:bg-danger/90 shadow-lg shadow-danger/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Reject &amp; notify
+          Cancel &amp; notify
         </button>
       </div>
     </Modal>
