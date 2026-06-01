@@ -22,6 +22,7 @@ const SLOTS: readonly UiContentSlot[] = [
   'nav-link',
   'footer-column',
   'featured-section',
+  'product-perk',
   'coupon',
 ]
 

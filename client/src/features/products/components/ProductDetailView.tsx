@@ -629,18 +629,11 @@ function BuyPanel({
   );
 }
 
-/** Default perk badges used when an admin hasn't configured any in the CMS. */
-const DEFAULT_PERKS: ProductPerk[] = [
-  { icon: '🚚', label: 'Free shipping',   detail: 'On qualifying orders' },
-  { icon: '↩️', label: '7-day returns',   detail: 'Unworn & in original packaging' },
-  { icon: '🔒', label: 'Premium Quality', detail: 'Authentic.' },
-];
-
 function ShippingPreview() {
-  // Admin-managed trust badges (CMS `product-perk` slot). Falls back to sensible
-  // defaults so the section is never empty on a fresh install.
-  const { items } = useUiContentSlot<ProductPerk>('product-perk', { activeOnly: true });
-  const perks = items.length > 0 ? items : DEFAULT_PERKS;
+  // Admin-managed trust badges (CMS `product-perk` slot). Nothing is shown
+  // until the admin adds at least one — no static defaults.
+  const { items: perks } = useUiContentSlot<ProductPerk>('product-perk', { activeOnly: true });
+  if (perks.length === 0) return null;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
       {perks.map((row, i) => (

@@ -10,6 +10,7 @@ export type UiContentSlot =
   | 'nav-link'
   | 'footer-column'
   | 'featured-section'
+  | 'product-perk'
   | 'coupon'
 
 export interface UiContentEntity extends BusinessEntity {

@@ -1394,7 +1394,7 @@ function ProductPerksSection() {
     <section className="space-y-5">
       <SectionHeader
         title="Product Perks"
-        subtitle="Trust badges shown under the Add-to-Cart button on every product page. Leave empty to fall back to defaults."
+        subtitle="Trust badges shown under the Add-to-Cart button on every product page. Nothing shows until you add at least one."
         action={
           <button type="button" onClick={() => setEditing({ id: null, draft: { ...emptyPerk } })} className={addButtonClass}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1408,7 +1408,7 @@ function ProductPerksSection() {
       <div className="space-y-2">
         {items.length === 0 && (
           <div className="px-4 py-6 rounded-xl border border-dashed border-stroke text-center text-sm text-muted">
-            No perks set — the product page shows default badges (Free shipping, Returns, Authentic).
+            No perks yet — add one and it appears under the Add-to-Cart button on every product page.
           </div>
         )}
         {items.map((p, idx) => (
