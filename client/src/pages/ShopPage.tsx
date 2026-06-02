@@ -1,12 +1,16 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ProductGrid }    from '../features/products/components/ProductGrid';
 import { ProductFilters } from '../features/products/components/ProductFilters';
 import { ProductSearch }  from '../features/products/components/ProductSearch';
+import { Button }         from '../components/ui/Button';
 import { useProducts }    from '../features/products/hooks/useProducts';
 import { useFilters }     from '../features/products/hooks/useFilters';
 import { useCategories }  from '../features/products/hooks/useCategories';
 
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** How many products to show initially and per "Load more" click. */
+const PAGE_SIZE = 12;
 
 export function ShopPage() {
   const { filters, sort } = useFilters();
@@ -48,7 +52,24 @@ export function ShopPage() {
     return { ...filters, categoryId: undefined };
   }, [filters, categories]);
 
-  const { products, loading, error } = useProducts(resolvedFilters, sort);
+  // How many products are currently shown. Resets to one page whenever the
+  // filters or sort change, then grows via "Load more".
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  useEffect(() => { setLimit(PAGE_SIZE); }, [JSON.stringify(resolvedFilters), sort]);
+
+  const { products, total, loading, error } = useProducts(resolvedFilters, sort, 1, limit);
+
+  // `total` is the full count matching the current filters (all pages), so the
+  // button shows iff there are genuinely more to load.
+  const hasMore = !loading && products.length < total;
+  const loadMore = () => setLimit((n) => n + PAGE_SIZE);
+
+  const LoadMore = () =>
+    hasMore ? (
+      <div className="flex justify-center mt-8">
+        <Button variant="ghost" onClick={loadMore}>Load more</Button>
+      </div>
+    ) : null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
@@ -56,7 +77,11 @@ export function ShopPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight text-primary">All Jerseys</h1>
         <p className="text-secondary text-sm mt-1">
-          {loading ? 'Loading…' : `${products.length} product${products.length !== 1 ? 's' : ''}`}
+          {loading
+            ? 'Loading…'
+            : products.length < total
+              ? `Showing ${products.length} of ${total} products`
+              : `${total} product${total !== 1 ? 's' : ''}`}
         </p>
       </div>
 
@@ -73,6 +98,7 @@ export function ShopPage() {
         </div>
         {/* Products — full width */}
         <ProductGrid products={products} loading={loading} error={error} />
+        <LoadMore />
       </div>
 
       {/* ── Desktop layout ───────────────────────────────────────────────────── */}
@@ -80,6 +106,7 @@ export function ShopPage() {
         <ProductFilters />
         <div className="flex-1 min-w-0">
           <ProductGrid products={products} loading={loading} error={error} />
+          <LoadMore />
         </div>
       </div>
     </div>

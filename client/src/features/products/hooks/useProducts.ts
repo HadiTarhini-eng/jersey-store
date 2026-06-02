@@ -11,14 +11,14 @@ export function useProducts(
   limit = 12,
 ) {
   const dispatch = useAppDispatch();
-  const { items, loading, error } = useAppSelector((s) => s.products);
+  const { items, total, loading, error } = useAppSelector((s) => s.products);
 
   useEffect(() => {
     dispatch(fetchProducts({ filters, sort, page, limit }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(filters), sort, page, limit]);
 
-  return { products: items, loading, error };
+  return { products: items, total, loading, error };
 }
 
 /** Fetches a single product by slug. */

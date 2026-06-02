@@ -39,6 +39,8 @@ export const fetchProductBySlug = createAsyncThunk(
 interface ExtendedProductsState extends ProductsState {
   /** Slug we last received a 404 for — distinguishes "no such product" from network errors. */
   notFoundSlug: string | null;
+  /** Total number of products matching the current filters (across all pages). */
+  total: number;
 }
 
 const initialState: ExtendedProductsState = {
@@ -49,6 +51,7 @@ const initialState: ExtendedProductsState = {
   loading:         false,
   error:           null,
   notFoundSlug:    null,
+  total:           0,
 };
 
 const productsSlice = createSlice({
@@ -69,6 +72,7 @@ const productsSlice = createSlice({
       .addCase(fetchProducts.fulfilled, (state, { payload }) => {
         state.loading = false;
         state.items   = payload.data;
+        state.total   = payload.total;
       })
       .addCase(fetchProducts.rejected,  (state, { payload }) => {
         state.loading = false;
