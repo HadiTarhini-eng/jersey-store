@@ -50,7 +50,9 @@ export const productApi = {
         UPLOAD_CONFIG,
       ),
     list:   (productId: string) => http.get<Attachment[]>(endpoints.products.images(productId)),
-    remove: (id: string)        => http.delete<void>(endpoints.products.imageById(id)),
+    // Gallery images are attachments — removal goes through the canonical
+    // `DELETE /attachments/:id` route (there is no `/products/images/:id`).
+    remove: (id: string)        => http.delete<void>(endpoints.attachments.delete(id)),
   },
 
   // ── Attributes ──────────────────────────────────────────────────────────────

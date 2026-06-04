@@ -34,7 +34,7 @@ export const endpoints = {
     bulkPricing: ()                  => '/products/bulk-pricing',
     delete:      (id: string)        => `/products/${id}`,
     images:      (productId: string) => `/products/${productId}/images`,
-    imageById:   (id: string)        => `/products/images/${id}`,
+    // Gallery image removal/reorder go through `/attachments/:id` (see attachments).
   },
 
   // ── Coupons ─────────────────────────────────────────────────────────────────
