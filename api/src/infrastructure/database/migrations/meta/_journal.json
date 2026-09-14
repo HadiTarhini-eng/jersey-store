@@ -71,6 +71,13 @@
       "when": 1780574400000,
       "tag": "20260604000000_user_shipping_address",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780660800000,
+      "tag": "20260605000000_supabase_auth_link",
+      "breakpoints": true
     }
   ]
 }

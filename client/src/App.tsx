@@ -8,7 +8,8 @@ import { ToastProvider } from './components/ui/Toast';
 import { SiteConfigProvider } from './contexts/SiteConfigContext';
 import { ROUTES } from './config/routes';
 import { useAppDispatch, useAppSelector } from './app/hooks';
-import { fetchCurrentUser } from './features/auth/authSlice';
+import { restoreSession } from './features/auth/authSlice';
+import { supabase } from './services/supabase';
 import { hydrateAuthenticatedCart, rehydrateCart } from './features/cart/cartSlice';
 import { getStoredCart } from './utils/storage';
 
@@ -20,6 +21,10 @@ const CartPage          = lazy(() => import('./pages/CartPage').then((m) => ({ d
 const CheckoutPage      = lazy(() => import('./pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
 const LoginPage         = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
 const RegisterPage      = lazy(() => import('./pages/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+const VerifyEmailPage   = lazy(() => import('./pages/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })));
+const AuthCallbackPage  = lazy(() => import('./pages/AuthCallbackPage').then((m) => ({ default: m.AuthCallbackPage })));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const ProfilePage       = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const OrdersPage        = lazy(() => import('./pages/OrdersPage').then((m) => ({ default: m.OrdersPage })));
 const OrderDetailPage   = lazy(() => import('./pages/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })));
@@ -55,11 +60,26 @@ const AdminSettings     = lazy(() => import('./admin/pages/AdminSettings').then(
 
 function AppRoutes() {
   const dispatch    = useAppDispatch();
-  const { token, user } = useAppSelector((s) => s.auth);
+  const { hasSession, user } = useAppSelector((s) => s.auth);
 
+  // Supabase owns the session and restores it from storage on load, so this is
+  // the single place that mirrors it into Redux — on boot and on every change
+  // (sign-in, sign-out, token refresh, a completed verification in this tab).
   useEffect(() => {
-    if (token && !user) dispatch(fetchCurrentUser());
-  }, [dispatch, token, user]);
+    void dispatch(restoreSession(undefined));
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION duplicates the restore above; TOKEN_REFRESHED swaps the
+      // token without changing who is signed in, so neither needs a re-sync.
+      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') return;
+      // Deferred out of the callback: restoreSession calls the API, whose
+      // interceptor reads the session back, and supabase-js holds its auth lock
+      // for the duration of this handler.
+      setTimeout(() => { void dispatch(restoreSession(session)); }, 0);
+    });
+
+    return () => subscription.subscription.unsubscribe();
+  }, [dispatch]);
 
   useEffect(() => {
     if (user?.id) {
@@ -67,8 +87,8 @@ function AppRoutes() {
       return;
     }
 
-    if (!token) dispatch(rehydrateCart(getStoredCart(null)));
-  }, [dispatch, token, user?.id]);
+    if (!hasSession) dispatch(rehydrateCart(getStoredCart(null)));
+  }, [dispatch, hasSession, user?.id]);
 
   return (
     <>
@@ -131,6 +151,12 @@ function AppRoutes() {
               path={ROUTES.REGISTER}
               element={<ProtectedRoute redirectIfAuthenticated><RegisterPage /></ProtectedRoute>}
             />
+
+            {/* Verification — reachable while unverified; the callback must stay public */}
+            <Route path={ROUTES.VERIFY_EMAIL}  element={<VerifyEmailPage />} />
+            <Route path={ROUTES.AUTH_CALLBACK} element={<AuthCallbackPage />} />
+            <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+            <Route path={ROUTES.RESET_PASSWORD}  element={<ResetPasswordPage />} />
 
             {/* Static content / info pages */}
             <Route path={ROUTES.FAQ}         element={<FaqPage />} />

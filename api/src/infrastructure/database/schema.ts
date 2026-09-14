@@ -23,7 +23,12 @@ export const users = pgTable('users', {
   firstName: varchar('first_name', { length: 255 }).notNull(),
   lastName: varchar('last_name', { length: 255 }).notNull(),
   email: varchar('email', { length: 320 }).notNull().unique(),
-  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  // Legacy pbkdf2 hash from the pre-Supabase login. Retained for the migration
+  // window only — new accounts authenticate through Supabase Auth and leave it null.
+  passwordHash: varchar('password_hash', { length: 255 }),
+  // Link to the Supabase Auth user (auth.users.id). Null until the account is
+  // migrated/linked; unique so one Supabase identity maps to one app profile.
+  supabaseUserId: uuid('supabase_user_id').unique(),
   phone: varchar('phone', { length: 40 }),
   role: varchar('role', { length: 50 }).notNull().default('User'),
   profileImageUrl: imageUrl('profile_image_url'),

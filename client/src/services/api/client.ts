@@ -4,10 +4,11 @@
  *
  * Backend: Fastify served same-origin under /api.
  * In dev, Vite proxies /api -> http://localhost:3000 (see vite.config.ts).
- * Auth: single JWT bearer token — no refresh-token flow.
+ * Auth: Supabase access token, attached per request and refreshed by the
+ * Supabase client itself.
  */
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
-import { getAccessToken, clearAccessToken } from '../../utils/storage';
+import { supabase } from '../supabase';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
@@ -17,9 +18,12 @@ export const api = axios.create({
   timeout: 15_000,
 });
 
-// ── Request: attach JWT ──────────────────────────────────────────────────────
-api.interceptors.request.use((config) => {
-  const token = getAccessToken();
+// ── Request: attach the Supabase access token ────────────────────────────────
+// getSession() reads the cached session and transparently refreshes it when
+// it has expired, so no request goes out with a stale token.
+api.interceptors.request.use(async (config) => {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -28,8 +32,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
+    // 401 means the session is gone or invalid — drop it and bounce to login.
+    // 403/409 are handled by the caller (unverified email, missing profile) so
+    // the user isn't logged out mid-flow.
     if (error.response?.status === 401) {
-      clearAccessToken();
+      void supabase.auth.signOut();
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
       }

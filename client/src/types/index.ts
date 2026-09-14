@@ -37,20 +37,10 @@ export interface User extends BusinessEntity {
   shippingAddress?: AddressSnapshot | null;
 }
 
-export interface CreateUserPayload {
-  firstName:        string;
-  lastName:         string;
-  email:            string;
-  password:         string;
-  phone?:           string;
-  role:             UserRole;
-  profileImageUrl?: string;
-}
-
+/** Email is owned by Supabase Auth and cannot be changed through the API. */
 export interface UpdateUserPayload {
   firstName?: string;
   lastName?:  string;
-  email?:     string;
   phone?:     string;
   /** Saved default shipping address; null clears it. */
   shippingAddress?: AddressSnapshot | null;
@@ -69,11 +59,6 @@ export interface RegisterCredentials {
   phone:           string;
   password:        string;
   confirmPassword: string;
-}
-
-/** What POST /users/login returns. */
-export interface LoginResponse {
-  token: string;
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
@@ -944,9 +929,17 @@ export interface DashboardStats {
 
 export interface AuthState {
   user:            User | null;
-  token:           string | null;
+  /** A Supabase session exists (verified or not). */
+  hasSession:      boolean;
+  /** Supabase reports the address as confirmed. */
+  emailVerified:   boolean;
+  /** Address awaiting verification — drives the /verify-email page. */
+  pendingEmail:    string | null;
+  /** First session restore still in flight; guards must wait it out. */
+  initializing:    boolean;
   loading:         boolean;
   error:           string | null;
+  /** Signed in AND verified AND linked to an application profile. */
   isAuthenticated: boolean;
 }
 

@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify'
  * — top level, nested, or inside arrays — gets these keys stripped before
  * serialization.
  */
-const SENSITIVE_KEYS = new Set(['passwordHash'])
+const SENSITIVE_KEYS = new Set(['passwordHash', 'supabaseUserId'])
 
 const strip = (value: unknown): unknown => {
   if (value === null || value === undefined) return value

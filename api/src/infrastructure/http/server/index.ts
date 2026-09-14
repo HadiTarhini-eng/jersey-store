@@ -47,7 +47,7 @@ import {
 import { DrizzleEntityRepository, DrizzleOfferProductRepository } from "../../repositories/entity.repository.js"
 import { mappers } from "../../repositories/mappers.js"
 import config from "../plugins/config.js"
-import jwt from "../plugins/jwt.js"
+import auth from "../plugins/auth.js"
 import docs from "../plugins/docs.js"
 import staticClient from "../plugins/static-client.js"
 import "dotenv/config"
@@ -83,14 +83,22 @@ export const createServer = async (): Promise<FastifyInstance> => {
     const server =
         fastify(serverOptions).withTypeProvider<TypeBoxTypeProvider>()
 
-    await server.register(cors, {
-        origin: ["http://localhost:5173", "http://localhost:5174"],
-        credentials: true,
-    })
+    // Browser origins allowed to call the API (e.g. https://jerseys4ever.com).
+    // Auth is a bearer token, not a cookie, so credentials stay disabled.
+    const corsOrigins = (process.env.CORS_ORIGINS ?? "")
+        .split(",")
+        .map((origin) => origin.trim().replace(/\/+$/, ""))
+        .filter(Boolean)
+    if (environment !== "production") {
+        corsOrigins.push("http://localhost:5173", "http://localhost:5174")
+    } else if (corsOrigins.length === 0) {
+        server.log.warn("CORS_ORIGINS is not set — cross-origin browser requests will be rejected")
+    }
+    await server.register(cors, { origin: corsOrigins, credentials: false })
 
     await server.register(multipart)
     await server.register(config)
-    await server.register(jwt)
+    await server.register(auth)
     await server.register(docs)
     await server.register(storage)
 
@@ -172,9 +180,13 @@ export const createServer = async (): Promise<FastifyInstance> => {
     await server.register(async (apiScope) => {
         applicationRoutes.forEach((route) => {
             if (route.protected != false) {
-                route.preValidation = route.roles
-                    ? [server.authenticate, server.authorize(route.roles)]
-                    : [server.authenticate]
+                // `tokenOnly` routes run before an application profile exists
+                // (first sign-in), so they verify the Supabase token alone.
+                route.preValidation = route.tokenOnly
+                    ? [server.authenticateToken]
+                    : route.roles
+                        ? [server.authenticate, server.authorize(route.roles)]
+                        : [server.authenticate]
             }
 
             apiScope.route(route)

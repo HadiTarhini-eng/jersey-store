@@ -24,16 +24,10 @@ export const createGuestOrder = (service: IOrderService) =>
   async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const body = request.body as CreateGuestOrderBodyType
     // The route is unprotected so guests can checkout, but we still try to
-    // verify a JWT if the client sent one — that way a logged-in customer's
-    // order gets attributed to them instead of orphaned as a true guest.
-    // Failures are swallowed; on success `request.user` carries the user id.
-    let userId: string | null = null
-    try {
-      await request.jwtVerify()
-      userId = (request.user as { id?: string } | undefined)?.id ?? null
-    } catch {
-      userId = null
-    }
+    // resolve a Supabase session if the client sent one — that way a logged-in
+    // customer's order gets attributed to them instead of orphaned as a guest.
+    await request.serverInstance.tryAuthenticate(request)
+    const userId = (request.user as { id?: string } | undefined)?.id ?? null
 
     const result = await service.createGuestOrder({
       userId,

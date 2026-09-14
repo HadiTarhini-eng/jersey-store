@@ -8,7 +8,10 @@ export interface UserEntity extends BusinessEntity {
   firstName: string
   lastName: string
   email: string
-  passwordHash: string
+  /** Legacy pbkdf2 hash — null for Supabase-authenticated accounts. */
+  passwordHash: string | null
+  /** Linked Supabase Auth user id (auth.users.id), null before linking. */
+  supabaseUserId?: string | null
   phone?: string | null
   role: UserRole | string
   profileImageUrl?: string | null
@@ -21,7 +24,8 @@ export interface UserCreatePayload extends BusinessEntityPayload {
   lastName: string
   email: string
   password?: string
-  passwordHash?: string
+  passwordHash?: string | null
+  supabaseUserId?: string | null
   phone?: string | null
   role: UserRole | string
   profileImageUrl?: string | null
@@ -32,7 +36,10 @@ export class User extends BaseEntity implements UserEntity {
   firstName: string
   lastName: string
   email: string
-  passwordHash: string
+  /** Legacy pbkdf2 hash — null for Supabase-authenticated accounts. */
+  passwordHash: string | null
+  /** Linked Supabase Auth user id (auth.users.id), null before linking. */
+  supabaseUserId?: string | null
   phone?: string | null
   role: UserRole | string
   profileImageUrl?: string | null
@@ -45,7 +52,9 @@ export class User extends BaseEntity implements UserEntity {
     this.lastName = userPayload.lastName
     this.phone = userPayload.phone ?? null
     this.email = userPayload.email
-    this.passwordHash = userPayload.passwordHash ?? HashPassword(userPayload.password ?? '')
+    // Supabase-authenticated accounts carry no local hash at all.
+    this.passwordHash = userPayload.passwordHash ?? (userPayload.password ? HashPassword(userPayload.password) : null)
+    this.supabaseUserId = userPayload.supabaseUserId ?? null
     this.role = userPayload.role
     this.profileImageUrl = userPayload.profileImageUrl ?? null
     this.shippingAddress = userPayload.shippingAddress ?? null
@@ -59,6 +68,11 @@ export class User extends BaseEntity implements UserEntity {
 
   changeEmail(email: string): void {
     this.email = email
+    this.touch()
+  }
+
+  linkSupabaseUser(supabaseUserId: string): void {
+    this.supabaseUserId = supabaseUserId
     this.touch()
   }
 

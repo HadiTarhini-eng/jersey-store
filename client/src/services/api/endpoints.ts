@@ -5,15 +5,19 @@
  */
 
 export const endpoints = {
-  // ── Users / Auth ────────────────────────────────────────────────────────────
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  // Credentials, verification and sessions live in Supabase Auth. The API only
+  // links the verified Supabase identity to its application profile.
+  auth: {
+    sync:             ()                  => '/auth/sync',
+  },
+
+  // ── Users ──────────────────────────────────────────────────────────────────
   users: {
-    create:           ()                  => '/users',
-    login:            ()                  => '/users/login',
-    me:               ()                  => '/users/me',
+    me:              ()                  => '/users/me',
     list:             ()                  => '/users',
     byId:             (id: string)        => `/users/${id}`,
     update:           (id: string)        => `/users/${id}`,
-    changePassword:   (id: string)        => `/users/${id}/password`,
     changeRole:       (id: string)        => `/users/${id}/role`,
     profileImage:     (id: string)        => `/users/${id}/profile-image`,
     activate:         (id: string)        => `/users/${id}/activate`,

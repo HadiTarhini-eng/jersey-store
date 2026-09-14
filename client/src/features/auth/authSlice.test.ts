@@ -2,35 +2,42 @@ import { describe, it, expect, vi } from 'vitest';
 import authReducer, {
   clearAuthError,
   setUser,
+  setPendingEmail,
   loginUser,
+  registerUser,
   logoutUser,
+  restoreSession,
 } from './authSlice';
 import type { AuthState, User } from '../../types';
 
 // ── Mock storage utils so tests don't touch localStorage ─────────────────────
 
 vi.mock('../../utils/storage', () => ({
-  getAccessToken:   () => null,
-  storeAccessToken: vi.fn(),
-  clearAccessToken: vi.fn(),
-  getStoredCart:    () => [],
+  getStoredCart: () => [],
 }));
 
 vi.mock('../../services/authService', () => ({
   authService: {
-    login:        vi.fn(),
-    register:     vi.fn(),
-    logout:       vi.fn(),
-    getMe:        vi.fn(),
-    errorMessage: (_: unknown, fallback: string) => fallback,
+    login:              vi.fn(),
+    register:           vi.fn(),
+    logout:             vi.fn(),
+    getSession:         vi.fn(),
+    syncProfile:        vi.fn(),
+    resendVerification: vi.fn(),
+    errorMessage:       (_: unknown, fallback: string) => fallback,
   },
+  EmailNotVerifiedError: class extends Error {},
+  isEmailVerified: () => true,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const cleanInitialState: AuthState = {
   user:            null,
-  token:           null,
+  hasSession:      false,
+  emailVerified:   false,
+  pendingEmail:    null,
+  initializing:    false,
   loading:         false,
   error:           null,
   isAuthenticated: false,
@@ -50,10 +57,12 @@ function makeUser(overrides: Partial<User> = {}): User {
   };
 }
 
+const credentials = { email: '', password: '' };
+
 // ── Initial state ─────────────────────────────────────────────────────────────
 
 describe('authSlice initial state', () => {
-  it('has user null and isAuthenticated false when no stored token', () => {
+  it('has user null and isAuthenticated false when there is no session', () => {
     const state = authReducer(cleanInitialState, { type: '@@INIT' });
     expect(state.user).toBeNull();
     expect(state.isAuthenticated).toBe(false);
@@ -89,48 +98,124 @@ describe('setUser', () => {
   });
 });
 
+describe('setPendingEmail', () => {
+  it('remembers the address awaiting verification', () => {
+    const state = authReducer(cleanInitialState, setPendingEmail('new@example.com'));
+    expect(state.pendingEmail).toBe('new@example.com');
+  });
+});
+
 describe('loginUser thunk', () => {
   it('sets loading true on pending', () => {
-    const state = authReducer(cleanInitialState, loginUser.pending('', { email: '', password: '' }));
+    const state = authReducer(cleanInitialState, loginUser.pending('', credentials));
     expect(state.loading).toBe(true);
     expect(state.error).toBeNull();
   });
 
-  it('sets user, token and isAuthenticated on fulfilled', () => {
+  it('sets user, verification and isAuthenticated on fulfilled', () => {
     const user  = makeUser();
-    const token = 'abc.def.ghi';
-    const state = authReducer(
-      cleanInitialState,
-      loginUser.fulfilled({ user, token }, '', { email: '', password: '' }),
-    );
+    const state = authReducer(cleanInitialState, loginUser.fulfilled(user, '', credentials));
     expect(state.loading).toBe(false);
     expect(state.user).toEqual(user);
-    expect(state.token).toBe(token);
+    expect(state.hasSession).toBe(true);
+    expect(state.emailVerified).toBe(true);
     expect(state.isAuthenticated).toBe(true);
   });
 
   it('sets error and stops loading on rejected', () => {
     const state = authReducer(
       { ...cleanInitialState, loading: true },
-      loginUser.rejected(null, '', { email: '', password: '' }, 'Login failed.'),
+      loginUser.rejected(null, '', credentials, { message: 'Login failed.' }),
     );
     expect(state.loading).toBe(false);
     expect(state.error).toBe('Login failed.');
+    expect(state.isAuthenticated).toBe(false);
+  });
+
+  it('remembers the unverified address so the UI can offer a resend', () => {
+    const state = authReducer(
+      cleanInitialState,
+      loginUser.rejected(null, '', credentials, {
+        message: 'Please verify your email address before signing in.',
+        unverifiedEmail: 'pending@example.com',
+      }),
+    );
+    expect(state.pendingEmail).toBe('pending@example.com');
+    expect(state.isAuthenticated).toBe(false);
+  });
+});
+
+describe('registerUser thunk', () => {
+  it('never authenticates the user — it only records the pending address', () => {
+    const state = authReducer(
+      cleanInitialState,
+      registerUser.fulfilled({ email: 'new@example.com' }, '', {
+        firstName: 'A', lastName: 'B', email: 'new@example.com', phone: '1', password: 'x', confirmPassword: 'x',
+      }),
+    );
+    expect(state.isAuthenticated).toBe(false);
+    expect(state.user).toBeNull();
+    expect(state.pendingEmail).toBe('new@example.com');
+  });
+});
+
+describe('restoreSession thunk', () => {
+  it('authenticates a verified session with a linked profile', () => {
+    const user  = makeUser();
+    const state = authReducer(
+      { ...cleanInitialState, initializing: true },
+      restoreSession.fulfilled(
+        { hasSession: true, user, emailVerified: true, email: user.email },
+        '',
+        undefined,
+      ),
+    );
+    expect(state.initializing).toBe(false);
+    expect(state.isAuthenticated).toBe(true);
+    expect(state.user).toEqual(user);
+  });
+
+  it('leaves an unverified session unauthenticated and records the address', () => {
+    const state = authReducer(
+      { ...cleanInitialState, initializing: true },
+      restoreSession.fulfilled(
+        { hasSession: true, user: null, emailVerified: false, email: 'pending@example.com' },
+        '',
+        undefined,
+      ),
+    );
+    expect(state.hasSession).toBe(true);
+    expect(state.emailVerified).toBe(false);
+    expect(state.isAuthenticated).toBe(false);
+    expect(state.pendingEmail).toBe('pending@example.com');
+  });
+
+  it('finishes initializing when there is no session at all', () => {
+    const state = authReducer(
+      { ...cleanInitialState, initializing: true },
+      restoreSession.fulfilled(
+        { hasSession: false, user: null, emailVerified: false, email: null },
+        '',
+        undefined,
+      ),
+    );
+    expect(state.initializing).toBe(false);
+    expect(state.isAuthenticated).toBe(false);
   });
 });
 
 describe('logoutUser thunk', () => {
-  it('clears user, token, and sets isAuthenticated false on fulfilled', () => {
+  it('clears the session and sets isAuthenticated false on fulfilled', () => {
     const loggedInState: AuthState = {
+      ...cleanInitialState,
       user:            makeUser(),
-      token:           'abc.def.ghi',
-      loading:         false,
-      error:           null,
+      hasSession:      true,
+      emailVerified:   true,
       isAuthenticated: true,
     };
     const state = authReducer(loggedInState, logoutUser.fulfilled(undefined, ''));
     expect(state.user).toBeNull();
-    expect(state.token).toBeNull();
+    expect(state.hasSession).toBe(false);
     expect(state.isAuthenticated).toBe(false);
   });
 });

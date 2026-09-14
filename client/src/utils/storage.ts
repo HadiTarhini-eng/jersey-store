@@ -3,27 +3,11 @@
 import type { CartItem } from '../types';
 
 const KEYS = {
-  TOKEN: 'js_token',
-  CART:  'js_cart_', // suffixed with userId or "guest"
+  CART: 'js_cart_', // suffixed with userId or "guest"
 } as const;
 
-// ── Auth token (single JWT — backend has no refresh-token flow) ──────────────
-
-export function getAccessToken(): string | null {
-  try {
-    return localStorage.getItem(KEYS.TOKEN);
-  } catch {
-    return null;
-  }
-}
-
-export function storeAccessToken(token: string): void {
-  localStorage.setItem(KEYS.TOKEN, token);
-}
-
-export function clearAccessToken(): void {
-  localStorage.removeItem(KEYS.TOKEN);
-}
+// Auth tokens are not stored here — the Supabase client owns session
+// persistence (see services/supabase.ts).
 
 // ── Cart (per-user) ──────────────────────────────────────────────────────────
 

@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useToast } from '../components/ui/Toast';
 import { userApi, extractErrorMessage } from '../services/api';
+import { authService } from '../services/authService';
 import { formatDate } from '../utils/formatters';
 import type { AddressSnapshot, User } from '../types';
 
@@ -43,7 +44,7 @@ export function ProfilePage() {
         <ShippingAddressSection user={user} />
 
         {/* Change password */}
-        <ChangePasswordSection userId={user.id} />
+        <ChangePasswordSection email={user.email} />
 
         {/* Admin shortcut — only for admins */}
         {user.role === 'Admin' && (
@@ -75,7 +76,7 @@ export function ProfilePage() {
 
 // ── Change password ────────────────────────────────────────────────────────────
 
-function ChangePasswordSection({ userId }: { userId: string }) {
+function ChangePasswordSection({ email }: { email: string }) {
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [current, setCurrent] = useState('');
@@ -100,7 +101,8 @@ function ChangePasswordSection({ userId }: { userId: string }) {
     }
     setBusy(true);
     try {
-      await userApi.changePassword(userId, current, password);
+      // Passwords live in Supabase Auth — the API never sees them.
+      await authService.changePassword(email, current, password);
       toast.push({ variant: 'success', message: 'Password updated.' });
       reset();
     } catch (err) {

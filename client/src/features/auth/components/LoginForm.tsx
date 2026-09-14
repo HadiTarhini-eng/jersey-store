@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { ROUTES } from '../../../config/routes';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { validate, validators } from '../../../utils/validators';
 
 export function LoginForm() {
-  const { login, loading, error, clearError } = useAuth();
+  const { login, loading, error, pendingEmail, clearError } = useAuth();
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState<Partial<typeof form>>({});
@@ -34,10 +35,18 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
-      {/* Server error */}
+      {/* Server error — an unconfirmed address gets a way forward, not a dead end */}
       {error && (
         <div className="p-3.5 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm">
           {error}
+          {pendingEmail && (
+            <Link
+              to={ROUTES.VERIFY_EMAIL}
+              className="block mt-2 font-medium underline underline-offset-2"
+            >
+              Verify your email
+            </Link>
+          )}
         </div>
       )}
 
@@ -89,6 +98,12 @@ export function LoginForm() {
           </button>
         }
       />
+
+      <div className="-mt-2 text-right">
+        <Link to={ROUTES.FORGOT_PASSWORD} className="text-sm text-accent hover:text-accent-light font-medium transition-colors">
+          Forgot password?
+        </Link>
+      </div>
 
       <Button type="submit" loading={loading} fullWidth>
         Sign In

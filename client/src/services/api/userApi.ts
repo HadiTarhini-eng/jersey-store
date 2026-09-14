@@ -1,24 +1,15 @@
 import { http, toFormData, UPLOAD_CONFIG } from './client';
 import { endpoints } from './endpoints';
-import type {
-  CreateUserPayload, LoginCredentials, LoginResponse, UpdateUserPayload, User, UserRole,
-} from '../../types';
+import type { UpdateUserPayload, User, UserRole } from '../../types';
 
+// Accounts are created only through Supabase Auth signup + POST /auth/sync.
 export const userApi = {
-  /** Public — registration. */
-  create:        (payload: CreateUserPayload) => http.post<User>(endpoints.users.create(), payload),
-
-  /** Public — returns `{ token }` (single JWT, no refresh). */
-  login:         (credentials: LoginCredentials) => http.post<LoginResponse>(endpoints.users.login(), credentials),
-
-  /** Returns the JWT payload `{ id, email, role }` for the current user. */
+  /** Returns the resolved identity `{ id, email, role }` for the current user. */
   me:            () => http.get<{ id: string; email: string; role: UserRole }>(endpoints.users.me()),
 
   list:          ()                              => http.get<User[]>(endpoints.users.list()),
   byId:          (id: string)                    => http.get<User>(endpoints.users.byId(id)),
   update:        (id: string, body: UpdateUserPayload) => http.patch<User>(endpoints.users.update(id), body),
-  changePassword:(id: string, currentPassword: string, password: string) =>
-                   http.patch<User>(endpoints.users.changePassword(id), { currentPassword, password }),
   changeRole:    (id: string, role: UserRole)    => http.patch<User>(endpoints.users.changeRole(id), { role }),
   setProfileImage:(id: string, file: File | Blob, fileName = 'profile-image') =>
     http.post<User>(

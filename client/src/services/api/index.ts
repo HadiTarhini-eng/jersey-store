@@ -8,6 +8,7 @@
 export * from './client';
 export { endpoints } from './endpoints';
 
+export { authApi }       from './authApi';
 export { userApi }       from './userApi';
 export { productApi }    from './productApi';
 export { categoryApi }   from './categoryApi';
