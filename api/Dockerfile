@@ -9,6 +9,12 @@ WORKDIR /app/client
 COPY client/package.json client/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY client/ ./
+# Vite inlines VITE_* values at build time. Render passes service env vars as
+# build args; only public values belong here (never the service-role key).
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+RUN test -n "$VITE_SUPABASE_URL" && test -n "$VITE_SUPABASE_ANON_KEY" \
+    || (echo "VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set for the client build" >&2 && exit 1)
 RUN bun run build
 
 # ── Build the API (tsc) ──────────────────────────────────────────────────────
